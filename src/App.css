@@ -1,0 +1,1159 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #f3f5f8;
+  color: #101828;
+  font-family: Inter, Arial, sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled,
+input:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.app {
+  width: min(1200px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 32px 0;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 24px;
+  align-items: stretch;
+  margin-bottom: 18px;
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  color: #344054;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 13px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 52px;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.subtitle {
+  max-width: 720px;
+  margin: 18px 0 0;
+  color: #475467;
+  font-size: 18px;
+  line-height: 1.55;
+}
+
+.balanceCard {
+  padding: 24px;
+  border-radius: 24px;
+  background: #101828;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 190px;
+  box-shadow: 0 20px 60px rgba(16, 24, 40, 0.18);
+}
+
+.balanceCard span {
+  color: #d0d5dd;
+}
+
+.balanceCard strong {
+  display: block;
+  margin: 14px 0;
+  font-size: 30px;
+}
+
+.balanceCard button {
+  border: 0;
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: white;
+  color: #101828;
+  font-weight: 700;
+}
+
+.warning {
+  margin-bottom: 24px;
+  padding: 16px 18px;
+  border: 1px solid #fedf89;
+  background: #fffaeb;
+  color: #93370d;
+  border-radius: 18px;
+  line-height: 1.45;
+}
+
+.userPanel,
+.adminPanel,
+.marketToolbar,
+.marketCard,
+.portfolio,
+.leaderboardBox,
+.detailsHeroCard,
+.detailSection,
+.detailTradeCard,
+.adminMarketCard,
+.statsBox,
+.activityBox {
+  background: white;
+  border: 1px solid #eaecf0;
+  border-radius: 24px;
+  box-shadow: 0 12px 40px rgba(16, 24, 40, 0.06);
+}
+
+.userPanel {
+  margin-bottom: 24px;
+  padding: 24px;
+  display: grid;
+  grid-template-columns: 1fr 520px;
+  gap: 24px;
+  align-items: center;
+}
+
+.userPanel h2,
+.adminHeader h2 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.userPanel p,
+.adminHeader p {
+  margin: 8px 0 0;
+  color: #667085;
+  line-height: 1.5;
+}
+
+.userControls {
+  display: grid;
+  gap: 14px;
+}
+
+.userControls label,
+.adminForm label,
+.marketToolbar label,
+.detailTradeCard label,
+.editMarketForm label {
+  display: grid;
+  gap: 8px;
+  color: #344054;
+  font-weight: 800;
+}
+
+.userControls select,
+.userControls input,
+.adminForm input,
+.adminForm textarea,
+.marketToolbar input,
+.marketToolbar select,
+.detailTradeCard input,
+.editMarketForm input,
+.editMarketForm textarea,
+.commentComposer textarea {
+  width: 100%;
+  border: 1px solid #d0d5dd;
+  border-radius: 14px;
+  padding: 13px 14px;
+  outline: none;
+  background: white;
+}
+
+.userControls select:focus,
+.userControls input:focus,
+.adminForm input:focus,
+.adminForm textarea:focus,
+.marketToolbar input:focus,
+.marketToolbar select:focus,
+.detailTradeCard input:focus,
+.editMarketForm input:focus,
+.editMarketForm textarea:focus,
+.commentComposer textarea:focus {
+  border-color: #101828;
+}
+
+.addUserRow {
+  display: grid;
+  grid-template-columns: 1fr 130px;
+  gap: 10px;
+}
+
+.addUserRow button,
+.dataActions button,
+.importButton,
+.adminHeader button,
+.createMarketButton,
+.clearFiltersButton,
+.openDetailsButton,
+.backButton,
+.secondaryOpenButton,
+.adminMarketActions button,
+.editMarketButtons button,
+.sendCommentButton {
+  border: 0;
+  border-radius: 14px;
+  padding: 13px 14px;
+  font-weight: 900;
+}
+
+.addUserRow button,
+.dataActions button,
+.importButton,
+.adminHeader button,
+.createMarketButton,
+.openDetailsButton,
+.backButton,
+.adminMarketActions button,
+.editMarketButtons button,
+.sendCommentButton {
+  background: #101828;
+  color: white;
+}
+
+.dataActions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.importButton {
+  cursor: pointer;
+}
+
+.importButton input {
+  display: none;
+}
+
+.adminPanel {
+  margin-bottom: 28px;
+  padding: 26px;
+}
+
+.adminHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: center;
+}
+
+.adminForm {
+  margin-top: 26px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.adminForm textarea,
+.editMarketForm textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+.wideField {
+  grid-column: 1 / -1;
+}
+
+.marketToolbar {
+  margin-bottom: 18px;
+  padding: 18px;
+  display: grid;
+  grid-template-columns: 1fr 180px 230px 190px 120px;
+  gap: 14px;
+  align-items: end;
+}
+
+.clearFiltersButton,
+.secondaryOpenButton,
+.secondaryButton {
+  background: #f2f4f7 !important;
+  color: #344054 !important;
+}
+
+.toolbarCheckbox {
+  display: flex !important;
+  align-items: center;
+  gap: 10px !important;
+  padding: 13px 14px;
+  border: 1px solid #d0d5dd;
+  border-radius: 14px;
+  background: white;
+  color: #344054;
+  font-weight: 900;
+}
+
+.toolbarCheckbox input {
+  width: auto !important;
+}
+
+.categoryTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0 0 26px;
+  padding: 4px 0;
+}
+
+.categoryTabs button {
+  border: 1px solid #d0d5dd;
+  background: white;
+  color: #344054;
+  padding: 12px 18px;
+  border-radius: 999px;
+  font-weight: 800;
+  min-width: 92px;
+  box-shadow: 0 6px 18px rgba(16, 24, 40, 0.06);
+}
+
+.categoryTabs .activeTab {
+  background: #101828;
+  color: white;
+  border-color: #101828;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 24px;
+  align-items: start;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  gap: 12px;
+}
+
+.sectionHeader h2 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.sectionHeader span {
+  color: #667085;
+  font-weight: 700;
+}
+
+.marketCard {
+  padding: 22px;
+  margin-bottom: 18px;
+}
+
+.marketTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.category {
+  display: inline-flex;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #3538cd;
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.marketMeta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.date {
+  color: #667085;
+  font-size: 14px;
+}
+
+.marketCard h3 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+.marketCard p {
+  margin: 12px 0 18px;
+  color: #475467;
+  line-height: 1.5;
+}
+
+.compactDescription {
+  display: -webkit-box;
+  overflow: hidden;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.compactStats,
+.summaryGrid,
+.statsGrid {
+  display: grid;
+  gap: 10px;
+}
+
+.compactStats {
+  grid-template-columns: repeat(4, 1fr);
+  margin: 16px 0 12px;
+}
+
+.summaryGrid,
+.statsGrid {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.compactStats div,
+.summaryGrid div,
+.statsGrid div,
+.probability div {
+  padding: 12px;
+  border-radius: 16px;
+  background: #f9fafb;
+  border: 1px solid #eaecf0;
+}
+
+.compactStats span,
+.summaryGrid span,
+.statsGrid span,
+.probability span {
+  display: block;
+  margin-bottom: 4px;
+  color: #667085;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.compactStats strong,
+.summaryGrid strong,
+.statsGrid strong {
+  font-size: 22px;
+}
+
+.probability {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.probability strong {
+  font-size: 28px;
+}
+
+.bar {
+  overflow: hidden;
+  height: 12px;
+  border-radius: 999px;
+  background: #fee4e2;
+  margin-bottom: 16px;
+}
+
+.bar div {
+  height: 100%;
+  border-radius: 999px;
+  background: #12b76a;
+  transition: width 0.25s ease;
+}
+
+.compactActions {
+  display: grid;
+  grid-template-columns: 1fr 110px;
+  gap: 10px;
+}
+
+.openDetailsButton,
+.secondaryOpenButton {
+  width: 100%;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 7px 10px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.openBadge {
+  background: #ecfdf3;
+  color: #027a48;
+}
+
+.resolvedBadge {
+  background: #f2f4f7;
+  color: #475467;
+}
+
+.resolvedMarket {
+  opacity: 0.88;
+}
+
+.favoriteIconButton {
+  width: 36px;
+  height: 36px;
+  border: 1px solid #d0d5dd;
+  border-radius: 12px;
+  background: white;
+  color: #667085;
+  font-size: 20px;
+  font-weight: 900;
+  display: grid;
+  place-items: center;
+}
+
+.favoriteIconButton.activeFavorite {
+  background: #fffaeb;
+  border-color: #fdb022;
+  color: #dc6803;
+}
+
+.sideColumn,
+.detailsSide {
+  position: sticky;
+  top: 24px;
+  display: grid;
+  gap: 18px;
+}
+
+.portfolio,
+.leaderboardBox,
+.statsBox,
+.activityBox,
+.adminMarketCard,
+.detailTradeCard {
+  padding: 22px;
+}
+
+.empty,
+.emptyChat {
+  padding: 16px;
+  border-radius: 16px;
+  background: #f9fafb;
+  color: #667085;
+  line-height: 1.5;
+}
+
+.predictionList,
+.leaderboardList,
+.activityList,
+.participantsGrid,
+.marketTradesList,
+.commentList,
+.adminMarketActions,
+.editMarketForm {
+  display: grid;
+  gap: 12px;
+}
+
+.prediction,
+.leaderboardItem,
+.activityItem,
+.participantCard,
+.marketTradeItem,
+.commentItem {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid #eaecf0;
+  background: #fcfcfd;
+}
+
+.prediction,
+.participantCard,
+.commentItem {
+  grid-template-columns: 46px 1fr;
+}
+
+.leaderboardItem,
+.activityItem {
+  grid-template-columns: 48px 1fr;
+  align-items: center;
+}
+
+.marketTradeItem {
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+}
+
+.predictionOutcome,
+.place,
+.commentAvatar,
+.tradeOutcome {
+  border-radius: 14px;
+  color: white;
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+}
+
+.predictionOutcome,
+.commentAvatar,
+.tradeOutcome {
+  width: 44px;
+  height: 44px;
+}
+
+.place {
+  width: 48px;
+  height: 48px;
+  background: #101828;
+}
+
+.predictionOutcome,
+.commentAvatar {
+  background: #101828;
+}
+
+.tradeOutcomeYes {
+  background: #12b76a;
+}
+
+.tradeOutcomeNo {
+  background: #f04438;
+}
+
+.prediction h4,
+.tradeInfo strong,
+.leaderboardItem strong,
+.participantCard strong,
+.activityItem strong {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.prediction p,
+.leaderboardItem p,
+.participantCard p,
+.tradeInfo p,
+.activityItem p {
+  margin: 6px 0 4px;
+  color: #475467;
+  font-size: 14px;
+}
+
+.predictionDate,
+.tradeDate,
+.activityItem span,
+.commentMeta span,
+.participantCard span,
+.tradeInfo span {
+  color: #98a2b3;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.predictionSettlement,
+.activePrediction {
+  font-weight: 900;
+}
+
+.winText {
+  color: #027a48 !important;
+}
+
+.lossText {
+  color: #b42318 !important;
+}
+
+.activePrediction {
+  color: #3538cd !important;
+}
+
+.detailsPage {
+  display: grid;
+  gap: 20px;
+}
+
+.backButton {
+  justify-self: start;
+}
+
+.detailsLayout {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 24px;
+  align-items: start;
+}
+
+.detailsMain {
+  display: grid;
+  gap: 18px;
+}
+
+.detailsHeroCard,
+.detailSection,
+.detailTradeCard {
+  padding: 24px;
+}
+
+.detailsHeroCard h2 {
+  margin: 0;
+  font-size: 34px;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+}
+
+.detailsHeroCard p {
+  color: #475467;
+  line-height: 1.55;
+}
+
+.detailTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.detailTabs button {
+  border: 1px solid #d0d5dd;
+  background: white;
+  color: #344054;
+  padding: 12px 16px;
+  border-radius: 999px;
+  font-weight: 900;
+}
+
+.detailTabs .activeDetailTab {
+  background: #101828;
+  color: white;
+  border-color: #101828;
+}
+
+.detailSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.detailSectionHeader h3,
+.detailTradeCard h3,
+.adminMarketCard h3,
+.statsBox h3,
+.activityBox h3 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.detailSectionHeader span {
+  color: #667085;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.rulesBox {
+  padding: 16px;
+  border-radius: 18px;
+  background: #f9fafb;
+  border: 1px solid #eaecf0;
+}
+
+.rulesBox p {
+  margin: 0 0 12px;
+  color: #344054;
+  line-height: 1.55;
+}
+
+.rulesBox ul {
+  margin: 0;
+  padding-left: 20px;
+  color: #475467;
+  line-height: 1.7;
+}
+
+.detailTradeCard {
+  display: grid;
+  gap: 14px;
+}
+
+.quickAmountRow {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.quickAmountRow button {
+  border: 1px solid #d0d5dd;
+  border-radius: 12px;
+  padding: 10px 8px;
+  background: white;
+  color: #344054;
+  font-weight: 900;
+}
+
+.buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.buttons button,
+.resolveBox button {
+  border: 0;
+  border-radius: 14px;
+  padding: 13px 14px;
+  color: white;
+  font-weight: 900;
+}
+
+.yesButton,
+.resolveYesButton {
+  background: #12b76a;
+}
+
+.noButton,
+.resolveNoButton,
+.dangerButton {
+  background: #f04438 !important;
+}
+
+.resolveBox,
+.resolvedBox {
+  margin-top: 4px;
+  padding: 14px;
+  border-radius: 16px;
+  background: #f9fafb;
+  border: 1px dashed #d0d5dd;
+  display: grid;
+  gap: 10px;
+}
+
+.detailResolveBox div,
+.editMarketButtons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.marketChat {
+  padding: 16px;
+  border-radius: 20px;
+  background: #f9fafb;
+  border: 1px solid #eaecf0;
+}
+
+.marketChatHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.marketChatHeader h4 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.marketChatHeader p {
+  margin: 6px 0 0;
+  color: #667085;
+  font-size: 14px;
+}
+
+.marketChatHeader span {
+  min-width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: #101828;
+  color: white;
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+}
+
+.commentComposer {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.commentComposer textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
+.commentActions {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.attachButton {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d0d5dd;
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: white;
+  color: #344054;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.attachButton input {
+  display: none;
+}
+
+.mediaPreview {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 16px;
+  background: white;
+  border: 1px solid #eaecf0;
+}
+
+.mediaPreview img {
+  width: 92px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid #eaecf0;
+}
+
+.mediaPreview button,
+.commentDeleteButton {
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 10px;
+  background: #fee4e2;
+  color: #b42318;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.commentMeta {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.commentBody p {
+  margin: 8px 0 0;
+  color: #344054;
+  line-height: 1.5;
+}
+
+.commentMedia {
+  display: block;
+  margin-top: 10px;
+  max-width: min(100%, 420px);
+  max-height: 280px;
+  object-fit: contain;
+  border-radius: 16px;
+  border: 1px solid #eaecf0;
+  background: #f2f4f7;
+}
+
+.activityDot {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  background: #101828;
+}
+
+.activityDot.prediction {
+  background: #3538cd;
+}
+
+.activityDot.comment {
+  background: #12b76a;
+}
+
+.activityDot.settlement {
+  background: #f79009;
+}
+
+@media (max-width: 900px) {
+  .hero,
+  .layout,
+  .detailsLayout,
+  .userPanel {
+    grid-template-columns: 1fr;
+  }
+
+  h1 {
+    font-size: 42px;
+  }
+
+  .adminHeader,
+  .detailSectionHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .adminForm,
+  .marketToolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .sideColumn,
+  .detailsSide {
+    position: static;
+  }
+
+  .compactStats,
+  .summaryGrid,
+  .statsGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .compactActions,
+  .addUserRow,
+  .dataActions,
+  .commentActions {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .quickAmountRow {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .marketTradeItem {
+    grid-template-columns: 44px 1fr;
+  }
+
+  .tradeDate {
+    grid-column: 2;
+    text-align: left;
+    max-width: none;
+  }
+
+  .mediaPreview {
+    grid-template-columns: 1fr;
+  }
+
+  .mediaPreview img {
+    width: 100%;
+    height: auto;
+    max-height: 220px;
+  }
+}
+
+/* Telegram Mini App */
+.telegramPanel {
+  margin-bottom: 24px;
+  padding: 22px;
+  border-radius: 24px;
+  background: white;
+  border: 1px solid #eaecf0;
+  box-shadow: 0 12px 40px rgba(16, 24, 40, 0.06);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 18px;
+  align-items: center;
+}
+
+.telegramPanel.telegramPanelActive {
+  border-color: #84caff;
+  background: #f5fbff;
+}
+
+.telegramPanel h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.telegramPanel p {
+  margin: 8px 0 0;
+  color: #667085;
+  line-height: 1.5;
+}
+
+.telegramPanelActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.telegramPanelActions span {
+  color: #344054;
+  font-size: 14px;
+}
+
+.telegramPanelActions button,
+.shareMarketButton {
+  border: 0;
+  border-radius: 14px;
+  padding: 11px 14px;
+  background: #229ed9;
+  color: white;
+  font-weight: 900;
+}
+
+.shareMarketButton {
+  white-space: nowrap;
+}
+
+.compactShareButton {
+  padding: 9px 12px;
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .telegramPanel {
+    grid-template-columns: 1fr;
+  }
+
+  .telegramPanelActions {
+    justify-content: stretch;
+  }
+
+  .telegramPanelActions button,
+  .shareMarketButton {
+    width: 100%;
+  }
+
+  .compactShareButton {
+    width: auto;
+  }
+}
