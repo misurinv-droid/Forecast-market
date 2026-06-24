@@ -644,6 +644,6 @@ app.post("/api/reset", async (_request, response) => {
   });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`Forecast Market API запущен: http://localhost:${PORT}`);
 });
