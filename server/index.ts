@@ -73,6 +73,8 @@ type DatabaseSnapshot = {
 const PORT = Number(process.env.PORT || 4000);
 const START_BALANCE = 10000;
 const DATABASE_URL = process.env.DATABASE_URL;
+const BOT_TOKEN = process.env.BOT_TOKEN || "";
+const TELEGRAM_AUTH_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 const ADMIN_TELEGRAM_IDS = (process.env.ADMIN_TELEGRAM_IDS || "")
   .split(",")
   .map((id) => id.trim())
@@ -84,6 +86,10 @@ if (!DATABASE_URL) {
   console.error("Ошибка: не задана переменная окружения DATABASE_URL");
   console.error("На Render добавь DATABASE_URL в Environment сервиса backend.");
   process.exit(1);
+}
+
+if (!BOT_TOKEN) {
+  console.warn("Предупреждение: не задан BOT_TOKEN. Проверка Telegram initData и админ-действия будут недоступны.");
 }
 
 const pool = new Pool({
@@ -133,12 +139,95 @@ function normalizeOutcome(value: unknown): Outcome | null {
   return null;
 }
 
-function getRequestUserId(request: express.Request) {
-  const headerUserId = request.header("x-user-id");
-  const bodyUserId = request.body?.adminUserId || request.body?.userId;
-  const queryUserId = request.query?.userId;
+type TelegramUserPayload = {
+  id: number;
+  first_name?: string;
+  last_name?: string;
+  username?: string;
+};
 
-  return String(headerUserId || bodyUserId || queryUserId || "").trim();
+type TelegramAuthResult =
+  | { ok: true; user: TelegramUserPayload; authDate?: number }
+  | { ok: false; error: string };
+
+function getTelegramInitData(request: express.Request) {
+  const headerValue = request.header("x-telegram-init-data");
+  const bodyValue = request.body?.initData;
+
+  return String(headerValue || bodyValue || "").trim();
+}
+
+function validateTelegramInitData(initData: string): TelegramAuthResult {
+  if (!BOT_TOKEN) {
+    return { ok: false, error: "На сервере не настроен BOT_TOKEN" };
+  }
+
+  if (!initData) {
+    return { ok: false, error: "Нет Telegram initData" };
+  }
+
+  const params = new URLSearchParams(initData);
+  const receivedHash = params.get("hash");
+
+  if (!receivedHash) {
+    return { ok: false, error: "В Telegram initData нет hash" };
+  }
+
+  params.delete("hash");
+
+  const dataCheckString = Array.from(params.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => `${key}=${value}`)
+    .join("\n");
+
+  const secretKey = crypto
+    .createHmac("sha256", "WebAppData")
+    .update(BOT_TOKEN)
+    .digest();
+
+  const calculatedHash = crypto
+    .createHmac("sha256", secretKey)
+    .update(dataCheckString)
+    .digest("hex");
+
+  const receivedBuffer = Buffer.from(receivedHash, "hex");
+  const calculatedBuffer = Buffer.from(calculatedHash, "hex");
+
+  if (receivedBuffer.length !== calculatedBuffer.length) {
+    return { ok: false, error: "Некорректная Telegram-подпись" };
+  }
+
+  if (!crypto.timingSafeEqual(receivedBuffer, calculatedBuffer)) {
+    return { ok: false, error: "Некорректная Telegram-подпись" };
+  }
+
+  const authDate = Number(params.get("auth_date") || 0);
+
+  if (authDate > 0) {
+    const ageSeconds = Math.floor(Date.now() / 1000) - authDate;
+
+    if (ageSeconds > TELEGRAM_AUTH_MAX_AGE_SECONDS) {
+      return { ok: false, error: "Telegram-сессия устарела. Перезапусти Mini App." };
+    }
+  }
+
+  const userRaw = params.get("user");
+
+  if (!userRaw) {
+    return { ok: false, error: "В Telegram initData нет пользователя" };
+  }
+
+  try {
+    const user = JSON.parse(userRaw) as TelegramUserPayload;
+
+    if (!user.id) {
+      return { ok: false, error: "В Telegram initData нет user.id" };
+    }
+
+    return { ok: true, user, authDate };
+  } catch {
+    return { ok: false, error: "Не удалось прочитать Telegram-пользователя" };
+  }
 }
 
 function isAdminUserId(userId: string) {
@@ -146,9 +235,19 @@ function isAdminUserId(userId: string) {
 }
 
 function requireAdmin(request: express.Request, response: express.Response) {
-  const userId = getRequestUserId(request);
+  const telegramAuth = validateTelegramInitData(getTelegramInitData(request));
 
-  if (!isAdminUserId(userId)) {
+  if (!telegramAuth.ok) {
+    response.status(401).json({
+      error: `Telegram-авторизация не пройдена: ${telegramAuth.error}`,
+    });
+    return false;
+  }
+
+  const telegramId = String(telegramAuth.user.id);
+  const userId = `telegram-${telegramId}`;
+
+  if (!isAdminUserId(telegramId) && !isAdminUserId(userId)) {
     response.status(403).json({
       error: "Недостаточно прав. Это действие доступно только администратору.",
     });
@@ -472,6 +571,7 @@ app.get("/api/health", async (_request, response) => {
     message: "Forecast Market API работает с PostgreSQL",
     databaseTime: dbCheck.rows[0].now,
     adminUsersConfigured: ADMIN_USER_IDS.length,
+    telegramAuthConfigured: Boolean(BOT_TOKEN),
     time: new Date().toISOString(),
   });
 });
@@ -504,24 +604,42 @@ app.post("/api/users", async (request, response) => {
 });
 
 app.post("/api/telegram-user", async (request, response) => {
-  const telegramId = String(request.body?.telegramId || "").trim();
-  const firstName = String(request.body?.firstName || "").trim();
-  const username = String(request.body?.username || "").trim();
+  const telegramAuth = validateTelegramInitData(getTelegramInitData(request));
 
-  if (!telegramId) {
-    response.status(400).json({ error: "Нет telegramId" });
+  if (!telegramAuth.ok) {
+    response.status(401).json({
+      error: `Telegram-авторизация не пройдена: ${telegramAuth.error}`,
+    });
     return;
   }
 
+  const telegramUser = telegramAuth.user;
+  const telegramId = String(telegramUser.id);
   const userId = `telegram-${telegramId}`;
+
   const existingUserResult = await pool.query("SELECT * FROM users WHERE id = $1", [userId]);
 
+  const name = [telegramUser.first_name, telegramUser.last_name]
+    .filter(Boolean)
+    .join(" ")
+    .trim() || telegramUser.username || `Telegram ${telegramId}`;
+
   if (existingUserResult.rows[0]) {
-    response.json(toUser(existingUserResult.rows[0]));
+    const existingUser = toUser(existingUserResult.rows[0]);
+
+    if (name && existingUser.name !== name) {
+      const updatedUser = await pool.query(
+        "UPDATE users SET name = $2 WHERE id = $1 RETURNING *",
+        [userId, name]
+      );
+
+      response.json(toUser(updatedUser.rows[0]));
+      return;
+    }
+
+    response.json(existingUser);
     return;
   }
-
-  const name = firstName || username || `Telegram ${telegramId}`;
 
   const user: DemoUser = {
     id: userId,

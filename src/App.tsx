@@ -96,6 +96,7 @@ type TelegramWebApp = {
   ready?: () => void;
   expand?: () => void;
   close?: () => void;
+  initData?: string;
   initDataUnsafe?: { user?: TelegramUser };
   BackButton?: {
     show: () => void;
@@ -194,6 +195,10 @@ async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
   }
 
   return data as T;
+}
+
+function getTelegramInitData() {
+  return window.Telegram?.WebApp?.initData || "";
 }
 
 function App() {
@@ -376,7 +381,12 @@ function App() {
   }
 
   function adminHeaders() {
-    return activeUser ? { "x-user-id": activeUser.id } : {};
+    const initData = getTelegramInitData();
+
+    return {
+      ...(activeUser ? { "x-user-id": activeUser.id } : {}),
+      ...(initData ? { "x-telegram-init-data": initData } : {}),
+    };
   }
 
   function requireClientAdmin() {
@@ -406,6 +416,7 @@ function App() {
     try {
       const telegramWebApp = window.Telegram?.WebApp;
       const telegramUser = telegramWebApp?.initDataUnsafe?.user;
+      const telegramInitData = telegramWebApp?.initData || "";
       telegramWebApp?.ready?.();
       telegramWebApp?.expand?.();
 
@@ -419,9 +430,10 @@ function App() {
         const telegramBackendUser = await apiRequest<DemoUser>("/telegram-user", {
           method: "POST",
           body: JSON.stringify({
-            telegramId: telegramUser.id,
-            firstName: fullName,
-            username: telegramUser.username,
+            initData: telegramInitData,
+            fallbackTelegramId: telegramUser.id,
+            fallbackFirstName: fullName,
+            fallbackUsername: telegramUser.username,
           }),
         });
 
