@@ -1157,3 +1157,13 @@ h1 {
     width: auto;
   }
 }
+.adminOnlyNotice {
+  margin-bottom: 24px;
+  padding: 18px;
+  border-radius: 22px;
+  background: #f9fafb;
+  border: 1px dashed #d0d5dd;
+  color: #475467;
+  font-weight: 800;
+  line-height: 1.5;
+}

@@ -1,7 +1,11 @@
 import cors from "cors";
 import express from "express";
 import crypto from "node:crypto";
-import { JSONFilePreset } from "lowdb/node";
+import { Pool, PoolClient } from "pg";
+
+// -----------------------------
+// Types
+// -----------------------------
 
 type Outcome = "yes" | "no";
 type MarketStatus = "open" | "resolved";
@@ -53,16 +57,47 @@ type MarketComment = {
   mediaName?: string;
 };
 
-type Database = {
+type DatabaseSnapshot = {
   users: DemoUser[];
   markets: Market[];
   predictions: Prediction[];
   comments: MarketComment[];
   favoriteMarketIdsByUser: Record<string, string[]>;
+  adminUserIds: string[];
 };
+
+// -----------------------------
+// Config
+// -----------------------------
 
 const PORT = Number(process.env.PORT || 4000);
 const START_BALANCE = 10000;
+const DATABASE_URL = process.env.DATABASE_URL;
+const ADMIN_TELEGRAM_IDS = (process.env.ADMIN_TELEGRAM_IDS || "")
+  .split(",")
+  .map((id) => id.trim())
+  .filter(Boolean);
+
+const ADMIN_USER_IDS = ADMIN_TELEGRAM_IDS.flatMap((id) => [id, `telegram-${id}`]);
+
+if (!DATABASE_URL) {
+  console.error("Ошибка: не задана переменная окружения DATABASE_URL");
+  console.error("На Render добавь DATABASE_URL в Environment сервиса backend.");
+  process.exit(1);
+}
+
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+  ssl: DATABASE_URL.includes("localhost")
+    ? false
+    : {
+        rejectUnauthorized: false,
+      },
+});
+
+// -----------------------------
+// Helpers
+// -----------------------------
 
 function createId() {
   return crypto.randomUUID();
@@ -72,7 +107,11 @@ function nowRu() {
   return new Date().toLocaleString("ru-RU");
 }
 
-function getYesProbability(market: Market) {
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function getYesProbability(market: Pick<Market, "yesPool" | "noPool">) {
   const total = market.yesPool + market.noPool;
 
   if (total <= 0) {
@@ -86,59 +125,323 @@ function getUserDisplayName(user: DemoUser) {
   return user.name.trim() || "Участник";
 }
 
-const defaultData: Database = {
-  users: [
-    { id: "user-vladislav", name: "Владислав", balance: START_BALANCE },
-    { id: "user-sasha", name: "Саша", balance: START_BALANCE },
-    { id: "user-dima", name: "Дима", balance: START_BALANCE },
-  ],
-  markets: [
-    {
-      id: "cb-rate-2026",
-      question: "Снизит ли ЦБ РФ ключевую ставку до конца 2026 года?",
-      category: "Экономика",
-      description:
-        "Рынок будет рассчитан как «Да», если Банк России хотя бы один раз снизит ключевую ставку до 31.12.2026 включительно.",
-      source: "Официальный сайт Банка России",
-      closesAt: "2026-12-31",
-      yesPool: 6200,
-      noPool: 3800,
-      status: "open",
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: "gta-6-2026",
-      question: "Выйдет ли GTA 6 до конца 2026 года?",
-      category: "Игры",
-      description:
-        "Рынок будет рассчитан как «Да», если официальный релиз GTA 6 состоится до 31.12.2026 включительно.",
-      source: "Официальные сообщения Rockstar Games",
-      closesAt: "2026-12-31",
-      yesPool: 4800,
-      noPool: 5200,
-      status: "open",
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: "bitcoin-150k",
-      question: "Достигнет ли Bitcoin отметки $150 000 до конца 2026 года?",
-      category: "Крипто",
-      description:
-        "Рынок будет рассчитан как «Да», если цена Bitcoin хотя бы один раз достигнет $150 000 до конца 2026 года.",
-      source: "Крупные публичные криптобиржи и агрегаторы цен",
-      closesAt: "2026-12-31",
-      yesPool: 3500,
-      noPool: 6500,
-      status: "open",
-      createdAt: new Date().toISOString(),
-    },
-  ],
-  predictions: [],
-  comments: [],
-  favoriteMarketIdsByUser: {},
-};
+function normalizeOutcome(value: unknown): Outcome | null {
+  if (value === "yes" || value === "no") {
+    return value;
+  }
 
-const db = await JSONFilePreset<Database>("server/db.json", defaultData);
+  return null;
+}
+
+function getRequestUserId(request: express.Request) {
+  const headerUserId = request.header("x-user-id");
+  const bodyUserId = request.body?.adminUserId || request.body?.userId;
+  const queryUserId = request.query?.userId;
+
+  return String(headerUserId || bodyUserId || queryUserId || "").trim();
+}
+
+function isAdminUserId(userId: string) {
+  return ADMIN_USER_IDS.includes(userId);
+}
+
+function requireAdmin(request: express.Request, response: express.Response) {
+  const userId = getRequestUserId(request);
+
+  if (!isAdminUserId(userId)) {
+    response.status(403).json({
+      error: "Недостаточно прав. Это действие доступно только администратору.",
+    });
+    return false;
+  }
+
+  return true;
+}
+
+async function withTransaction<T>(callback: (client: PoolClient) => Promise<T>) {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+    const result = await callback(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+function toUser(row: any): DemoUser {
+  return {
+    id: row.id,
+    name: row.name,
+    balance: Number(row.balance),
+  };
+}
+
+function toMarket(row: any): Market {
+  return {
+    id: row.id,
+    question: row.question,
+    category: row.category,
+    description: row.description,
+    source: row.source,
+    closesAt: row.closes_at,
+    yesPool: Number(row.yes_pool),
+    noPool: Number(row.no_pool),
+    status: row.status,
+    resolvedOutcome: row.resolved_outcome || undefined,
+    resolvedAt: row.resolved_at || undefined,
+    createdAt:
+      row.created_at instanceof Date
+        ? row.created_at.toISOString()
+        : String(row.created_at),
+  };
+}
+
+function toPrediction(row: any): Prediction {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    userName: row.user_name,
+    marketId: row.market_id,
+    marketQuestion: row.market_question,
+    outcome: row.outcome,
+    amount: Number(row.amount),
+    probabilityAtPurchase: Number(row.probability_at_purchase),
+    createdAt: row.created_at,
+    resolvedOutcome: row.resolved_outcome || undefined,
+    payout: row.payout === null || row.payout === undefined ? undefined : Number(row.payout),
+    settledAt: row.settled_at || undefined,
+  };
+}
+
+function toComment(row: any): MarketComment {
+  return {
+    id: row.id,
+    marketId: row.market_id,
+    userId: row.user_id,
+    userName: row.user_name,
+    text: row.text,
+    createdAt: row.created_at,
+    mediaDataUrl: row.media_data_url || undefined,
+    mediaName: row.media_name || undefined,
+  };
+}
+
+// -----------------------------
+// Default seed data
+// -----------------------------
+
+const defaultUsers: DemoUser[] = [
+  { id: "user-vladislav", name: "Владислав", balance: START_BALANCE },
+  { id: "user-sasha", name: "Саша", balance: START_BALANCE },
+  { id: "user-dima", name: "Дима", balance: START_BALANCE },
+];
+
+const defaultMarkets: Market[] = [
+  {
+    id: "cb-rate-2026",
+    question: "Снизит ли ЦБ РФ ключевую ставку до конца 2026 года?",
+    category: "Экономика",
+    description:
+      "Рынок будет рассчитан как «Да», если Банк России хотя бы один раз снизит ключевую ставку до 31.12.2026 включительно.",
+    source: "Официальный сайт Банка России",
+    closesAt: "2026-12-31",
+    yesPool: 6200,
+    noPool: 3800,
+    status: "open",
+    createdAt: nowIso(),
+  },
+  {
+    id: "gta-6-2026",
+    question: "Выйдет ли GTA 6 до конца 2026 года?",
+    category: "Игры",
+    description:
+      "Рынок будет рассчитан как «Да», если официальный релиз GTA 6 состоится до 31.12.2026 включительно.",
+    source: "Официальные сообщения Rockstar Games",
+    closesAt: "2026-12-31",
+    yesPool: 4800,
+    noPool: 5200,
+    status: "open",
+    createdAt: nowIso(),
+  },
+  {
+    id: "bitcoin-150k",
+    question: "Достигнет ли Bitcoin отметки $150 000 до конца 2026 года?",
+    category: "Крипто",
+    description:
+      "Рынок будет рассчитан как «Да», если цена Bitcoin хотя бы один раз достигнет $150 000 до конца 2026 года.",
+    source: "Крупные публичные криптобиржи и агрегаторы цен",
+    closesAt: "2026-12-31",
+    yesPool: 3500,
+    noPool: 6500,
+    status: "open",
+    createdAt: nowIso(),
+  },
+  {
+    id: "iphone-september",
+    question: "Представит ли Apple новый iPhone в сентябре 2026 года?",
+    category: "Технологии",
+    description:
+      "Рынок будет рассчитан как «Да», если Apple проведет презентацию нового iPhone в сентябре 2026 года.",
+    source: "Официальные материалы Apple",
+    closesAt: "2026-09-30",
+    yesPool: 7600,
+    noPool: 2400,
+    status: "open",
+    createdAt: nowIso(),
+  },
+];
+
+// -----------------------------
+// Database setup
+// -----------------------------
+
+async function migrate() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      balance INTEGER NOT NULL DEFAULT 10000
+    );
+
+    CREATE TABLE IF NOT EXISTS markets (
+      id TEXT PRIMARY KEY,
+      question TEXT NOT NULL,
+      category TEXT NOT NULL,
+      description TEXT NOT NULL,
+      source TEXT NOT NULL,
+      closes_at TEXT NOT NULL,
+      yes_pool INTEGER NOT NULL,
+      no_pool INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open',
+      resolved_outcome TEXT,
+      resolved_at TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS predictions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      user_name TEXT NOT NULL,
+      market_id TEXT NOT NULL REFERENCES markets(id) ON DELETE CASCADE,
+      market_question TEXT NOT NULL,
+      outcome TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      probability_at_purchase INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      resolved_outcome TEXT,
+      payout INTEGER,
+      settled_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS comments (
+      id TEXT PRIMARY KEY,
+      market_id TEXT NOT NULL REFERENCES markets(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      user_name TEXT NOT NULL,
+      text TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      media_data_url TEXT,
+      media_name TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS favorites (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      market_id TEXT NOT NULL REFERENCES markets(id) ON DELETE CASCADE,
+      PRIMARY KEY (user_id, market_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS predictions_market_id_idx ON predictions(market_id);
+    CREATE INDEX IF NOT EXISTS predictions_user_id_idx ON predictions(user_id);
+    CREATE INDEX IF NOT EXISTS comments_market_id_idx ON comments(market_id);
+    CREATE INDEX IF NOT EXISTS favorites_user_id_idx ON favorites(user_id);
+  `);
+}
+
+async function seedIfEmpty() {
+  const usersCount = await pool.query("SELECT COUNT(*)::int AS count FROM users");
+  const marketsCount = await pool.query("SELECT COUNT(*)::int AS count FROM markets");
+
+  if (usersCount.rows[0].count === 0) {
+    for (const user of defaultUsers) {
+      await pool.query(
+        `INSERT INTO users (id, name, balance) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
+        [user.id, user.name, user.balance]
+      );
+    }
+  }
+
+  if (marketsCount.rows[0].count === 0) {
+    for (const market of defaultMarkets) {
+      await pool.query(
+        `
+          INSERT INTO markets (
+            id, question, category, description, source, closes_at,
+            yes_pool, no_pool, status, resolved_outcome, resolved_at, created_at
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          ON CONFLICT (id) DO NOTHING
+        `,
+        [
+          market.id,
+          market.question,
+          market.category,
+          market.description,
+          market.source,
+          market.closesAt,
+          market.yesPool,
+          market.noPool,
+          market.status,
+          market.resolvedOutcome || null,
+          market.resolvedAt || null,
+          market.createdAt,
+        ]
+      );
+    }
+  }
+}
+
+async function getSnapshot(): Promise<DatabaseSnapshot> {
+  const [usersResult, marketsResult, predictionsResult, commentsResult, favoritesResult] =
+    await Promise.all([
+      pool.query("SELECT * FROM users ORDER BY name ASC"),
+      pool.query("SELECT * FROM markets ORDER BY created_at DESC"),
+      pool.query("SELECT * FROM predictions ORDER BY id DESC"),
+      pool.query("SELECT * FROM comments ORDER BY id DESC"),
+      pool.query("SELECT * FROM favorites ORDER BY user_id ASC, market_id ASC"),
+    ]);
+
+  const favoriteMarketIdsByUser: Record<string, string[]> = {};
+
+  favoritesResult.rows.forEach((row) => {
+    if (!favoriteMarketIdsByUser[row.user_id]) {
+      favoriteMarketIdsByUser[row.user_id] = [];
+    }
+
+    favoriteMarketIdsByUser[row.user_id].push(row.market_id);
+  });
+
+  return {
+    users: usersResult.rows.map(toUser),
+    markets: marketsResult.rows.map(toMarket),
+    predictions: predictionsResult.rows.map(toPrediction),
+    comments: commentsResult.rows.map(toComment),
+    favoriteMarketIdsByUser,
+    adminUserIds: ADMIN_USER_IDS,
+  };
+}
+
+// -----------------------------
+// Express app
+// -----------------------------
+
+await migrate();
+await seedIfEmpty();
 
 const app = express();
 
@@ -154,16 +457,27 @@ app.use(
   })
 );
 
-app.get("/api/health", (_request, response) => {
+app.get("/", (_request, response) => {
   response.json({
     ok: true,
-    message: "Forecast Market API работает",
+    message: "Forecast Market API работает. Используй /api/health или /api/bootstrap",
+  });
+});
+
+app.get("/api/health", async (_request, response) => {
+  const dbCheck = await pool.query("SELECT NOW() AS now");
+
+  response.json({
+    ok: true,
+    message: "Forecast Market API работает с PostgreSQL",
+    databaseTime: dbCheck.rows[0].now,
+    adminUsersConfigured: ADMIN_USER_IDS.length,
     time: new Date().toISOString(),
   });
 });
 
-app.get("/api/bootstrap", (_request, response) => {
-  response.json(db.data);
+app.get("/api/bootstrap", async (_request, response) => {
+  response.json(await getSnapshot());
 });
 
 app.post("/api/users", async (request, response) => {
@@ -180,8 +494,11 @@ app.post("/api/users", async (request, response) => {
     balance: START_BALANCE,
   };
 
-  db.data.users.push(user);
-  await db.write();
+  await pool.query(`INSERT INTO users (id, name, balance) VALUES ($1, $2, $3)`, [
+    user.id,
+    user.name,
+    user.balance,
+  ]);
 
   response.status(201).json(user);
 });
@@ -197,10 +514,10 @@ app.post("/api/telegram-user", async (request, response) => {
   }
 
   const userId = `telegram-${telegramId}`;
-  const existingUser = db.data.users.find((user) => user.id === userId);
+  const existingUserResult = await pool.query("SELECT * FROM users WHERE id = $1", [userId]);
 
-  if (existingUser) {
-    response.json(existingUser);
+  if (existingUserResult.rows[0]) {
+    response.json(toUser(existingUserResult.rows[0]));
     return;
   }
 
@@ -212,13 +529,20 @@ app.post("/api/telegram-user", async (request, response) => {
     balance: START_BALANCE,
   };
 
-  db.data.users.push(user);
-  await db.write();
+  await pool.query(`INSERT INTO users (id, name, balance) VALUES ($1, $2, $3)`, [
+    user.id,
+    user.name,
+    user.balance,
+  ]);
 
   response.status(201).json(user);
 });
 
 app.post("/api/markets", async (request, response) => {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+
   const question = String(request.body?.question || "").trim();
   const category = String(request.body?.category || "").trim();
   const description = String(request.body?.description || "").trim();
@@ -266,24 +590,40 @@ app.post("/api/markets", async (request, response) => {
     yesPool: yesProbability * 100,
     noPool: (100 - yesProbability) * 100,
     status: "open",
-    createdAt: new Date().toISOString(),
+    createdAt: nowIso(),
   };
 
-  db.data.markets.unshift(market);
-  await db.write();
+  await pool.query(
+    `
+      INSERT INTO markets (
+        id, question, category, description, source, closes_at,
+        yes_pool, no_pool, status, created_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `,
+    [
+      market.id,
+      market.question,
+      market.category,
+      market.description,
+      market.source,
+      market.closesAt,
+      market.yesPool,
+      market.noPool,
+      market.status,
+      market.createdAt,
+    ]
+  );
 
   response.status(201).json(market);
 });
 
 app.patch("/api/markets/:marketId", async (request, response) => {
-  const market = db.data.markets.find(
-    (item) => item.id === request.params.marketId
-  );
-
-  if (!market) {
-    response.status(404).json({ error: "Рынок не найден" });
+  if (!requireAdmin(request, response)) {
     return;
   }
+
+  const marketId = request.params.marketId;
 
   const question = String(request.body?.question || "").trim();
   const category = String(request.body?.category || "").trim();
@@ -296,135 +636,142 @@ app.patch("/api/markets/:marketId", async (request, response) => {
     return;
   }
 
-  market.question = question;
-  market.category = category;
-  market.description = description;
-  market.source = source;
-  market.closesAt = closesAt;
+  const result = await pool.query(
+    `
+      UPDATE markets
+      SET question = $2, category = $3, description = $4, source = $5, closes_at = $6
+      WHERE id = $1
+      RETURNING *
+    `,
+    [marketId, question, category, description, source, closesAt]
+  );
 
-  db.data.predictions = db.data.predictions.map((prediction) => {
-    if (prediction.marketId !== market.id) {
-      return prediction;
-    }
+  if (!result.rows[0]) {
+    response.status(404).json({ error: "Рынок не найден" });
+    return;
+  }
 
-    return {
-      ...prediction,
-      marketQuestion: question,
-    };
-  });
+  await pool.query(`UPDATE predictions SET market_question = $2 WHERE market_id = $1`, [
+    marketId,
+    question,
+  ]);
 
-  await db.write();
-
-  response.json(market);
+  response.json(toMarket(result.rows[0]));
 });
 
 app.delete("/api/markets/:marketId", async (request, response) => {
-  const market = db.data.markets.find(
-    (item) => item.id === request.params.marketId
-  );
+  if (!requireAdmin(request, response)) {
+    return;
+  }
 
-  if (!market) {
+  const marketId = request.params.marketId;
+
+  const result = await withTransaction(async (client) => {
+    const marketResult = await client.query("SELECT * FROM markets WHERE id = $1", [marketId]);
+    const marketRow = marketResult.rows[0];
+
+    if (!marketRow) {
+      return null;
+    }
+
+    const refundsByUser: Record<string, number> = {};
+    const market = toMarket(marketRow);
+
+    if (market.status !== "resolved") {
+      const activePredictions = await client.query(
+        `SELECT * FROM predictions WHERE market_id = $1 AND settled_at IS NULL`,
+        [marketId]
+      );
+
+      for (const prediction of activePredictions.rows.map(toPrediction)) {
+        refundsByUser[prediction.userId] =
+          (refundsByUser[prediction.userId] || 0) + prediction.amount;
+      }
+
+      for (const [userId, refund] of Object.entries(refundsByUser)) {
+        await client.query(`UPDATE users SET balance = balance + $2 WHERE id = $1`, [
+          userId,
+          refund,
+        ]);
+      }
+    }
+
+    await client.query("DELETE FROM markets WHERE id = $1", [marketId]);
+
+    return refundsByUser;
+  });
+
+  if (result === null) {
     response.status(404).json({ error: "Рынок не найден" });
     return;
   }
 
-  const refundsByUser: Record<string, number> = {};
-
-  if (market.status !== "resolved") {
-    db.data.predictions.forEach((prediction) => {
-      if (prediction.marketId !== market.id || prediction.settledAt) {
-        return;
-      }
-
-      refundsByUser[prediction.userId] =
-        (refundsByUser[prediction.userId] || 0) + prediction.amount;
-    });
-  }
-
-  db.data.users = db.data.users.map((user) => ({
-    ...user,
-    balance: user.balance + (refundsByUser[user.id] || 0),
-  }));
-
-  db.data.markets = db.data.markets.filter((item) => item.id !== market.id);
-  db.data.predictions = db.data.predictions.filter(
-    (prediction) => prediction.marketId !== market.id
-  );
-  db.data.comments = db.data.comments.filter(
-    (comment) => comment.marketId !== market.id
-  );
-
-  Object.keys(db.data.favoriteMarketIdsByUser).forEach((userId) => {
-    db.data.favoriteMarketIdsByUser[userId] =
-      db.data.favoriteMarketIdsByUser[userId].filter((id) => id !== market.id);
-  });
-
-  await db.write();
-
-  response.json({
-    ok: true,
-    refunded: refundsByUser,
-  });
+  response.json({ ok: true, refunded: result });
 });
 
 app.post("/api/markets/:marketId/duplicate", async (request, response) => {
-  const market = db.data.markets.find(
-    (item) => item.id === request.params.marketId
-  );
+  if (!requireAdmin(request, response)) {
+    return;
+  }
 
-  if (!market) {
+  const marketResult = await pool.query("SELECT * FROM markets WHERE id = $1", [
+    request.params.marketId,
+  ]);
+  const sourceMarketRow = marketResult.rows[0];
+
+  if (!sourceMarketRow) {
     response.status(404).json({ error: "Рынок не найден" });
     return;
   }
 
-  const yesProbability = getYesProbability(market);
+  const sourceMarket = toMarket(sourceMarketRow);
+  const yesProbability = getYesProbability(sourceMarket);
 
   const duplicate: Market = {
     id: createId(),
-    question: `Копия — ${market.question}`,
-    category: market.category,
-    description: market.description,
-    source: market.source,
-    closesAt: market.closesAt,
+    question: `Копия — ${sourceMarket.question}`,
+    category: sourceMarket.category,
+    description: sourceMarket.description,
+    source: sourceMarket.source,
+    closesAt: sourceMarket.closesAt,
     yesPool: yesProbability * 100,
     noPool: (100 - yesProbability) * 100,
     status: "open",
-    createdAt: new Date().toISOString(),
+    createdAt: nowIso(),
   };
 
-  db.data.markets.unshift(duplicate);
-  await db.write();
+  await pool.query(
+    `
+      INSERT INTO markets (
+        id, question, category, description, source, closes_at,
+        yes_pool, no_pool, status, created_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `,
+    [
+      duplicate.id,
+      duplicate.question,
+      duplicate.category,
+      duplicate.description,
+      duplicate.source,
+      duplicate.closesAt,
+      duplicate.yesPool,
+      duplicate.noPool,
+      duplicate.status,
+      duplicate.createdAt,
+    ]
+  );
 
   response.status(201).json(duplicate);
 });
 
 app.post("/api/markets/:marketId/predictions", async (request, response) => {
-  const market = db.data.markets.find(
-    (item) => item.id === request.params.marketId
-  );
-
-  if (!market) {
-    response.status(404).json({ error: "Рынок не найден" });
-    return;
-  }
-
-  if (market.status === "resolved") {
-    response.status(400).json({ error: "Рынок уже рассчитан" });
-    return;
-  }
-
+  const marketId = request.params.marketId;
   const userId = String(request.body?.userId || "");
-  const outcome = String(request.body?.outcome || "") as Outcome;
+  const outcome = normalizeOutcome(request.body?.outcome);
   const amount = Number(request.body?.amount);
 
-  const user = db.data.users.find((item) => item.id === userId);
-
-  if (!user) {
-    response.status(404).json({ error: "Участник не найден" });
-    return;
-  }
-
-  if (outcome !== "yes" && outcome !== "no") {
+  if (!outcome) {
     response.status(400).json({ error: "Некорректный исход" });
     return;
   }
@@ -434,128 +781,211 @@ app.post("/api/markets/:marketId/predictions", async (request, response) => {
     return;
   }
 
-  if (amount > user.balance) {
-    response.status(400).json({ error: "Недостаточно баллов" });
+  const result = await withTransaction(async (client) => {
+    const userResult = await client.query("SELECT * FROM users WHERE id = $1 FOR UPDATE", [userId]);
+    const marketResult = await client.query("SELECT * FROM markets WHERE id = $1 FOR UPDATE", [
+      marketId,
+    ]);
+
+    const userRow = userResult.rows[0];
+    const marketRow = marketResult.rows[0];
+
+    if (!userRow) {
+      return { error: "Участник не найден" } as const;
+    }
+
+    if (!marketRow) {
+      return { error: "Рынок не найден" } as const;
+    }
+
+    const user = toUser(userRow);
+    const market = toMarket(marketRow);
+
+    if (market.status === "resolved") {
+      return { error: "Рынок уже рассчитан" } as const;
+    }
+
+    if (amount > user.balance) {
+      return { error: "Недостаточно баллов" } as const;
+    }
+
+    const probability = getYesProbability(market);
+
+    await client.query("UPDATE users SET balance = balance - $2 WHERE id = $1", [
+      user.id,
+      amount,
+    ]);
+
+    if (outcome === "yes") {
+      await client.query("UPDATE markets SET yes_pool = yes_pool + $2 WHERE id = $1", [
+        market.id,
+        amount,
+      ]);
+    } else {
+      await client.query("UPDATE markets SET no_pool = no_pool + $2 WHERE id = $1", [
+        market.id,
+        amount,
+      ]);
+    }
+
+    const prediction: Prediction = {
+      id: createId(),
+      userId: user.id,
+      userName: getUserDisplayName(user),
+      marketId: market.id,
+      marketQuestion: market.question,
+      outcome,
+      amount,
+      probabilityAtPurchase: outcome === "yes" ? probability : 100 - probability,
+      createdAt: nowRu(),
+    };
+
+    await client.query(
+      `
+        INSERT INTO predictions (
+          id, user_id, user_name, market_id, market_question,
+          outcome, amount, probability_at_purchase, created_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `,
+      [
+        prediction.id,
+        prediction.userId,
+        prediction.userName,
+        prediction.marketId,
+        prediction.marketQuestion,
+        prediction.outcome,
+        prediction.amount,
+        prediction.probabilityAtPurchase,
+        prediction.createdAt,
+      ]
+    );
+
+    return { prediction } as const;
+  });
+
+  if ("error" in result) {
+    const status = result.error.includes("не найден") ? 404 : 400;
+    response.status(status).json({ error: result.error });
     return;
   }
 
-  const probability = getYesProbability(market);
-
-  user.balance -= amount;
-
-  if (outcome === "yes") {
-    market.yesPool += amount;
-  } else {
-    market.noPool += amount;
-  }
-
-  const prediction: Prediction = {
-    id: createId(),
-    userId: user.id,
-    userName: getUserDisplayName(user),
-    marketId: market.id,
-    marketQuestion: market.question,
-    outcome,
-    amount,
-    probabilityAtPurchase: outcome === "yes" ? probability : 100 - probability,
-    createdAt: nowRu(),
-  };
-
-  db.data.predictions.unshift(prediction);
-  await db.write();
-
-  response.status(201).json(prediction);
+  response.status(201).json(result.prediction);
 });
 
 app.post("/api/markets/:marketId/resolve", async (request, response) => {
-  const market = db.data.markets.find(
-    (item) => item.id === request.params.marketId
-  );
-
-  if (!market) {
-    response.status(404).json({ error: "Рынок не найден" });
+  if (!requireAdmin(request, response)) {
     return;
   }
 
-  if (market.status === "resolved") {
-    response.status(400).json({ error: "Рынок уже рассчитан" });
-    return;
-  }
+  const marketId = request.params.marketId;
+  const outcome = normalizeOutcome(request.body?.outcome);
 
-  const outcome = String(request.body?.outcome || "") as Outcome;
-
-  if (outcome !== "yes" && outcome !== "no") {
+  if (!outcome) {
     response.status(400).json({ error: "Некорректный исход" });
     return;
   }
 
-  const totalPool = market.yesPool + market.noPool;
-  const winningPool = outcome === "yes" ? market.yesPool : market.noPool;
-  const settledAt = nowRu();
+  const result = await withTransaction(async (client) => {
+    const marketResult = await client.query("SELECT * FROM markets WHERE id = $1 FOR UPDATE", [
+      marketId,
+    ]);
+    const marketRow = marketResult.rows[0];
 
-  let totalPayout = 0;
-  const payoutsByUser: Record<string, number> = {};
-
-  db.data.predictions = db.data.predictions.map((prediction) => {
-    if (prediction.marketId !== market.id || prediction.settledAt) {
-      return prediction;
+    if (!marketRow) {
+      return { error: "Рынок не найден" } as const;
     }
 
-    const isWinner = prediction.outcome === outcome;
+    const market = toMarket(marketRow);
 
-    const payout =
-      isWinner && winningPool > 0
-        ? Math.round((prediction.amount / winningPool) * totalPool)
-        : 0;
+    if (market.status === "resolved") {
+      return { error: "Рынок уже рассчитан" } as const;
+    }
 
-    totalPayout += payout;
-    payoutsByUser[prediction.userId] =
-      (payoutsByUser[prediction.userId] || 0) + payout;
+    const totalPool = market.yesPool + market.noPool;
+    const winningPool = outcome === "yes" ? market.yesPool : market.noPool;
+    const settledAt = nowRu();
+
+    let totalPayout = 0;
+    const payoutsByUser: Record<string, number> = {};
+
+    const predictionResult = await client.query(
+      "SELECT * FROM predictions WHERE market_id = $1 AND settled_at IS NULL",
+      [market.id]
+    );
+
+    for (const prediction of predictionResult.rows.map(toPrediction)) {
+      const isWinner = prediction.outcome === outcome;
+      const payout =
+        isWinner && winningPool > 0
+          ? Math.round((prediction.amount / winningPool) * totalPool)
+          : 0;
+
+      totalPayout += payout;
+      payoutsByUser[prediction.userId] =
+        (payoutsByUser[prediction.userId] || 0) + payout;
+
+      await client.query(
+        `
+          UPDATE predictions
+          SET resolved_outcome = $2, payout = $3, settled_at = $4
+          WHERE id = $1
+        `,
+        [prediction.id, outcome, payout, settledAt]
+      );
+    }
+
+    for (const [userId, payout] of Object.entries(payoutsByUser)) {
+      await client.query("UPDATE users SET balance = balance + $2 WHERE id = $1", [
+        userId,
+        payout,
+      ]);
+    }
+
+    const updatedMarketResult = await client.query(
+      `
+        UPDATE markets
+        SET status = 'resolved', resolved_outcome = $2, resolved_at = $3
+        WHERE id = $1
+        RETURNING *
+      `,
+      [market.id, outcome, settledAt]
+    );
 
     return {
-      ...prediction,
-      resolvedOutcome: outcome,
-      payout,
-      settledAt,
-    };
+      market: toMarket(updatedMarketResult.rows[0]),
+      totalPayout,
+      payoutsByUser,
+    } as const;
   });
 
-  db.data.users = db.data.users.map((user) => ({
-    ...user,
-    balance: user.balance + (payoutsByUser[user.id] || 0),
-  }));
-
-  market.status = "resolved";
-  market.resolvedOutcome = outcome;
-  market.resolvedAt = settledAt;
-
-  await db.write();
-
-  response.json({
-    market,
-    totalPayout,
-    payoutsByUser,
-  });
-});
-
-app.post("/api/markets/:marketId/comments", async (request, response) => {
-  const market = db.data.markets.find(
-    (item) => item.id === request.params.marketId
-  );
-
-  if (!market) {
-    response.status(404).json({ error: "Рынок не найден" });
+  if ("error" in result) {
+    const status = result.error.includes("не найден") ? 404 : 400;
+    response.status(status).json({ error: result.error });
     return;
   }
 
+  response.json(result);
+});
+
+app.post("/api/markets/:marketId/comments", async (request, response) => {
+  const marketId = request.params.marketId;
   const userId = String(request.body?.userId || "");
   const text = String(request.body?.text || "").trim();
   const mediaDataUrl = String(request.body?.mediaDataUrl || "").trim();
   const mediaName = String(request.body?.mediaName || "").trim();
 
-  const user = db.data.users.find((item) => item.id === userId);
+  const [marketResult, userResult] = await Promise.all([
+    pool.query("SELECT * FROM markets WHERE id = $1", [marketId]),
+    pool.query("SELECT * FROM users WHERE id = $1", [userId]),
+  ]);
 
-  if (!user) {
+  if (!marketResult.rows[0]) {
+    response.status(404).json({ error: "Рынок не найден" });
+    return;
+  }
+
+  if (!userResult.rows[0]) {
     response.status(404).json({ error: "Участник не найден" });
     return;
   }
@@ -565,9 +995,11 @@ app.post("/api/markets/:marketId/comments", async (request, response) => {
     return;
   }
 
+  const user = toUser(userResult.rows[0]);
+
   const comment: MarketComment = {
     id: createId(),
-    marketId: market.id,
+    marketId,
     userId: user.id,
     userName: getUserDisplayName(user),
     text,
@@ -576,27 +1008,42 @@ app.post("/api/markets/:marketId/comments", async (request, response) => {
     mediaName: mediaName || undefined,
   };
 
-  db.data.comments.unshift(comment);
-  await db.write();
+  await pool.query(
+    `
+      INSERT INTO comments (
+        id, market_id, user_id, user_name, text,
+        created_at, media_data_url, media_name
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `,
+    [
+      comment.id,
+      comment.marketId,
+      comment.userId,
+      comment.userName,
+      comment.text,
+      comment.createdAt,
+      comment.mediaDataUrl || null,
+      comment.mediaName || null,
+    ]
+  );
 
   response.status(201).json(comment);
 });
 
 app.delete("/api/comments/:commentId", async (request, response) => {
-  const commentExists = db.data.comments.some(
-    (comment) => comment.id === request.params.commentId
-  );
-
-  if (!commentExists) {
-    response.status(404).json({ error: "Комментарий не найден" });
+  if (!requireAdmin(request, response)) {
     return;
   }
 
-  db.data.comments = db.data.comments.filter(
-    (comment) => comment.id !== request.params.commentId
-  );
+  const result = await pool.query("DELETE FROM comments WHERE id = $1 RETURNING id", [
+    request.params.commentId,
+  ]);
 
-  await db.write();
+  if (!result.rows[0]) {
+    response.status(404).json({ error: "Комментарий не найден" });
+    return;
+  }
 
   response.json({ ok: true });
 });
@@ -604,43 +1051,93 @@ app.delete("/api/comments/:commentId", async (request, response) => {
 app.post("/api/users/:userId/favorites/:marketId", async (request, response) => {
   const { userId, marketId } = request.params;
 
-  const user = db.data.users.find((item) => item.id === userId);
-  const market = db.data.markets.find((item) => item.id === marketId);
+  const [userResult, marketResult] = await Promise.all([
+    pool.query("SELECT id FROM users WHERE id = $1", [userId]),
+    pool.query("SELECT id FROM markets WHERE id = $1", [marketId]),
+  ]);
 
-  if (!user) {
+  if (!userResult.rows[0]) {
     response.status(404).json({ error: "Участник не найден" });
     return;
   }
 
-  if (!market) {
+  if (!marketResult.rows[0]) {
     response.status(404).json({ error: "Рынок не найден" });
     return;
   }
 
-  const currentFavorites = db.data.favoriteMarketIdsByUser[userId] || [];
+  const existing = await pool.query(
+    "SELECT * FROM favorites WHERE user_id = $1 AND market_id = $2",
+    [userId, marketId]
+  );
 
-  if (currentFavorites.includes(marketId)) {
-    db.data.favoriteMarketIdsByUser[userId] = currentFavorites.filter(
-      (id) => id !== marketId
-    );
+  if (existing.rows[0]) {
+    await pool.query("DELETE FROM favorites WHERE user_id = $1 AND market_id = $2", [
+      userId,
+      marketId,
+    ]);
   } else {
-    db.data.favoriteMarketIdsByUser[userId] = [...currentFavorites, marketId];
+    await pool.query("INSERT INTO favorites (user_id, market_id) VALUES ($1, $2)", [
+      userId,
+      marketId,
+    ]);
   }
 
-  await db.write();
+  const favorites = await pool.query(
+    "SELECT market_id FROM favorites WHERE user_id = $1 ORDER BY market_id ASC",
+    [userId]
+  );
 
   response.json({
-    favoriteMarketIds: db.data.favoriteMarketIdsByUser[userId],
+    favoriteMarketIds: favorites.rows.map((row) => row.market_id),
   });
 });
 
-app.post("/api/reset", async (_request, response) => {
-  db.data = structuredClone(defaultData);
-  await db.write();
+app.post("/api/reset", async (request, response) => {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+
+  await withTransaction(async (client) => {
+    await client.query("TRUNCATE favorites, comments, predictions, markets, users RESTART IDENTITY CASCADE");
+
+    for (const user of defaultUsers) {
+      await client.query(
+        `INSERT INTO users (id, name, balance) VALUES ($1, $2, $3)`,
+        [user.id, user.name, user.balance]
+      );
+    }
+
+    for (const market of defaultMarkets) {
+      await client.query(
+        `
+          INSERT INTO markets (
+            id, question, category, description, source, closes_at,
+            yes_pool, no_pool, status, resolved_outcome, resolved_at, created_at
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        `,
+        [
+          market.id,
+          market.question,
+          market.category,
+          market.description,
+          market.source,
+          market.closesAt,
+          market.yesPool,
+          market.noPool,
+          market.status,
+          market.resolvedOutcome || null,
+          market.resolvedAt || null,
+          market.createdAt,
+        ]
+      );
+    }
+  });
 
   response.json({
     ok: true,
-    message: "Демо-база сброшена",
+    message: "PostgreSQL-база сброшена",
   });
 });
 

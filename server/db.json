@@ -1,0 +1,77 @@
+{
+  "users": [
+    {
+      "id": "user-vladislav",
+      "name": "Владислав",
+      "balance": 10000
+    },
+    {
+      "id": "user-sasha",
+      "name": "Саша",
+      "balance": 10000
+    },
+    {
+      "id": "user-dima",
+      "name": "Дима",
+      "balance": 10000
+    },
+    {
+      "id": "telegram-90531470",
+      "name": "Vlad Misyurin",
+      "balance": 10000
+    }
+  ],
+  "markets": [
+    {
+      "id": "2fe97ca2-5606-40da-ac81-a9e61cd80104",
+      "question": "Хуй пизда",
+      "category": "Друзья",
+      "description": "вфывфывфыв",
+      "source": "фывфывфыв",
+      "closesAt": "2026-06-25",
+      "yesPool": 5000,
+      "noPool": 5000,
+      "status": "open",
+      "createdAt": "2026-06-24T13:07:10.646Z"
+    },
+    {
+      "id": "cb-rate-2026",
+      "question": "Снизит ли ЦБ РФ ключевую ставку до конца 2026 года?",
+      "category": "Экономика",
+      "description": "Рынок будет рассчитан как «Да», если Банк России хотя бы один раз снизит ключевую ставку до 31.12.2026 включительно.",
+      "source": "Официальный сайт Банка России",
+      "closesAt": "2026-12-31",
+      "yesPool": 6200,
+      "noPool": 3800,
+      "status": "open",
+      "createdAt": "2026-06-24T12:21:41.023Z"
+    },
+    {
+      "id": "gta-6-2026",
+      "question": "Выйдет ли GTA 6 до конца 2026 года?",
+      "category": "Игры",
+      "description": "Рынок будет рассчитан как «Да», если официальный релиз GTA 6 состоится до 31.12.2026 включительно.",
+      "source": "Официальные сообщения Rockstar Games",
+      "closesAt": "2026-12-31",
+      "yesPool": 4800,
+      "noPool": 5200,
+      "status": "open",
+      "createdAt": "2026-06-24T12:21:41.023Z"
+    },
+    {
+      "id": "bitcoin-150k",
+      "question": "Достигнет ли Bitcoin отметки $150 000 до конца 2026 года?",
+      "category": "Крипто",
+      "description": "Рынок будет рассчитан как «Да», если цена Bitcoin хотя бы один раз достигнет $150 000 до конца 2026 года.",
+      "source": "Крупные публичные криптобиржи и агрегаторы цен",
+      "closesAt": "2026-12-31",
+      "yesPool": 3500,
+      "noPool": 6500,
+      "status": "open",
+      "createdAt": "2026-06-24T12:21:41.023Z"
+    }
+  ],
+  "predictions": [],
+  "comments": [],
+  "favoriteMarketIdsByUser": {}
+}
