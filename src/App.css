@@ -3838,3 +3838,154 @@ body:not(.is-telegram-webapp) {
 body:not(.is-telegram-webapp) .app {
   min-height: auto;
 }
+
+/* Polymarket import quality block */
+.sourceBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.polymarketBadge {
+  color: #5b21b6;
+  background: linear-gradient(135deg, rgba(167, 139, 250, 0.18), rgba(59, 130, 246, 0.14));
+  border: 1px solid rgba(124, 58, 237, 0.18);
+}
+
+.importedPage {
+  gap: 14px;
+}
+
+.importedHeroCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(210px, 0.6fr);
+  gap: 16px;
+  align-items: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.importedHeroCard::before {
+  content: "";
+  position: absolute;
+  inset: -80px -60px auto auto;
+  width: 210px;
+  height: 210px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.16), transparent 68%);
+  pointer-events: none;
+}
+
+.importedHeroCard h2 {
+  margin: 4px 0 8px;
+}
+
+.importedHeroCard p {
+  max-width: 680px;
+  margin: 0;
+  color: var(--muted);
+}
+
+.importStatsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.importStatsGrid div {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(255, 255, 255, 0.68);
+  border-radius: 16px;
+  padding: 12px;
+}
+
+.importStatsGrid span {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.importStatsGrid strong {
+  font-size: 20px;
+}
+
+.importedControlsCard {
+  display: grid;
+  gap: 10px;
+}
+
+.importedSearch input {
+  margin-top: 6px;
+}
+
+.compactCategoryScroller {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.compactCategoryScroller::-webkit-scrollbar {
+  display: none;
+}
+
+.compactCategoryScroller button {
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.importRefreshButton {
+  justify-self: start;
+}
+
+.hideImportedButton {
+  border: 1px solid rgba(239, 68, 68, 0.22);
+  background: rgba(254, 226, 226, 0.72);
+  color: #991b1b;
+  border-radius: 12px;
+  padding: 8px 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.hideImportedButton:hover {
+  background: rgba(254, 202, 202, 0.9);
+}
+
+@media (max-width: 780px) {
+  .importedHeroCard {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .importStatsGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .importStatsGrid div {
+    padding: 9px;
+    border-radius: 13px;
+  }
+
+  .importStatsGrid strong {
+    font-size: 17px;
+  }
+
+  .sourceBadge {
+    padding: 3px 7px;
+    font-size: 10px;
+  }
+
+  .hideImportedButton {
+    padding: 7px 8px;
+    font-size: 11px;
+  }
+}

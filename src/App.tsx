@@ -6,7 +6,7 @@ type MarketStatus = "open" | "resolved";
 type SuggestionStatus = "pending" | "approved" | "rejected";
 type SortMode = "newest" | "probability" | "trades" | "comments";
 type DetailsTab = "overview" | "trades" | "participants" | "chat";
-type MainView = "markets" | "search" | "predictions" | "suggest" | "moderation" | "profile";
+type MainView = "markets" | "imported" | "search" | "predictions" | "suggest" | "moderation" | "profile";
 type MyPredictionTab = "active" | "settled" | "won" | "lost" | "all";
 
 type DemoUser = {
@@ -387,6 +387,9 @@ function App() {
   const [statusFilter, setStatusFilter] = useState<"all" | MarketStatus>("all");
   const [sortMode, setSortMode] = useState<SortMode>("newest");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [importedCategory, setImportedCategory] = useState("Все");
+  const [importedSearch, setImportedSearch] = useState("");
+  const [isPolymarketImporting, setIsPolymarketImporting] = useState(false);
   const [mainView, setMainView] = useState<MainView>("markets");
   const [myPredictionTab, setMyPredictionTab] = useState<MyPredictionTab>("active");
 
@@ -487,6 +490,36 @@ function App() {
 
   const categories = useMemo(() => {
     return ["Все", ...Array.from(new Set(markets.map((market) => market.category)))];
+  }, [markets]);
+
+  const importedMarkets = useMemo(() => {
+    const normalizedSearch = importedSearch.trim().toLowerCase();
+
+    return markets
+      .filter((market) => isPolymarketSource(market.source))
+      .filter((market) => importedCategory === "Все" || market.category === importedCategory)
+      .filter((market) => {
+        if (!normalizedSearch) return true;
+        return [market.question, market.category, market.description]
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedSearch);
+      })
+      .sort((a, b) => {
+        if (a.status !== b.status) return a.status === "open" ? -1 : 1;
+        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+      });
+  }, [markets, importedCategory, importedSearch]);
+
+  const importedCategories = useMemo(() => {
+    const names = markets
+      .filter((market) => isPolymarketSource(market.source))
+      .map((market) => market.category);
+    return ["Все", ...Array.from(new Set(names))];
+  }, [markets]);
+
+  const importedOpenCount = useMemo(() => {
+    return markets.filter((market) => isPolymarketSource(market.source) && market.status === "open").length;
   }, [markets]);
 
   const filteredMarkets = useMemo(() => {
@@ -1285,6 +1318,31 @@ function App() {
     setShowFavoritesOnly(false);
   }
 
+  async function refreshPolymarketImport() {
+    if (!requireClientAdmin()) return;
+
+    const confirmed = confirm("Подтянуть свежие популярные события Polymarket? Новые рынки появятся как игровые события за баллы.");
+    if (!confirmed) return;
+
+    setIsPolymarketImporting(true);
+
+    try {
+      const result = await apiRequest<{ imported: number; checked: number; skipped: number }>("/polymarket/import", {
+        method: "POST",
+        headers: adminHeaders(),
+        body: JSON.stringify({ limit: 50 }),
+      });
+      await refreshData(activeUser?.id);
+      sendSuccess();
+      alert(`Импорт завершён. Добавлено: ${result.imported}, проверено: ${result.checked}, пропущено: ${result.skipped}.`);
+    } catch (error) {
+      sendError();
+      alert(getErrorMessage(error));
+    } finally {
+      setIsPolymarketImporting(false);
+    }
+  }
+
   function openMarketDetails(marketId: string, tab: DetailsTab = "overview") {
     setSelectedMarketId(marketId);
     setDetailsTab(tab);
@@ -1299,6 +1357,7 @@ function App() {
     const marketComments = comments.filter((comment) => comment.marketId === market.id);
     const uniqueParticipants = new Set(marketPredictions.map((prediction) => prediction.userId)).size;
     const isFavorite = favoriteMarketIds.includes(market.id);
+    const isImported = isPolymarketSource(market.source);
     const activePrediction = activeUserPredictions.find((prediction) => prediction.marketId === market.id && !prediction.settledAt);
 
     return (
@@ -1307,6 +1366,7 @@ function App() {
           <div className="marketCardHeader">
             <div className="marketBadgesRow">
               <span className="category">{market.category}</span>
+              {isImported && <span className="sourceBadge polymarketBadge">Polymarket</span>}
               <span className={`statusBadge ${isResolved ? "resolvedBadge" : "openBadge"}`}>{isResolved ? `Рассчитан: ${getOutcomeText(market.resolvedOutcome)}` : "Открыт"}</span>
             </div>
             <button
@@ -1350,6 +1410,7 @@ function App() {
           <div className="marketActionRow">
             <button className="openDetailsButton" onClick={() => openMarketDetails(market.id, "overview")}>Открыть</button>
             <button className="secondaryOpenButton compactChatButton" onClick={() => openMarketDetails(market.id, "chat")}>Чат</button>
+            {isAdmin && isImported && <button className="hideImportedButton" onClick={() => deleteMarket(market)}>Скрыть</button>}
           </div>
         </div>
       </article>
@@ -1487,6 +1548,68 @@ function App() {
           </aside>
         </section>
       </section>
+    );
+  }
+
+  function renderImportedPage() {
+    const totalImported = markets.filter((market) => isPolymarketSource(market.source)).length;
+
+    return (
+      <div className="pageStack importedPage">
+        <section className="card importedHeroCard">
+          <div>
+            <p className="eyebrow">Автоимпорт событий</p>
+            <h2>Polymarket для фана</h2>
+            <p>Мы берём только идеи событий и превращаем их во внутренние прогнозы за игровые баллы. Никаких реальных денег, кошельков и ставок.</p>
+          </div>
+          <div className="importStatsGrid">
+            <div><span>Всего</span><strong>{totalImported}</strong></div>
+            <div><span>Открыто</span><strong>{importedOpenCount}</strong></div>
+            <div><span>Категорий</span><strong>{Math.max(0, importedCategories.length - 1)}</strong></div>
+          </div>
+        </section>
+
+        <section className="card importedControlsCard">
+          <label className="toolbarSearch importedSearch">
+            Поиск среди импортированных
+            <input
+              placeholder="Например: Bitcoin, выборы, спорт..."
+              value={importedSearch}
+              onChange={(event) => setImportedSearch(event.target.value)}
+            />
+          </label>
+          <div className="categoryScroller compactCategoryScroller">
+            {importedCategories.map((category) => (
+              <button
+                key={category}
+                className={importedCategory === category ? "activeCategory" : ""}
+                onClick={() => setImportedCategory(category)}
+              >
+                {category}
+              </button>
+            ))}
+          </div>
+          {isAdmin && (
+            <button className="secondaryButton importRefreshButton" onClick={refreshPolymarketImport} disabled={isPolymarketImporting}>
+              {isPolymarketImporting ? "Обновляем импорт..." : "Подтянуть свежие события"}
+            </button>
+          )}
+        </section>
+
+        <section className="marketFeedSection">
+          <div className="sectionHeader">
+            <h2>Импортированные рынки</h2>
+            <span>{importedMarkets.length} событий</span>
+          </div>
+          {importedMarkets.length === 0 ? (
+            <div className="empty">Импортированных рынков пока нет или они не подходят под фильтр.</div>
+          ) : (
+            <div className="marketList compactMarketList">
+              {importedMarkets.map((market) => renderMarketCard(market, "search"))}
+            </div>
+          )}
+        </section>
+      </div>
     );
   }
 
@@ -1917,6 +2040,15 @@ function App() {
             Рынки
           </button>
           <button
+            className={mainView === "imported" && !selectedMarket ? "activeProductNav" : ""}
+            onClick={() => {
+              setSelectedMarketId(null);
+              setMainView("imported");
+            }}
+          >
+            Polymarket
+          </button>
+          <button
             className={mainView === "search" && !selectedMarket ? "activeProductNav" : ""}
             onClick={() => {
               setSelectedMarketId(null);
@@ -2215,6 +2347,8 @@ function App() {
             </aside>
           </div>
         </section>
+      ) : mainView === "imported" ? (
+        renderImportedPage()
       ) : mainView === "search" ? (
         renderSearchPage()
       ) : (

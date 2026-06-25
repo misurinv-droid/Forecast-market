@@ -121,12 +121,13 @@ const ADMIN_USER_IDS = ADMIN_TELEGRAM_IDS.flatMap((id) => [id, `telegram-${id}`]
 const POLYMARKET_GAMMA_BASE_URL = "https://gamma-api.polymarket.com";
 const POLYMARKET_AUTO_IMPORT_ENABLED =
   (process.env.POLYMARKET_AUTO_IMPORT_ENABLED || "true").toLowerCase() !== "false";
-const POLYMARKET_AUTO_IMPORT_LIMIT = Math.min(100, Math.max(1, Number(process.env.POLYMARKET_AUTO_IMPORT_LIMIT || 30)));
+const POLYMARKET_AUTO_IMPORT_LIMIT = Math.min(100, Math.max(1, Number(process.env.POLYMARKET_AUTO_IMPORT_LIMIT || 50)));
 const POLYMARKET_AUTO_IMPORT_INTERVAL_MS = Math.max(
   30 * 60 * 1000,
   Number(process.env.POLYMARKET_AUTO_IMPORT_INTERVAL_MINUTES || 360) * 60 * 1000
 );
-const POLYMARKET_MIN_VOLUME = Math.max(0, Number(process.env.POLYMARKET_MIN_VOLUME || 0));
+const POLYMARKET_MIN_VOLUME = Math.max(0, Number(process.env.POLYMARKET_MIN_VOLUME || 1000));
+const POLYMARKET_MAX_MARKETS_PER_EVENT = Math.min(10, Math.max(1, Number(process.env.POLYMARKET_MAX_MARKETS_PER_EVENT || 3)));
 
 if (!DATABASE_URL) {
   console.error("Ошибка: не задана переменная окружения DATABASE_URL");
@@ -662,7 +663,7 @@ function mapPolymarketCategory(event: PolymarketEvent, market: PolymarketMarket)
   if (/culture|music|movie|oscars|grammy|celebrity|tv/.test(raw)) return "Культура";
   if (/science|space|weather|climate/.test(raw)) return "Наука";
 
-  return "Polymarket";
+  return "Мировые события";
 }
 
 function getPolymarketCloseDate(event: PolymarketEvent, market: PolymarketMarket) {
@@ -746,6 +747,40 @@ function getPolymarketVolume(event: PolymarketEvent, market: PolymarketMarket) {
   return 0;
 }
 
+function isFutureOrCurrentPolymarketClose(event: PolymarketEvent, market: PolymarketMarket) {
+  const raw =
+    market.endDate ||
+    market.end_date ||
+    market.closeDate ||
+    market.close_time ||
+    event.endDate ||
+    event.end_date ||
+    event.closeDate ||
+    event.close_time;
+
+  if (!raw) return true;
+
+  const timestamp = new Date(String(raw)).getTime();
+  if (!Number.isFinite(timestamp)) return true;
+
+  const yesterday = Date.now() - 24 * 60 * 60 * 1000;
+  return timestamp > yesterday;
+}
+
+function isLikelyUsefulPolymarketQuestion(question: string) {
+  const normalized = question.toLowerCase();
+
+  if (question.length < 12 || question.length > 180) return false;
+  if (/test market|do not use|sample market|deprecated/.test(normalized)) return false;
+  if (/vs\.?/.test(normalized) && question.length < 25) return false;
+
+  return true;
+}
+
+function rankPolymarketMarkets(event: PolymarketEvent, markets: PolymarketMarket[]) {
+  return [...markets].sort((a, b) => getPolymarketVolume(event, b) - getPolymarketVolume(event, a));
+}
+
 function getMarketsFromPolymarketEvent(event: PolymarketEvent) {
   const markets = parseMaybeJsonArray(event.markets) as PolymarketMarket[];
 
@@ -816,7 +851,9 @@ async function importPolymarketMarkets(limit = POLYMARKET_AUTO_IMPORT_LIMIT): Pr
       const events = await fetchPolymarketEvents(limit);
 
       for (const event of events) {
-        for (const market of getMarketsFromPolymarketEvent(event)) {
+        const eventMarkets = rankPolymarketMarkets(event, getMarketsFromPolymarketEvent(event)).slice(0, POLYMARKET_MAX_MARKETS_PER_EVENT);
+
+        for (const market of eventMarkets) {
           checked += 1;
 
           try {
@@ -825,7 +862,12 @@ async function importPolymarketMarkets(limit = POLYMARKET_AUTO_IMPORT_LIMIT): Pr
             const closed = Boolean(market.closed || event.closed);
             const active = market.active ?? event.active ?? true;
 
-            if (!question || question.length < 8 || closed || active === false || !isBinaryYesNoMarket(market)) {
+            if (!question || closed || active === false || !isBinaryYesNoMarket(market)) {
+              skipped += 1;
+              continue;
+            }
+
+            if (!isLikelyUsefulPolymarketQuestion(question) || !isFutureOrCurrentPolymarketClose(event, market)) {
               skipped += 1;
               continue;
             }
@@ -849,8 +891,15 @@ async function importPolymarketMarkets(limit = POLYMARKET_AUTO_IMPORT_LIMIT): Pr
                   yes_pool, no_pool, status, resolved_outcome, resolved_at, created_at
                 )
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'open', NULL, NULL, NOW())
-                ON CONFLICT (id) DO NOTHING
-                RETURNING id
+                ON CONFLICT (id) DO UPDATE SET
+                  question = EXCLUDED.question,
+                  category = EXCLUDED.category,
+                  description = EXCLUDED.description,
+                  source = EXCLUDED.source,
+                  closes_at = EXCLUDED.closes_at,
+                  yes_pool = CASE WHEN markets.status = 'open' THEN EXCLUDED.yes_pool ELSE markets.yes_pool END,
+                  no_pool = CASE WHEN markets.status = 'open' THEN EXCLUDED.no_pool ELSE markets.no_pool END
+                RETURNING id, (xmax = 0) AS inserted
               `,
               [
                 marketId,
@@ -864,7 +913,7 @@ async function importPolymarketMarkets(limit = POLYMARKET_AUTO_IMPORT_LIMIT): Pr
               ]
             );
 
-            if (result.rows[0]?.id) {
+            if (result.rows[0]?.inserted) {
               importedMarketIds.push(result.rows[0].id);
             } else {
               skipped += 1;
@@ -1360,6 +1409,7 @@ app.get("/api/polymarket/import-status", async (_request, response) => {
     baseUrl: POLYMARKET_GAMMA_BASE_URL,
     limit: POLYMARKET_AUTO_IMPORT_LIMIT,
     minVolume: POLYMARKET_MIN_VOLUME,
+    maxMarketsPerEvent: POLYMARKET_MAX_MARKETS_PER_EVENT,
     intervalMinutes: Math.round(POLYMARKET_AUTO_IMPORT_INTERVAL_MS / 60000),
     lastImportAt: lastImportAt || null,
     lastImportedCount: lastImportedCount ? Number(lastImportedCount) : 0,
