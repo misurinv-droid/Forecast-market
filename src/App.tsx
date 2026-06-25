@@ -3,9 +3,10 @@ import "./App.css";
 
 type Outcome = "yes" | "no";
 type MarketStatus = "open" | "resolved";
+type SuggestionStatus = "pending" | "approved" | "rejected";
 type SortMode = "newest" | "probability" | "trades" | "comments";
 type DetailsTab = "overview" | "trades" | "participants" | "chat";
-type MainView = "markets" | "search" | "predictions" | "profile";
+type MainView = "markets" | "search" | "predictions" | "suggest" | "moderation" | "profile";
 type MyPredictionTab = "active" | "settled" | "won" | "lost" | "all";
 
 type DemoUser = {
@@ -67,6 +68,34 @@ type BalanceTransaction = {
   createdAt: string;
 };
 
+type MarketSuggestion = {
+  id: string;
+  userId: string;
+  userName: string;
+  question: string;
+  category: string;
+  description: string;
+  source: string;
+  closesAt: string;
+  status: SuggestionStatus;
+  adminNote?: string;
+  createdAt: string;
+  reviewedAt?: string;
+};
+
+type MarketSuggestionForm = {
+  question: string;
+  category: string;
+  description: string;
+  source: string;
+  closesAt: string;
+};
+
+type SuggestionReviewDraft = MarketSuggestionForm & {
+  yesProbability: number;
+  adminNote: string;
+};
+
 type CommentDraft = {
   text: string;
   mediaDataUrl: string;
@@ -96,6 +125,7 @@ type BootstrapData = {
   predictions: Prediction[];
   comments: MarketComment[];
   transactions?: BalanceTransaction[];
+  marketSuggestions?: MarketSuggestion[];
   favoriteMarketIdsByUser: Record<string, string[]>;
   adminUserIds?: string[];
 };
@@ -170,6 +200,14 @@ const emptyEditMarketForm: EditMarketForm = {
   closesAt: "",
 };
 
+const emptySuggestionForm: MarketSuggestionForm = {
+  question: "",
+  category: "Друзья",
+  description: "",
+  source: "",
+  closesAt: "",
+};
+
 const emptyCommentDraft: CommentDraft = {
   text: "",
   mediaDataUrl: "",
@@ -206,6 +244,12 @@ function getOutcomeText(outcome?: Outcome) {
   if (outcome === "yes") return "Да";
   if (outcome === "no") return "Нет";
   return "—";
+}
+
+function getSuggestionStatusText(status: SuggestionStatus) {
+  if (status === "pending") return "На рассмотрении";
+  if (status === "approved") return "Одобрено";
+  return "Отклонено";
 }
 
 function getUserLevel(stats: { predictionsCount: number; winRate: number }, rank: number) {
@@ -300,6 +344,7 @@ function App() {
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [comments, setComments] = useState<MarketComment[]>([]);
   const [transactions, setTransactions] = useState<BalanceTransaction[]>([]);
+  const [marketSuggestions, setMarketSuggestions] = useState<MarketSuggestion[]>([]);
   const [favoriteMarketIdsByUser, setFavoriteMarketIdsByUser] = useState<Record<string, string[]>>({});
   const [adminUserIds, setAdminUserIds] = useState<string[]>([]);
 
@@ -321,6 +366,8 @@ function App() {
   const [editingMarketId, setEditingMarketId] = useState<string | null>(null);
   const [editMarket, setEditMarket] = useState<EditMarketForm>(emptyEditMarketForm);
   const [newMarket, setNewMarket] = useState<NewMarketForm>(emptyNewMarketForm);
+  const [suggestionForm, setSuggestionForm] = useState<MarketSuggestionForm>(emptySuggestionForm);
+  const [suggestionReviewDrafts, setSuggestionReviewDrafts] = useState<Record<string, SuggestionReviewDraft>>({});
 
   const [isLoading, setIsLoading] = useState(true);
   const [serverError, setServerError] = useState("");
@@ -372,6 +419,15 @@ function App() {
     if (!activeUser) return [];
     return transactions.filter((transaction) => transaction.userId === activeUser.id);
   }, [transactions, activeUser]);
+
+  const activeUserSuggestions = useMemo(() => {
+    if (!activeUser) return [];
+    return marketSuggestions.filter((suggestion) => suggestion.userId === activeUser.id);
+  }, [marketSuggestions, activeUser]);
+
+  const pendingSuggestions = useMemo(() => {
+    return marketSuggestions.filter((suggestion) => suggestion.status === "pending");
+  }, [marketSuggestions]);
 
   const activeUserRank = useMemo(() => {
     if (!activeUser) return 0;
@@ -514,6 +570,7 @@ function App() {
     setPredictions(data.predictions || []);
     setComments(data.comments || []);
     setTransactions(data.transactions || []);
+    setMarketSuggestions(data.marketSuggestions || []);
     setFavoriteMarketIdsByUser(data.favoriteMarketIdsByUser || {});
     setAdminUserIds(data.adminUserIds || []);
 
@@ -608,6 +665,7 @@ function App() {
       setPredictions(data.predictions || []);
       setComments(data.comments || []);
       setTransactions(data.transactions || []);
+      setMarketSuggestions(data.marketSuggestions || []);
       setFavoriteMarketIdsByUser(data.favoriteMarketIdsByUser || {});
       setAdminUserIds(data.adminUserIds || []);
       setActiveUserId(nextActiveUserId);
@@ -716,6 +774,104 @@ function App() {
       setDetailsTab("overview");
       setNewMarket(emptyNewMarketForm);
       setIsAdminOpen(false);
+      await refreshData(activeUser?.id);
+      sendSuccess();
+    } catch (error) {
+      sendError();
+      alert(getErrorMessage(error));
+    }
+  }
+
+
+  async function submitMarketSuggestion() {
+    if (!activeUser) {
+      alert("Профиль пока не загружен");
+      return;
+    }
+
+    if (suggestionForm.question.trim().length < 8) {
+      alert("Сформулируй вопрос рынка чуть подробнее");
+      return;
+    }
+
+    if (!suggestionForm.closesAt) {
+      alert("Укажи дату закрытия рынка");
+      return;
+    }
+
+    try {
+      await apiRequest<MarketSuggestion>("/market-suggestions", {
+        method: "POST",
+        body: JSON.stringify({ ...suggestionForm, userId: activeUser.id }),
+      });
+      setSuggestionForm(emptySuggestionForm);
+      await refreshData(activeUser.id);
+      setMainView("profile");
+      sendSuccess();
+      alert("Заявка отправлена админу. Статус можно смотреть в профиле.");
+    } catch (error) {
+      sendError();
+      alert(getErrorMessage(error));
+    }
+  }
+
+  function getSuggestionDraft(suggestion: MarketSuggestion): SuggestionReviewDraft {
+    return (
+      suggestionReviewDrafts[suggestion.id] || {
+        question: suggestion.question,
+        category: suggestion.category,
+        description: suggestion.description,
+        source: suggestion.source,
+        closesAt: normalizeDateForInput(suggestion.closesAt),
+        yesProbability: 50,
+        adminNote: suggestion.adminNote || "",
+      }
+    );
+  }
+
+  function updateSuggestionDraft(suggestion: MarketSuggestion, patch: Partial<SuggestionReviewDraft>) {
+    const currentDraft = getSuggestionDraft(suggestion);
+    setSuggestionReviewDrafts((current) => ({
+      ...current,
+      [suggestion.id]: { ...currentDraft, ...patch },
+    }));
+  }
+
+  async function approveSuggestion(suggestion: MarketSuggestion) {
+    if (!requireClientAdmin()) return;
+    const draft = getSuggestionDraft(suggestion);
+    const confirmed = confirm(`Опубликовать рынок из заявки?\n\n${draft.question}`);
+    if (!confirmed) return;
+
+    try {
+      const result = await apiRequest<{ market: Market; suggestion: MarketSuggestion }>(`/market-suggestions/${suggestion.id}/approve`, {
+        method: "POST",
+        headers: adminHeaders(),
+        body: JSON.stringify(draft),
+      });
+      await refreshData(activeUser?.id);
+      setSelectedMarketId(result.market.id);
+      setDetailsTab("overview");
+      setMainView("markets");
+      sendSuccess();
+    } catch (error) {
+      sendError();
+      alert(getErrorMessage(error));
+    }
+  }
+
+  async function rejectSuggestion(suggestion: MarketSuggestion) {
+    if (!requireClientAdmin()) return;
+    const draft = getSuggestionDraft(suggestion);
+    const confirmed = confirm(`Отклонить заявку?\n\n${suggestion.question}`);
+    if (!confirmed) return;
+
+    try {
+      await apiRequest<MarketSuggestion>(`/market-suggestions/${suggestion.id}/reject`, {
+        method: "POST",
+        headers: adminHeaders(),
+        body: JSON.stringify({ adminNote: draft.adminNote || "Отклонено администратором" }),
+      });
       await refreshData(activeUser?.id);
       sendSuccess();
     } catch (error) {
@@ -914,6 +1070,8 @@ function App() {
       setEditingMarketId(null);
       setEditMarket(emptyEditMarketForm);
       setNewMarket(emptyNewMarketForm);
+      setSuggestionForm(emptySuggestionForm);
+      setSuggestionReviewDrafts({});
       setCommentDrafts({});
       setAmountByMarket({});
       await refreshData(activeUser?.id);
@@ -925,7 +1083,7 @@ function App() {
   }
 
   function exportDemoData() {
-    const payload = { version: 3, source: "postgres", exportedAt: new Date().toISOString(), users, markets, predictions, comments, transactions, favoriteMarketIdsByUser, adminUserIds };
+    const payload = { version: 4, source: "postgres", exportedAt: new Date().toISOString(), users, markets, predictions, comments, transactions, marketSuggestions, favoriteMarketIdsByUser, adminUserIds };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -1335,6 +1493,185 @@ function App() {
   }
 
 
+
+  function renderSuggestionStatusBadge(status: SuggestionStatus) {
+    return <span className={`suggestionStatus ${status}`}>{getSuggestionStatusText(status)}</span>;
+  }
+
+  function renderSuggestionPage() {
+    if (!activeUser) {
+      return <section className="suggestPage"><div className="empty">Профиль пока не загружен.</div></section>;
+    }
+
+    return (
+      <section className="suggestPage">
+        <section className="suggestHeroPanel">
+          <div>
+            <p className="eyebrow">Идея для рынка</p>
+            <h2>Предложить рынок</h2>
+            <p>Напиши событие, по которому будет интересно прогнозировать. Админ проверит формулировку, источник и дату закрытия.</p>
+          </div>
+          <div className="suggestHeroStats">
+            <span>Мои заявки</span>
+            <strong>{activeUserSuggestions.length}</strong>
+            <small>{activeUserSuggestions.filter((item) => item.status === "pending").length} на рассмотрении</small>
+          </div>
+        </section>
+
+        <section className="suggestLayout">
+          <div className="suggestFormCard">
+            <div className="sectionHeader">
+              <h2>Новая заявка</h2>
+              <span>1–2 минуты</span>
+            </div>
+            <label className="wideField">
+              Вопрос рынка
+              <input
+                placeholder="Например: Будет ли снег в Челябинске в эти выходные?"
+                value={suggestionForm.question}
+                onChange={(event) => setSuggestionForm((current) => ({ ...current, question: event.target.value }))}
+              />
+            </label>
+            <div className="suggestFormGrid">
+              <label>
+                Категория
+                <input
+                  placeholder="Друзья, спорт, экономика..."
+                  value={suggestionForm.category}
+                  onChange={(event) => setSuggestionForm((current) => ({ ...current, category: event.target.value }))}
+                />
+              </label>
+              <label>
+                Дата закрытия
+                <input
+                  type="date"
+                  value={suggestionForm.closesAt}
+                  onChange={(event) => setSuggestionForm((current) => ({ ...current, closesAt: event.target.value }))}
+                />
+              </label>
+            </div>
+            <label className="wideField">
+              Описание / правила расчета
+              <textarea
+                placeholder="Что должно произойти, чтобы рынок был рассчитан как “Да”?"
+                value={suggestionForm.description}
+                onChange={(event) => setSuggestionForm((current) => ({ ...current, description: event.target.value }))}
+              />
+            </label>
+            <label className="wideField">
+              Источник результата
+              <input
+                placeholder="Официальный сайт, общий чат, публичная новость, счет матча..."
+                value={suggestionForm.source}
+                onChange={(event) => setSuggestionForm((current) => ({ ...current, source: event.target.value }))}
+              />
+            </label>
+            <button className="createMarketButton" onClick={submitMarketSuggestion}>Отправить админу</button>
+          </div>
+
+          <aside className="suggestTipsCard">
+            <h3>Как сделать хорошую заявку</h3>
+            <ul>
+              <li>Вопрос должен отвечаться только “Да” или “Нет”.</li>
+              <li>Добавь понятный источник результата.</li>
+              <li>Не делай слишком субъективные формулировки.</li>
+              <li>Дата закрытия должна быть раньше момента расчета.</li>
+            </ul>
+          </aside>
+        </section>
+      </section>
+    );
+  }
+
+  function renderSuggestionList(items: MarketSuggestion[], mode: "profile" | "admin") {
+    if (items.length === 0) {
+      return (
+        <div className="empty emptyActionState">
+          <strong>Заявок пока нет</strong>
+          <p>{mode === "admin" ? "Когда пользователи предложат рынки, они появятся здесь." : "Предложи первый рынок — админ сможет одобрить его и опубликовать."}</p>
+          {mode === "profile" && <button onClick={() => setMainView("suggest")}>Предложить рынок</button>}
+        </div>
+      );
+    }
+
+    return (
+      <div className={mode === "admin" ? "moderationList" : "suggestionList"}>
+        {items.map((suggestion) => {
+          const draft = getSuggestionDraft(suggestion);
+          const isPending = suggestion.status === "pending";
+
+          if (mode === "admin") {
+            return (
+              <article className="moderationCard" key={suggestion.id}>
+                <div className="moderationTopLine">
+                  <div>
+                    <span>{suggestion.userName} · {suggestion.createdAt}</span>
+                    <h3>{suggestion.question}</h3>
+                  </div>
+                  {renderSuggestionStatusBadge(suggestion.status)}
+                </div>
+
+                <div className="moderationFormGrid">
+                  <label className="wideField">Вопрос<input value={draft.question} onChange={(event) => updateSuggestionDraft(suggestion, { question: event.target.value })} /></label>
+                  <label>Категория<input value={draft.category} onChange={(event) => updateSuggestionDraft(suggestion, { category: event.target.value })} /></label>
+                  <label>Дата закрытия<input type="date" value={normalizeDateForInput(draft.closesAt)} onChange={(event) => updateSuggestionDraft(suggestion, { closesAt: event.target.value })} /></label>
+                  <label>Вероятность “Да”, %<input type="number" min="1" max="99" value={draft.yesProbability} onChange={(event) => updateSuggestionDraft(suggestion, { yesProbability: Number(event.target.value) })} /></label>
+                  <label className="wideField">Описание<textarea value={draft.description} onChange={(event) => updateSuggestionDraft(suggestion, { description: event.target.value })} /></label>
+                  <label className="wideField">Источник<input value={draft.source} onChange={(event) => updateSuggestionDraft(suggestion, { source: event.target.value })} /></label>
+                  <label className="wideField">Комментарий админу / причина решения<input placeholder="Например: одобрено, уточнил источник" value={draft.adminNote} onChange={(event) => updateSuggestionDraft(suggestion, { adminNote: event.target.value })} /></label>
+                </div>
+
+                <div className="moderationActions">
+                  <button disabled={!isPending} onClick={() => approveSuggestion(suggestion)}>Опубликовать рынок</button>
+                  <button className="dangerButton" disabled={!isPending} onClick={() => rejectSuggestion(suggestion)}>Отклонить</button>
+                </div>
+              </article>
+            );
+          }
+
+          return (
+            <article className="suggestionItem" key={suggestion.id}>
+              <div>
+                <div className="suggestionItemTop">
+                  <span>{suggestion.category}</span>
+                  {renderSuggestionStatusBadge(suggestion.status)}
+                </div>
+                <h3>{suggestion.question}</h3>
+                <p>{suggestion.description || "Описание не указано"}</p>
+                <small>До {formatDateForDisplay(suggestion.closesAt)} · {suggestion.createdAt}</small>
+                {suggestion.adminNote && <em>{suggestion.adminNote}</em>}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    );
+  }
+
+  function renderModerationPage() {
+    if (!isAdmin) {
+      return <section className="moderationPage"><div className="empty">Этот раздел доступен только администраторам.</div></section>;
+    }
+
+    return (
+      <section className="moderationPage">
+        <section className="suggestHeroPanel moderationHeroPanel">
+          <div>
+            <p className="eyebrow">Админка контента</p>
+            <h2>Заявки на рынки</h2>
+            <p>Проверяй идеи пользователей, правь формулировки и публикуй хорошие рынки в один клик.</p>
+          </div>
+          <div className="suggestHeroStats">
+            <span>Новые заявки</span>
+            <strong>{pendingSuggestions.length}</strong>
+            <small>Всего: {marketSuggestions.length}</small>
+          </div>
+        </section>
+        {renderSuggestionList(marketSuggestions, "admin")}
+      </section>
+    );
+  }
+
   function renderProfilePage() {
     if (!activeUser) {
       return <section className="profilePage"><div className="empty">Профиль пока не загружен.</div></section>;
@@ -1425,6 +1762,14 @@ function App() {
               <span>{activeUserTransactions.length}</span>
             </div>
             {renderTransactions(8)}
+          </div>
+
+          <div className="profileCard profileWideCard">
+            <div className="sectionHeader">
+              <h2>Мои предложенные рынки</h2>
+              <span>{activeUserSuggestions.length}</span>
+            </div>
+            {renderSuggestionList(activeUserSuggestions.slice(0, 6), "profile")}
           </div>
 
           <div className="profileCard profileWideCard">
@@ -1555,6 +1900,26 @@ function App() {
             Мои прогнозы
           </button>
           <button
+            className={mainView === "suggest" && !selectedMarket ? "activeProductNav" : ""}
+            onClick={() => {
+              setSelectedMarketId(null);
+              setMainView("suggest");
+            }}
+          >
+            Предложить
+          </button>
+          {isAdmin && (
+            <button
+              className={mainView === "moderation" && !selectedMarket ? "activeProductNav" : ""}
+              onClick={() => {
+                setSelectedMarketId(null);
+                setMainView("moderation");
+              }}
+            >
+              Заявки {pendingSuggestions.length > 0 ? `· ${pendingSuggestions.length}` : ""}
+            </button>
+          )}
+          <button
             className={mainView === "profile" ? "activeProductNav" : ""}
             onClick={() => {
               setSelectedMarketId(null);
@@ -1604,6 +1969,10 @@ function App() {
         renderProfilePage()
       ) : mainView === "predictions" && !selectedMarket ? (
         renderMyPredictionsPage()
+      ) : mainView === "suggest" && !selectedMarket ? (
+        renderSuggestionPage()
+      ) : mainView === "moderation" && !selectedMarket ? (
+        renderModerationPage()
       ) : selectedMarket ? (
         <section className="detailsPage">
           <button className="backButton" onClick={() => setSelectedMarketId(null)}>

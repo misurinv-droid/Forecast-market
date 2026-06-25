@@ -3247,3 +3247,345 @@ body.is-telegram-webapp {
 .telegramApp .marketMyPosition strong {
   font-size: 10.5px;
 }
+
+/* -----------------------------
+   Market suggestions / moderation
+------------------------------ */
+.suggestPage,
+.moderationPage {
+  display: grid;
+  gap: 16px;
+}
+
+.suggestHeroPanel,
+.moderationHeroPanel {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: stretch;
+  padding: 20px;
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at top left, rgba(91, 107, 255, 0.14), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.93), rgba(243, 247, 255, 0.88));
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  box-shadow: 0 18px 60px rgba(15, 23, 42, 0.08);
+}
+
+.suggestHeroPanel h2,
+.moderationHeroPanel h2 {
+  margin: 0 0 8px;
+  font-size: 30px;
+  letter-spacing: -0.04em;
+}
+
+.suggestHeroPanel p,
+.moderationHeroPanel p {
+  margin: 0;
+  color: #64748b;
+  max-width: 660px;
+  line-height: 1.55;
+}
+
+.suggestHeroStats {
+  min-width: 160px;
+  padding: 16px;
+  border-radius: 22px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #5b6bff, #9b5cff);
+  box-shadow: 0 18px 40px rgba(91, 107, 255, 0.24);
+}
+
+.suggestHeroStats span,
+.suggestHeroStats small {
+  display: block;
+  opacity: 0.84;
+  font-size: 12px;
+}
+
+.suggestHeroStats strong {
+  display: block;
+  margin: 8px 0 4px;
+  font-size: 34px;
+  line-height: 1;
+}
+
+.suggestLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 16px;
+  align-items: start;
+}
+
+.suggestFormCard,
+.suggestTipsCard,
+.moderationCard,
+.suggestionItem {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 24px;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.07);
+}
+
+.suggestFormCard {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+}
+
+.suggestFormGrid,
+.moderationFormGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.suggestFormCard label,
+.moderationFormGrid label {
+  display: grid;
+  gap: 6px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.suggestFormCard input,
+.suggestFormCard textarea,
+.moderationFormGrid input,
+.moderationFormGrid textarea {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 14px;
+  padding: 11px 12px;
+  background: rgba(248, 250, 252, 0.92);
+  color: #0f172a;
+  font: inherit;
+  outline: none;
+}
+
+.suggestFormCard textarea,
+.moderationFormGrid textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.suggestTipsCard {
+  padding: 18px;
+  position: sticky;
+  top: 14px;
+}
+
+.suggestTipsCard h3 {
+  margin: 0 0 10px;
+  font-size: 18px;
+}
+
+.suggestTipsCard ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #64748b;
+  line-height: 1.55;
+}
+
+.suggestionList,
+.moderationList {
+  display: grid;
+  gap: 12px;
+}
+
+.suggestionItem {
+  padding: 14px;
+}
+
+.suggestionItemTop,
+.moderationTopLine {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.suggestionItemTop span:first-child,
+.moderationTopLine span:first-child {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.suggestionItem h3,
+.moderationCard h3 {
+  margin: 8px 0 6px;
+  color: #0f172a;
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.suggestionItem p {
+  margin: 0 0 8px;
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.suggestionItem small,
+.suggestionItem em {
+  display: block;
+  color: #94a3b8;
+  font-size: 12px;
+  font-style: normal;
+}
+
+.suggestionItem em {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #475569;
+}
+
+.suggestionStatus {
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.suggestionStatus.pending {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.suggestionStatus.approved {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.suggestionStatus.rejected {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.moderationCard {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.moderationActions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.moderationActions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (max-width: 860px) {
+  .suggestHeroPanel,
+  .moderationHeroPanel,
+  .suggestLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .suggestHeroPanel,
+  .moderationHeroPanel {
+    display: grid;
+  }
+
+  .suggestHeroStats {
+    min-width: 0;
+  }
+
+  .suggestTipsCard {
+    position: static;
+  }
+}
+
+@media (max-width: 640px) {
+  .suggestFormGrid,
+  .moderationFormGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.telegramApp .hero {
+  padding-top: calc(var(--tg-safe-top, 0px) + 40px);
+}
+
+.telegramApp .suggestHeroPanel,
+.telegramApp .moderationHeroPanel {
+  padding: 13px;
+  border-radius: 20px;
+  gap: 10px;
+}
+
+.telegramApp .suggestHeroPanel h2,
+.telegramApp .moderationHeroPanel h2 {
+  font-size: 21px;
+  margin-bottom: 5px;
+}
+
+.telegramApp .suggestHeroPanel p,
+.telegramApp .moderationHeroPanel p {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.telegramApp .suggestHeroStats {
+  padding: 11px;
+  border-radius: 16px;
+}
+
+.telegramApp .suggestHeroStats strong {
+  font-size: 25px;
+}
+
+.telegramApp .suggestPage,
+.telegramApp .moderationPage,
+.telegramApp .suggestLayout,
+.telegramApp .suggestionList,
+.telegramApp .moderationList {
+  gap: 10px;
+}
+
+.telegramApp .suggestFormCard,
+.telegramApp .suggestTipsCard,
+.telegramApp .moderationCard,
+.telegramApp .suggestionItem {
+  border-radius: 17px;
+  padding: 12px;
+}
+
+.telegramApp .suggestFormCard input,
+.telegramApp .suggestFormCard textarea,
+.telegramApp .moderationFormGrid input,
+.telegramApp .moderationFormGrid textarea {
+  padding: 9px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+.telegramApp .suggestFormCard textarea,
+.telegramApp .moderationFormGrid textarea {
+  min-height: 74px;
+}
+
+.telegramApp .suggestionItem h3,
+.telegramApp .moderationCard h3 {
+  font-size: 13px;
+}
+
+.telegramApp .suggestionItem p,
+.telegramApp .suggestTipsCard li {
+  font-size: 11.5px;
+}
+
+.telegramApp .suggestionStatus {
+  padding: 5px 7px;
+  font-size: 9.5px;
+}

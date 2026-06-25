@@ -9,6 +9,7 @@ import { Pool, PoolClient } from "pg";
 
 type Outcome = "yes" | "no";
 type MarketStatus = "open" | "resolved";
+type SuggestionStatus = "pending" | "approved" | "rejected";
 
 type DemoUser = {
   id: string;
@@ -69,12 +70,28 @@ type BalanceTransaction = {
   createdAt: string;
 };
 
+type MarketSuggestion = {
+  id: string;
+  userId: string;
+  userName: string;
+  question: string;
+  category: string;
+  description: string;
+  source: string;
+  closesAt: string;
+  status: SuggestionStatus;
+  adminNote?: string;
+  createdAt: string;
+  reviewedAt?: string;
+};
+
 type DatabaseSnapshot = {
   users: DemoUser[];
   markets: Market[];
   predictions: Prediction[];
   comments: MarketComment[];
   transactions: BalanceTransaction[];
+  marketSuggestions: MarketSuggestion[];
   favoriteMarketIdsByUser: Record<string, string[]>;
   adminUserIds: string[];
 };
@@ -365,6 +382,23 @@ function toTransaction(row: any): BalanceTransaction {
   };
 }
 
+function toSuggestion(row: any): MarketSuggestion {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    userName: row.user_name,
+    question: row.question,
+    category: row.category,
+    description: row.description || "",
+    source: row.source || "",
+    closesAt: row.closes_at,
+    status: row.status,
+    adminNote: row.admin_note || undefined,
+    createdAt: formatDbDateTime(row.created_at),
+    reviewedAt: row.reviewed_at ? formatDbDateTime(row.reviewed_at) : undefined,
+  };
+}
+
 type QueryRunner = {
   query: (text: string, params?: unknown[]) => Promise<{ rows: any[] }>;
 };
@@ -531,6 +565,21 @@ async function migrate() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS market_suggestions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      user_name TEXT NOT NULL,
+      question TEXT NOT NULL,
+      category TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      source TEXT NOT NULL DEFAULT '',
+      closes_at TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      admin_note TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      reviewed_at TIMESTAMPTZ
+    );
+
     CREATE TABLE IF NOT EXISTS favorites (
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       market_id TEXT NOT NULL REFERENCES markets(id) ON DELETE CASCADE,
@@ -542,6 +591,8 @@ async function migrate() {
     CREATE INDEX IF NOT EXISTS comments_market_id_idx ON comments(market_id);
     CREATE INDEX IF NOT EXISTS transactions_user_id_idx ON transactions(user_id);
     CREATE INDEX IF NOT EXISTS transactions_created_at_idx ON transactions(created_at);
+    CREATE INDEX IF NOT EXISTS market_suggestions_user_id_idx ON market_suggestions(user_id);
+    CREATE INDEX IF NOT EXISTS market_suggestions_status_idx ON market_suggestions(status);
     CREATE INDEX IF NOT EXISTS favorites_user_id_idx ON favorites(user_id);
   `);
 }
@@ -614,13 +665,14 @@ async function seedIfEmpty() {
 }
 
 async function getSnapshot(): Promise<DatabaseSnapshot> {
-  const [usersResult, marketsResult, predictionsResult, commentsResult, transactionsResult, favoritesResult] =
+  const [usersResult, marketsResult, predictionsResult, commentsResult, transactionsResult, suggestionsResult, favoritesResult] =
     await Promise.all([
       pool.query("SELECT * FROM users ORDER BY name ASC"),
       pool.query("SELECT * FROM markets ORDER BY created_at DESC"),
       pool.query("SELECT * FROM predictions ORDER BY id DESC"),
       pool.query("SELECT * FROM comments ORDER BY id DESC"),
       pool.query("SELECT * FROM transactions ORDER BY created_at DESC LIMIT 500"),
+      pool.query("SELECT * FROM market_suggestions ORDER BY created_at DESC LIMIT 500"),
       pool.query("SELECT * FROM favorites ORDER BY user_id ASC, market_id ASC"),
     ]);
 
@@ -640,6 +692,7 @@ async function getSnapshot(): Promise<DatabaseSnapshot> {
     predictions: predictionsResult.rows.map(toPrediction),
     comments: commentsResult.rows.map(toComment),
     transactions: transactionsResult.rows.map(toTransaction),
+    marketSuggestions: suggestionsResult.rows.map(toSuggestion),
     favoriteMarketIdsByUser,
     adminUserIds: ADMIN_USER_IDS,
   };
@@ -780,6 +833,210 @@ app.post("/api/telegram-user", async (request, response) => {
   });
 
   response.status(201).json(user);
+});
+
+
+app.post("/api/market-suggestions", async (request, response) => {
+  try {
+    const { userId, question, category, description, source, closesAt } = request.body || {};
+    const normalizedQuestion = String(question || "").trim();
+    const normalizedCategory = String(category || "").trim() || "Другое";
+    const normalizedDescription = String(description || "").trim();
+    const normalizedSource = String(source || "").trim() || "Будет указан администратором";
+    const normalizedClosesAt = String(closesAt || "").trim();
+
+    if (!userId) {
+      response.status(400).json({ error: "Не передан userId" });
+      return;
+    }
+
+    if (normalizedQuestion.length < 8) {
+      response.status(400).json({ error: "Сформулируй вопрос рынка подробнее" });
+      return;
+    }
+
+    if (!normalizedClosesAt) {
+      response.status(400).json({ error: "Укажи дату закрытия рынка" });
+      return;
+    }
+
+    const userResult = await pool.query("SELECT * FROM users WHERE id = $1", [userId]);
+    if (userResult.rows.length === 0) {
+      response.status(404).json({ error: "Пользователь не найден" });
+      return;
+    }
+
+    const user = toUser(userResult.rows[0]);
+    const suggestionId = createId();
+
+    const result = await pool.query(
+      `
+        INSERT INTO market_suggestions (
+          id, user_id, user_name, question, category, description, source, closes_at, status, created_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', NOW())
+        RETURNING *
+      `,
+      [
+        suggestionId,
+        user.id,
+        getUserDisplayName(user),
+        normalizedQuestion,
+        normalizedCategory,
+        normalizedDescription,
+        normalizedSource,
+        normalizedClosesAt,
+      ]
+    );
+
+    response.status(201).json(toSuggestion(result.rows[0]));
+  } catch (error) {
+    console.error(error);
+    response.status(500).json({ error: "Не удалось отправить заявку" });
+  }
+});
+
+app.patch("/api/market-suggestions/:suggestionId", async (request, response) => {
+  if (!requireAdmin(request, response)) return;
+
+  try {
+    const { suggestionId } = request.params;
+    const { question, category, description, source, closesAt, adminNote } = request.body || {};
+
+    const result = await pool.query(
+      `
+        UPDATE market_suggestions
+        SET
+          question = COALESCE($2, question),
+          category = COALESCE($3, category),
+          description = COALESCE($4, description),
+          source = COALESCE($5, source),
+          closes_at = COALESCE($6, closes_at),
+          admin_note = COALESCE($7, admin_note)
+        WHERE id = $1
+        RETURNING *
+      `,
+      [
+        suggestionId,
+        typeof question === "string" ? question.trim() : null,
+        typeof category === "string" ? category.trim() : null,
+        typeof description === "string" ? description.trim() : null,
+        typeof source === "string" ? source.trim() : null,
+        typeof closesAt === "string" ? closesAt.trim() : null,
+        typeof adminNote === "string" ? adminNote.trim() : null,
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      response.status(404).json({ error: "Заявка не найдена" });
+      return;
+    }
+
+    response.json(toSuggestion(result.rows[0]));
+  } catch (error) {
+    console.error(error);
+    response.status(500).json({ error: "Не удалось обновить заявку" });
+  }
+});
+
+app.post("/api/market-suggestions/:suggestionId/approve", async (request, response) => {
+  if (!requireAdmin(request, response)) return;
+
+  try {
+    const { suggestionId } = request.params;
+    const { question, category, description, source, closesAt, yesProbability, adminNote } = request.body || {};
+
+    const result = await withTransaction(async (client) => {
+      const suggestionResult = await client.query("SELECT * FROM market_suggestions WHERE id = $1 FOR UPDATE", [suggestionId]);
+      if (suggestionResult.rows.length === 0) {
+        throw new Error("SUGGESTION_NOT_FOUND");
+      }
+
+      const suggestion = toSuggestion(suggestionResult.rows[0]);
+      const finalQuestion = String(question || suggestion.question).trim();
+      const finalCategory = String(category || suggestion.category).trim() || "Другое";
+      const finalDescription = String(description || suggestion.description).trim() || "Правила расчета будут уточнены администратором.";
+      const finalSource = String(source || suggestion.source).trim() || "Будет указан администратором";
+      const finalClosesAt = String(closesAt || suggestion.closesAt).trim();
+      const probability = Math.min(99, Math.max(1, Number(yesProbability || 50)));
+      const yesPool = probability * 100;
+      const noPool = (100 - probability) * 100;
+      const marketId = createId();
+
+      const marketResult = await client.query(
+        `
+          INSERT INTO markets (
+            id, question, category, description, source, closes_at,
+            yes_pool, no_pool, status, resolved_outcome, resolved_at, created_at
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'open', NULL, NULL, NOW())
+          RETURNING *
+        `,
+        [marketId, finalQuestion, finalCategory, finalDescription, finalSource, finalClosesAt, yesPool, noPool]
+      );
+
+      const updatedSuggestionResult = await client.query(
+        `
+          UPDATE market_suggestions
+          SET
+            question = $2,
+            category = $3,
+            description = $4,
+            source = $5,
+            closes_at = $6,
+            status = 'approved',
+            admin_note = $7,
+            reviewed_at = NOW()
+          WHERE id = $1
+          RETURNING *
+        `,
+        [suggestionId, finalQuestion, finalCategory, finalDescription, finalSource, finalClosesAt, String(adminNote || "Одобрено и опубликовано").trim()]
+      );
+
+      return {
+        market: toMarket(marketResult.rows[0]),
+        suggestion: toSuggestion(updatedSuggestionResult.rows[0]),
+      };
+    });
+
+    response.status(201).json(result);
+  } catch (error) {
+    if (error instanceof Error && error.message === "SUGGESTION_NOT_FOUND") {
+      response.status(404).json({ error: "Заявка не найдена" });
+      return;
+    }
+    console.error(error);
+    response.status(500).json({ error: "Не удалось одобрить заявку" });
+  }
+});
+
+app.post("/api/market-suggestions/:suggestionId/reject", async (request, response) => {
+  if (!requireAdmin(request, response)) return;
+
+  try {
+    const { suggestionId } = request.params;
+    const { adminNote } = request.body || {};
+
+    const result = await pool.query(
+      `
+        UPDATE market_suggestions
+        SET status = 'rejected', admin_note = $2, reviewed_at = NOW()
+        WHERE id = $1
+        RETURNING *
+      `,
+      [suggestionId, String(adminNote || "Отклонено администратором").trim()]
+    );
+
+    if (result.rows.length === 0) {
+      response.status(404).json({ error: "Заявка не найдена" });
+      return;
+    }
+
+    response.json(toSuggestion(result.rows[0]));
+  } catch (error) {
+    console.error(error);
+    response.status(500).json({ error: "Не удалось отклонить заявку" });
+  }
 });
 
 app.post("/api/markets", async (request, response) => {
