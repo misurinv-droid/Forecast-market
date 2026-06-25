@@ -5,6 +5,7 @@ type Outcome = "yes" | "no";
 type MarketStatus = "open" | "resolved";
 type SortMode = "newest" | "probability" | "trades" | "comments";
 type DetailsTab = "overview" | "trades" | "participants" | "chat";
+type MainView = "markets" | "profile";
 
 type DemoUser = {
   id: string;
@@ -221,6 +222,7 @@ function App() {
   const [statusFilter, setStatusFilter] = useState<"all" | MarketStatus>("all");
   const [sortMode, setSortMode] = useState<SortMode>("newest");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [mainView, setMainView] = useState<MainView>("markets");
 
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
   const [detailsTab, setDetailsTab] = useState<DetailsTab>("overview");
@@ -232,6 +234,8 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [serverError, setServerError] = useState("");
   const [isTelegram, setIsTelegram] = useState(false);
+
+  const showDebugTools = false;
 
   const activeUser = useMemo(() => {
     return users.find((user) => user.id === activeUserId) || users[0] || null;
@@ -264,6 +268,24 @@ function App() {
       winRate: settled.length ? Math.round((wins / settled.length) * 100) : 0,
     };
   }, [activeUserPredictions]);
+
+  const activeUserOpenPredictions = useMemo(() => {
+    return activeUserPredictions.filter((prediction) => !prediction.settledAt);
+  }, [activeUserPredictions]);
+
+  const activeUserSettledPredictions = useMemo(() => {
+    return activeUserPredictions.filter((prediction) => prediction.settledAt);
+  }, [activeUserPredictions]);
+
+  const activeUserRank = useMemo(() => {
+    if (!activeUser) return 0;
+    const sortedUsers = [...users].sort((a, b) => b.balance - a.balance);
+    return sortedUsers.findIndex((user) => user.id === activeUser.id) + 1;
+  }, [users, activeUser]);
+
+  const activeFavoriteMarkets = useMemo(() => {
+    return markets.filter((market) => favoriteMarketIds.includes(market.id));
+  }, [markets, favoriteMarketIds]);
 
   const leaderboard = useMemo(() => {
     return [...users].sort((a, b) => b.balance - a.balance);
@@ -920,6 +942,145 @@ function App() {
     );
   }
 
+
+  function renderProfilePage() {
+    if (!activeUser) {
+      return <section className="profilePage"><div className="empty">Профиль пока не загружен.</div></section>;
+    }
+
+    const displayInitial = activeUser.name.slice(0, 1).toUpperCase();
+    const roleTitle = isAdmin ? "Администратор" : "Участник";
+
+    return (
+      <section className="profilePage">
+        <article className="profileHeroCard">
+          <div className="profileAvatar">{displayInitial}</div>
+          <div className="profileMainInfo">
+            <span className="profileRole">{roleTitle}</span>
+            <h2>{activeUser.name}</h2>
+            <p>
+              Личный кабинет Forecast Market: баланс, статистика, активные прогнозы и избранные рынки.
+            </p>
+          </div>
+          <div className="profileBalanceBox">
+            <span>Баланс</span>
+            <strong>{activeUser.balance.toLocaleString("ru-RU")} баллов</strong>
+            <button onClick={() => refreshData(activeUser.id)}>Обновить данные</button>
+          </div>
+        </article>
+
+        <section className="profileStatsGrid">
+          <div>
+            <span>Место в рейтинге</span>
+            <strong>{activeUserRank ? `#${activeUserRank}` : "—"}</strong>
+          </div>
+          <div>
+            <span>Всего прогнозов</span>
+            <strong>{activeUserStats.predictionsCount}</strong>
+          </div>
+          <div>
+            <span>Активные прогнозы</span>
+            <strong>{activeUserOpenPredictions.length}</strong>
+          </div>
+          <div>
+            <span>Winrate</span>
+            <strong>{activeUserStats.winRate}%</strong>
+          </div>
+          <div>
+            <span>Вложено</span>
+            <strong>{activeUserStats.invested.toLocaleString("ru-RU")}</strong>
+          </div>
+          <div>
+            <span>Получено выплат</span>
+            <strong>{activeUserStats.payouts.toLocaleString("ru-RU")}</strong>
+          </div>
+        </section>
+
+        <section className="profileContentGrid">
+          <div className="profileCard">
+            <div className="sectionHeader">
+              <h2>Активные прогнозы</h2>
+              <span>{activeUserOpenPredictions.length}</span>
+            </div>
+            {activeUserOpenPredictions.length === 0 ? (
+              <div className="empty">Активных прогнозов пока нет.</div>
+            ) : (
+              <div className="predictionList">
+                {activeUserOpenPredictions.map((prediction) => (
+                  <div className="prediction" key={prediction.id}>
+                    <div className="predictionOutcome">{getOutcomeText(prediction.outcome)}</div>
+                    <div>
+                      <h4>{prediction.marketQuestion}</h4>
+                      <p>{prediction.amount.toLocaleString("ru-RU")} баллов · {prediction.probabilityAtPurchase}% при покупке</p>
+                      <p className="activePrediction">Ожидает расчета</p>
+                      <span className="predictionDate">{prediction.createdAt}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="profileCard">
+            <div className="sectionHeader">
+              <h2>Завершённые прогнозы</h2>
+              <span>{activeUserSettledPredictions.length}</span>
+            </div>
+            {activeUserSettledPredictions.length === 0 ? (
+              <div className="empty">Завершённых прогнозов пока нет.</div>
+            ) : (
+              <div className="predictionList">
+                {activeUserSettledPredictions.slice(0, 8).map((prediction) => {
+                  const isWinner = prediction.outcome === prediction.resolvedOutcome;
+                  return (
+                    <div className="prediction" key={prediction.id}>
+                      <div className="predictionOutcome">{getOutcomeText(prediction.outcome)}</div>
+                      <div>
+                        <h4>{prediction.marketQuestion}</h4>
+                        <p>{prediction.amount.toLocaleString("ru-RU")} баллов · результат: {getOutcomeText(prediction.resolvedOutcome)}</p>
+                        <p className={isWinner ? "predictionSettlement winText" : "predictionSettlement lossText"}>
+                          {isWinner ? "Выигрыш" : "Проигрыш"} · Выплата: {(prediction.payout || 0).toLocaleString("ru-RU")} баллов
+                        </p>
+                        <span className="predictionDate">{prediction.settledAt || prediction.createdAt}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="profileCard profileWideCard">
+            <div className="sectionHeader">
+              <h2>Избранные рынки</h2>
+              <span>{activeFavoriteMarkets.length}</span>
+            </div>
+            {activeFavoriteMarkets.length === 0 ? (
+              <div className="empty">Добавляй интересные рынки в избранное — они появятся здесь.</div>
+            ) : (
+              <div className="favoriteMarketList">
+                {activeFavoriteMarkets.map((market) => (
+                  <button
+                    className="favoriteMarketItem"
+                    key={market.id}
+                    onClick={() => {
+                      setSelectedMarketId(market.id);
+                      setDetailsTab("overview");
+                    }}
+                  >
+                    <span>{market.category}</span>
+                    <strong>{market.question}</strong>
+                    <small>{market.status === "resolved" ? `Рассчитан: ${getOutcomeText(market.resolvedOutcome)}` : `До ${formatDateForDisplay(market.closesAt)}`}</small>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      </section>
+    );
+  }
+
   if (isLoading) {
     return (
       <main className="app">
@@ -951,13 +1112,16 @@ function App() {
           <p className="eyebrow">Социальная биржа прогнозов</p>
           <h1>Forecast Market</h1>
           <p className="subtitle">
-            Telegram Mini App с PostgreSQL и ролями. Админские действия доступны только выбранным Telegram ID.
+            Прогнозируй события, следи за вероятностями, обсуждай рынки и поднимайся в рейтинге. Без реальных денег — только игровые баллы.
           </p>
         </div>
         <div className="balanceCard">
-          <span>{isAdmin ? "Администратор" : "Участник"}</span>
-          <strong>{(activeUser?.balance || 0).toLocaleString("ru-RU")} баллов</strong>
-          {isAdmin ? <button onClick={resetDemo}>Сбросить backend</button> : <button onClick={() => refreshData(activeUser?.id)}>Обновить</button>}
+          <div>
+            <span>{activeUser?.name || "Профиль"}</span>
+            <strong>{(activeUser?.balance || 0).toLocaleString("ru-RU")} баллов</strong>
+            <p>{isAdmin ? "Администратор" : "Участник"} · {activeUserStats.predictionsCount} прогнозов · Winrate {activeUserStats.winRate}%</p>
+          </div>
+          <button onClick={() => setMainView("profile")}>Открыть профиль</button>
         </div>
       </section>
 
@@ -965,52 +1129,68 @@ function App() {
         Игровые баллы не являются деньгами, не имеют имущественной ценности, не покупаются, не продаются, не передаются и не выводятся.
       </section>
 
-      <section className="telegramPanel">
-        <div>
-          <strong>{isTelegram ? "Открыто внутри Telegram" : "Открыто в браузере"}</strong>
-          <p>
-            Роль: <b>{isAdmin ? "Админ" : "Участник"}</b> · API: <b>{API_BASE}</b>
-          </p>
+      <section className="productTopBar">
+        <div className="productNav">
+          <button
+            className={mainView === "markets" && !selectedMarket ? "activeProductNav" : ""}
+            onClick={() => {
+              setSelectedMarketId(null);
+              setMainView("markets");
+            }}
+          >
+            Рынки
+          </button>
+          <button
+            className={mainView === "profile" ? "activeProductNav" : ""}
+            onClick={() => {
+              setSelectedMarketId(null);
+              setMainView("profile");
+            }}
+          >
+            Профиль
+          </button>
         </div>
-        <div>
-          <button onClick={() => window.Telegram?.WebApp?.expand?.()}>Развернуть</button>
-          <button onClick={() => window.Telegram?.WebApp?.close?.()}>Закрыть</button>
-        </div>
+        <div className="connectionPill">{isTelegram ? "Telegram Mini App" : "Браузерная версия"}</div>
       </section>
 
-      <section className="userPanel">
-        <div>
-          <h2>Участники</h2>
-          <p>Обычные участники могут делать прогнозы, писать комментарии и добавлять рынки в избранное.</p>
-        </div>
-        <div className="userControls">
-          <label>
-            Активный участник
-            <select value={activeUserId} onChange={(event) => setActiveUserId(event.target.value)}>
-              {users.map((user) => (
-                <option value={user.id} key={user.id}>
-                  {user.name} — {user.balance.toLocaleString("ru-RU")} баллов {adminUserIds.includes(user.id) ? "— админ" : ""}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Новый участник
-            <div className="addUserRow">
-              <input placeholder="Имя друга" value={newUserName} onChange={(event) => setNewUserName(event.target.value)} />
-              <button onClick={addUser}>Добавить</button>
-            </div>
-          </label>
-        </div>
-        <div className="dataActions">
-          <button onClick={exportDemoData}>Экспорт JSON</button>
-          <button onClick={() => refreshData(activeUser?.id)}>Обновить</button>
-        </div>
-      </section>
+      {showDebugTools && (
+        <section className="userPanel">
+          <div>
+            <h2>Тестовые инструменты</h2>
+            <p>Скрытый блок для локальной проверки пользователей и данных.</p>
+          </div>
+          <div className="userControls">
+            <label>
+              Активный участник
+              <select value={activeUserId} onChange={(event) => setActiveUserId(event.target.value)}>
+                {users.map((user) => (
+                  <option value={user.id} key={user.id}>
+                    {user.name} — {user.balance.toLocaleString("ru-RU")} баллов {adminUserIds.includes(user.id) ? "— админ" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Новый участник
+              <div className="addUserRow">
+                <input placeholder="Имя друга" value={newUserName} onChange={(event) => setNewUserName(event.target.value)} />
+                <button onClick={addUser}>Добавить</button>
+              </div>
+            </label>
+          </div>
+          <div className="dataActions">
+            <button onClick={exportDemoData}>Экспорт JSON</button>
+            <button onClick={resetDemo}>Сбросить backend</button>
+            <button onClick={() => refreshData(activeUser?.id)}>Обновить</button>
+          </div>
+        </section>
+      )}
 
-      {selectedMarket ? (
+      {mainView === "profile" && !selectedMarket ? (
+        renderProfilePage()
+      ) : selectedMarket ? (
         <section className="detailsPage">
-          <button className="backButton" onClick={() => setSelectedMarketId(null)}>
+          <button className="backButton" onClick={() => { setSelectedMarketId(null); setMainView("markets"); }}>
             ← Назад к рынкам
           </button>
 
@@ -1221,8 +1401,8 @@ function App() {
             <section className="adminPanel">
               <div className="adminHeader">
                 <div>
-                  <h2>Админка рынков</h2>
-                  <p>Создавай тестовые события для друзей и знакомых.</p>
+                  <h2>Управление рынками</h2>
+                  <p>Создавай события, задавай правила расчета и управляй результатами.</p>
                 </div>
                 <button onClick={() => setIsAdminOpen((current) => !current)}>{isAdminOpen ? "Закрыть админку" : "Открыть админку"}</button>
               </div>
@@ -1315,7 +1495,7 @@ function App() {
 
               <section className="portfolio">
                 <div className="sectionHeader"><h2>Мои прогнозы</h2><span>{activeUserPredictions.length}</span></div>
-                {activeUserPredictions.length === 0 ? <div className="empty">У этого участника пока нет прогнозов.</div> : (
+                {activeUserPredictions.length === 0 ? <div className="empty">У вас пока нет прогнозов.</div> : (
                   <div className="predictionList">
                     {activeUserPredictions.map((prediction) => {
                       const isSettled = Boolean(prediction.settledAt);

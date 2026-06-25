@@ -1077,93 +1077,273 @@ h1 {
   }
 }
 
-/* Telegram Mini App */
-.telegramPanel {
-  margin-bottom: 24px;
-  padding: 22px;
-  border-radius: 24px;
-  background: white;
-  border: 1px solid #eaecf0;
-  box-shadow: 0 12px 40px rgba(16, 24, 40, 0.06);
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 18px;
-  align-items: center;
-}
-
-.telegramPanel.telegramPanelActive {
-  border-color: #84caff;
-  background: #f5fbff;
-}
-
-.telegramPanel h2 {
+.balanceCard p {
   margin: 0;
-  font-size: 22px;
+  color: #d0d5dd;
+  line-height: 1.45;
+  font-weight: 700;
 }
 
-.telegramPanel p {
-  margin: 8px 0 0;
-  color: #667085;
-  line-height: 1.5;
-}
-
-.telegramPanelActions {
+.productTopBar {
+  margin-bottom: 24px;
+  padding: 10px;
+  border: 1px solid #eaecf0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 12px 40px rgba(16, 24, 40, 0.06);
   display: flex;
-  flex-wrap: wrap;
+  justify-content: space-between;
   align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
+  gap: 12px;
+  backdrop-filter: blur(12px);
 }
 
-.telegramPanelActions span {
-  color: #344054;
-  font-size: 14px;
+.productNav {
+  display: flex;
+  gap: 8px;
 }
 
-.telegramPanelActions button,
-.shareMarketButton {
+.productNav button {
   border: 0;
-  border-radius: 14px;
-  padding: 11px 14px;
-  background: #229ed9;
-  color: white;
+  border-radius: 999px;
+  padding: 12px 18px;
+  background: transparent;
+  color: #344054;
   font-weight: 900;
 }
 
-.shareMarketButton {
-  white-space: nowrap;
+.productNav .activeProductNav {
+  background: #101828;
+  color: white;
 }
 
-.compactShareButton {
-  padding: 9px 12px;
+.connectionPill {
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: #f2f4f7;
+  color: #475467;
   font-size: 13px;
+  font-weight: 900;
+}
+
+.cardActionGrid {
+  display: grid;
+  grid-template-columns: 1fr 110px;
+  gap: 10px;
+}
+
+.detailsTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.detailsTabs button {
+  border: 1px solid #d0d5dd;
+  background: white;
+  color: #344054;
+  padding: 12px 16px;
+  border-radius: 999px;
+  font-weight: 900;
+}
+
+.detailsTabs .activeDetailTab {
+  background: #101828;
+  color: white;
+  border-color: #101828;
+}
+
+.profilePage {
+  display: grid;
+  gap: 22px;
+}
+
+.profileHeroCard,
+.profileCard {
+  background: white;
+  border: 1px solid #eaecf0;
+  border-radius: 28px;
+  box-shadow: 0 12px 40px rgba(16, 24, 40, 0.06);
+}
+
+.profileHeroCard {
+  padding: 26px;
+  display: grid;
+  grid-template-columns: 82px 1fr 280px;
+  gap: 20px;
+  align-items: center;
+}
+
+.profileAvatar {
+  width: 82px;
+  height: 82px;
+  border-radius: 26px;
+  background: #101828;
+  color: white;
+  display: grid;
+  place-items: center;
+  font-size: 34px;
+  font-weight: 900;
+  box-shadow: 0 16px 35px rgba(16, 24, 40, 0.22);
+}
+
+.profileMainInfo h2 {
+  margin: 6px 0 8px;
+  font-size: 34px;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+.profileMainInfo p {
+  margin: 0;
+  color: #667085;
+  line-height: 1.55;
+}
+
+.profileRole {
+  display: inline-flex;
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #3538cd;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.profileBalanceBox {
+  padding: 18px;
+  border-radius: 22px;
+  background: #101828;
+  color: white;
+  display: grid;
+  gap: 8px;
+}
+
+.profileBalanceBox span {
+  color: #d0d5dd;
+  font-weight: 800;
+}
+
+.profileBalanceBox strong {
+  font-size: 24px;
+}
+
+.profileBalanceBox button {
+  margin-top: 6px;
+  border: 0;
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: white;
+  color: #101828;
+  font-weight: 900;
+}
+
+.profileStatsGrid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+}
+
+.profileStatsGrid div {
+  padding: 18px;
+  border-radius: 22px;
+  background: white;
+  border: 1px solid #eaecf0;
+  box-shadow: 0 12px 40px rgba(16, 24, 40, 0.05);
+}
+
+.profileStatsGrid span {
+  display: block;
+  margin-bottom: 8px;
+  color: #667085;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.profileStatsGrid strong {
+  font-size: 25px;
+  letter-spacing: -0.02em;
+}
+
+.profileContentGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.profileCard {
+  padding: 22px;
+}
+
+.profileWideCard {
+  grid-column: 1 / -1;
+}
+
+.favoriteMarketList {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.favoriteMarketItem {
+  text-align: left;
+  border: 1px solid #eaecf0;
+  border-radius: 18px;
+  padding: 16px;
+  background: #fcfcfd;
+  display: grid;
+  gap: 8px;
+}
+
+.favoriteMarketItem span {
+  width: fit-content;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #3538cd;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.favoriteMarketItem strong {
+  color: #101828;
+  line-height: 1.35;
+}
+
+.favoriteMarketItem small {
+  color: #667085;
+  font-weight: 800;
 }
 
 @media (max-width: 900px) {
-  .telegramPanel {
-    grid-template-columns: 1fr;
+  .productTopBar {
+    border-radius: 22px;
+    align-items: stretch;
+    flex-direction: column;
   }
 
-  .telegramPanelActions {
-    justify-content: stretch;
-  }
-
-  .telegramPanelActions button,
-  .shareMarketButton {
+  .productNav {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     width: 100%;
   }
 
-  .compactShareButton {
-    width: auto;
+  .connectionPill {
+    text-align: center;
   }
-}
-.adminOnlyNotice {
-  margin-bottom: 24px;
-  padding: 18px;
-  border-radius: 22px;
-  background: #f9fafb;
-  border: 1px dashed #d0d5dd;
-  color: #475467;
-  font-weight: 800;
-  line-height: 1.5;
+
+  .profileHeroCard,
+  .profileContentGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .profileStatsGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .favoriteMarketList,
+  .cardActionGrid {
+    grid-template-columns: 1fr;
+  }
 }
