@@ -94,6 +94,12 @@ type DatabaseSnapshot = {
   marketSuggestions: MarketSuggestion[];
   favoriteMarketIdsByUser: Record<string, string[]>;
   adminUserIds: string[];
+  polymarketImport?: {
+    enabled: boolean;
+    lastImportAt?: string;
+    lastImportedCount?: number;
+    lastCheckedAt?: string;
+  };
 };
 
 // -----------------------------
@@ -111,6 +117,16 @@ const ADMIN_TELEGRAM_IDS = (process.env.ADMIN_TELEGRAM_IDS || "")
   .filter(Boolean);
 
 const ADMIN_USER_IDS = ADMIN_TELEGRAM_IDS.flatMap((id) => [id, `telegram-${id}`]);
+
+const POLYMARKET_GAMMA_BASE_URL = "https://gamma-api.polymarket.com";
+const POLYMARKET_AUTO_IMPORT_ENABLED =
+  (process.env.POLYMARKET_AUTO_IMPORT_ENABLED || "true").toLowerCase() !== "false";
+const POLYMARKET_AUTO_IMPORT_LIMIT = Math.min(100, Math.max(1, Number(process.env.POLYMARKET_AUTO_IMPORT_LIMIT || 30)));
+const POLYMARKET_AUTO_IMPORT_INTERVAL_MS = Math.max(
+  30 * 60 * 1000,
+  Number(process.env.POLYMARKET_AUTO_IMPORT_INTERVAL_MINUTES || 360) * 60 * 1000
+);
+const POLYMARKET_MIN_VOLUME = Math.max(0, Number(process.env.POLYMARKET_MIN_VOLUME || 0));
 
 if (!DATABASE_URL) {
   console.error("Ошибка: не задана переменная окружения DATABASE_URL");
@@ -435,6 +451,390 @@ async function addBalanceTransaction(
   return transaction;
 }
 
+
+type PolymarketEvent = Record<string, any>;
+type PolymarketMarket = Record<string, any>;
+
+type PolymarketImportSummary = {
+  ok: true;
+  checked: number;
+  imported: number;
+  skipped: number;
+  errors: string[];
+  importedMarketIds: string[];
+  lastImportAt: string;
+};
+
+let polymarketImportPromise: Promise<PolymarketImportSummary> | null = null;
+
+function parseMaybeJsonArray(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+
+  if (typeof value === "string" && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
+}
+
+function normalizeForId(value: unknown) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9а-яё]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 90);
+}
+
+function getPolymarketItemId(event: PolymarketEvent, market: PolymarketMarket) {
+  const rawId =
+    market.conditionId ||
+    market.condition_id ||
+    market.questionID ||
+    market.questionId ||
+    market.id ||
+    market.slug ||
+    event.slug ||
+    event.id ||
+    market.question ||
+    event.title;
+
+  return `polymarket-${normalizeForId(rawId) || createId()}`;
+}
+
+function getPolymarketUrl(event: PolymarketEvent, market: PolymarketMarket) {
+  const eventSlug = event.slug || event.ticker || event.id;
+  const marketSlug = market.slug || market.marketSlug;
+
+  if (eventSlug) {
+    return `https://polymarket.com/event/${eventSlug}${marketSlug && marketSlug !== eventSlug ? `?market=${marketSlug}` : ""}`;
+  }
+
+  if (marketSlug) {
+    return `https://polymarket.com/event/${marketSlug}`;
+  }
+
+  return "https://polymarket.com";
+}
+
+function getPolymarketQuestion(event: PolymarketEvent, market: PolymarketMarket) {
+  return String(
+    market.question ||
+      market.title ||
+      event.title ||
+      event.question ||
+      event.slug ||
+      "Polymarket event"
+  ).trim();
+}
+
+function getPolymarketDescription(event: PolymarketEvent, market: PolymarketMarket) {
+  const baseDescription = String(
+    market.description ||
+      market.rules ||
+      event.description ||
+      event.resolutionSource ||
+      "Правила расчета смотри в оригинальном событии Polymarket."
+  ).trim();
+
+  const url = getPolymarketUrl(event, market);
+
+  return [
+    baseDescription,
+    "",
+    "Автоматически импортировано из Polymarket. В Forecast Market используются только игровые баллы: они не являются деньгами, не покупаются, не продаются, не передаются и не выводятся.",
+    `Оригинал: ${url}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function mapPolymarketCategory(event: PolymarketEvent, market: PolymarketMarket) {
+  const rawParts = [
+    market.category,
+    market.groupItemTitle,
+    market.seriesSlug,
+    event.category,
+    event.groupItemTitle,
+    event.seriesSlug,
+    ...(parseMaybeJsonArray(market.tags).map((tag: any) => tag?.label || tag?.slug || tag?.name || tag)),
+    ...(parseMaybeJsonArray(event.tags).map((tag: any) => tag?.label || tag?.slug || tag?.name || tag)),
+  ];
+
+  const raw = rawParts.filter(Boolean).join(" ").toLowerCase();
+
+  if (/crypto|bitcoin|ethereum|solana|btc|eth/.test(raw)) return "Крипто";
+  if (/sport|football|soccer|nba|nfl|nhl|mlb|ufc|tennis|formula/.test(raw)) return "Спорт";
+  if (/politic|election|trump|biden|congress|senate|president/.test(raw)) return "Политика";
+  if (/business|econom|fed|inflation|rate|stock|market|recession/.test(raw)) return "Экономика";
+  if (/tech|ai|apple|google|tesla|openai|spacex|nvidia/.test(raw)) return "Технологии";
+  if (/culture|music|movie|oscars|grammy|celebrity|tv/.test(raw)) return "Культура";
+  if (/science|space|weather|climate/.test(raw)) return "Наука";
+
+  return "Polymarket";
+}
+
+function getPolymarketCloseDate(event: PolymarketEvent, market: PolymarketMarket) {
+  const raw =
+    market.endDate ||
+    market.end_date ||
+    market.closeDate ||
+    market.close_time ||
+    event.endDate ||
+    event.end_date ||
+    event.closeDate ||
+    event.close_time;
+
+  const date = raw ? new Date(String(raw)) : null;
+
+  if (date && !Number.isNaN(date.getTime())) {
+    return date.toISOString().slice(0, 10);
+  }
+
+  const fallback = new Date();
+  fallback.setMonth(fallback.getMonth() + 3);
+  return fallback.toISOString().slice(0, 10);
+}
+
+function isBinaryYesNoMarket(market: PolymarketMarket) {
+  const outcomes = parseMaybeJsonArray(market.outcomes).map((outcome) =>
+    String(outcome).trim().toLowerCase()
+  );
+
+  if (outcomes.length === 0) return true;
+
+  const hasYes = outcomes.some((outcome) => outcome === "yes" || outcome === "да");
+  const hasNo = outcomes.some((outcome) => outcome === "no" || outcome === "нет");
+
+  return outcomes.length === 2 && hasYes && hasNo;
+}
+
+function getInitialYesProbabilityFromPolymarket(market: PolymarketMarket) {
+  const outcomes = parseMaybeJsonArray(market.outcomes).map((outcome) =>
+    String(outcome).trim().toLowerCase()
+  );
+  const prices = parseMaybeJsonArray(market.outcomePrices || market.outcome_prices).map((price) =>
+    Number(price)
+  );
+
+  if (outcomes.length === prices.length && outcomes.length > 0) {
+    const yesIndex = outcomes.findIndex((outcome) => outcome === "yes" || outcome === "да");
+    const price = prices[yesIndex];
+
+    if (Number.isFinite(price) && price > 0 && price < 1) {
+      return Math.min(99, Math.max(1, Math.round(price * 100)));
+    }
+  }
+
+  const oneDayPrice = Number(market.oneDayPrice || market.lastTradePrice || market.bestAsk || market.bestBid);
+
+  if (Number.isFinite(oneDayPrice) && oneDayPrice > 0 && oneDayPrice < 1) {
+    return Math.min(99, Math.max(1, Math.round(oneDayPrice * 100)));
+  }
+
+  return 50;
+}
+
+function getPolymarketVolume(event: PolymarketEvent, market: PolymarketMarket) {
+  const values = [
+    market.volume24hr,
+    market.volume_24hr,
+    market.volume,
+    market.liquidity,
+    event.volume24hr,
+    event.volume_24hr,
+    event.volume,
+    event.liquidity,
+  ];
+
+  for (const value of values) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric) && numeric > 0) return numeric;
+  }
+
+  return 0;
+}
+
+function getMarketsFromPolymarketEvent(event: PolymarketEvent) {
+  const markets = parseMaybeJsonArray(event.markets) as PolymarketMarket[];
+
+  if (markets.length > 0) {
+    return markets;
+  }
+
+  return [event as PolymarketMarket];
+}
+
+async function getAppSetting(key: string) {
+  const result = await pool.query("SELECT value FROM app_settings WHERE key = $1", [key]);
+  return result.rows[0]?.value ? String(result.rows[0].value) : "";
+}
+
+async function setAppSetting(key: string, value: string) {
+  await pool.query(
+    `
+      INSERT INTO app_settings (key, value, updated_at)
+      VALUES ($1, $2, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+    `,
+    [key, value]
+  );
+}
+
+async function fetchPolymarketEvents(limit: number) {
+  const url = new URL(`${POLYMARKET_GAMMA_BASE_URL}/events`);
+  url.searchParams.set("active", "true");
+  url.searchParams.set("closed", "false");
+  url.searchParams.set("order", "volume_24hr");
+  url.searchParams.set("ascending", "false");
+  url.searchParams.set("limit", String(limit));
+  url.searchParams.set("offset", "0");
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      accept: "application/json",
+      "user-agent": "ForecastMarket/1.0 (+https://forecast-market.onrender.com)",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Polymarket API вернул ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  if (Array.isArray(data)) return data as PolymarketEvent[];
+  if (Array.isArray(data?.events)) return data.events as PolymarketEvent[];
+  if (Array.isArray(data?.data)) return data.data as PolymarketEvent[];
+
+  return [];
+}
+
+async function importPolymarketMarkets(limit = POLYMARKET_AUTO_IMPORT_LIMIT): Promise<PolymarketImportSummary> {
+  if (polymarketImportPromise) {
+    return polymarketImportPromise;
+  }
+
+  polymarketImportPromise = (async () => {
+    const errors: string[] = [];
+    const importedMarketIds: string[] = [];
+    let checked = 0;
+    let skipped = 0;
+
+    try {
+      const events = await fetchPolymarketEvents(limit);
+
+      for (const event of events) {
+        for (const market of getMarketsFromPolymarketEvent(event)) {
+          checked += 1;
+
+          try {
+            const question = getPolymarketQuestion(event, market);
+            const volume = getPolymarketVolume(event, market);
+            const closed = Boolean(market.closed || event.closed);
+            const active = market.active ?? event.active ?? true;
+
+            if (!question || question.length < 8 || closed || active === false || !isBinaryYesNoMarket(market)) {
+              skipped += 1;
+              continue;
+            }
+
+            if (volume < POLYMARKET_MIN_VOLUME) {
+              skipped += 1;
+              continue;
+            }
+
+            const marketId = getPolymarketItemId(event, market);
+            const yesProbability = getInitialYesProbabilityFromPolymarket(market);
+            const closesAt = getPolymarketCloseDate(event, market);
+            const category = mapPolymarketCategory(event, market);
+            const sourceUrl = getPolymarketUrl(event, market);
+            const source = `Polymarket: ${sourceUrl}`;
+            const description = getPolymarketDescription(event, market);
+
+            const result = await pool.query(
+              `
+                INSERT INTO markets (
+                  id, question, category, description, source, closes_at,
+                  yes_pool, no_pool, status, resolved_outcome, resolved_at, created_at
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'open', NULL, NULL, NOW())
+                ON CONFLICT (id) DO NOTHING
+                RETURNING id
+              `,
+              [
+                marketId,
+                question,
+                category,
+                description,
+                source,
+                closesAt,
+                yesProbability * 100,
+                (100 - yesProbability) * 100,
+              ]
+            );
+
+            if (result.rows[0]?.id) {
+              importedMarketIds.push(result.rows[0].id);
+            } else {
+              skipped += 1;
+            }
+          } catch (error) {
+            skipped += 1;
+            errors.push(error instanceof Error ? error.message : "Неизвестная ошибка импорта рынка");
+          }
+        }
+      }
+
+      const imported = importedMarketIds.length;
+      const lastImportAt = new Date().toISOString();
+
+      await setAppSetting("polymarket_last_import_at", lastImportAt);
+      await setAppSetting("polymarket_last_import_count", String(imported));
+      await setAppSetting("polymarket_last_checked_at", String(checked));
+
+      return {
+        ok: true,
+        checked,
+        imported,
+        skipped,
+        errors: errors.slice(0, 10),
+        importedMarketIds,
+        lastImportAt,
+      };
+    } finally {
+      polymarketImportPromise = null;
+    }
+  })();
+
+  return polymarketImportPromise;
+}
+
+async function maybeAutoImportPolymarket(reason: "startup" | "interval" | "bootstrap") {
+  if (!POLYMARKET_AUTO_IMPORT_ENABLED) return null;
+
+  try {
+    const lastImportValue = await getAppSetting("polymarket_last_import_at");
+    const lastImportTime = lastImportValue ? new Date(lastImportValue).getTime() : 0;
+    const shouldImport = !lastImportTime || Date.now() - lastImportTime >= POLYMARKET_AUTO_IMPORT_INTERVAL_MS;
+
+    if (!shouldImport) return null;
+
+    console.log(`Polymarket auto-import стартовал: ${reason}`);
+    const result = await importPolymarketMarkets(POLYMARKET_AUTO_IMPORT_LIMIT);
+    console.log(`Polymarket auto-import завершён: импортировано ${result.imported}, проверено ${result.checked}`);
+    return result;
+  } catch (error) {
+    console.error("Ошибка Polymarket auto-import:", error);
+    return null;
+  }
+}
+
 // -----------------------------
 // Default seed data
 // -----------------------------
@@ -586,6 +986,12 @@ async function migrate() {
       PRIMARY KEY (user_id, market_id)
     );
 
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
     CREATE INDEX IF NOT EXISTS predictions_market_id_idx ON predictions(market_id);
     CREATE INDEX IF NOT EXISTS predictions_user_id_idx ON predictions(user_id);
     CREATE INDEX IF NOT EXISTS comments_market_id_idx ON comments(market_id);
@@ -686,6 +1092,12 @@ async function getSnapshot(): Promise<DatabaseSnapshot> {
     favoriteMarketIdsByUser[row.user_id].push(row.market_id);
   });
 
+  const [lastImportAt, lastImportedCount, lastCheckedAt] = await Promise.all([
+    getAppSetting("polymarket_last_import_at"),
+    getAppSetting("polymarket_last_import_count"),
+    getAppSetting("polymarket_last_checked_at"),
+  ]);
+
   return {
     users: usersResult.rows.map(toUser),
     markets: marketsResult.rows.map(toMarket),
@@ -695,6 +1107,12 @@ async function getSnapshot(): Promise<DatabaseSnapshot> {
     marketSuggestions: suggestionsResult.rows.map(toSuggestion),
     favoriteMarketIdsByUser,
     adminUserIds: ADMIN_USER_IDS,
+    polymarketImport: {
+      enabled: POLYMARKET_AUTO_IMPORT_ENABLED,
+      lastImportAt: lastImportAt || undefined,
+      lastImportedCount: lastImportedCount ? Number(lastImportedCount) : undefined,
+      lastCheckedAt: lastCheckedAt || undefined,
+    },
   };
 }
 
@@ -704,6 +1122,10 @@ async function getSnapshot(): Promise<DatabaseSnapshot> {
 
 await migrate();
 await seedIfEmpty();
+void maybeAutoImportPolymarket("startup");
+setInterval(() => {
+  void maybeAutoImportPolymarket("interval");
+}, POLYMARKET_AUTO_IMPORT_INTERVAL_MS);
 
 const app = express();
 
@@ -735,11 +1157,15 @@ app.get("/api/health", async (_request, response) => {
     databaseTime: dbCheck.rows[0].now,
     adminUsersConfigured: ADMIN_USER_IDS.length,
     telegramAuthConfigured: Boolean(BOT_TOKEN),
+    polymarketAutoImportEnabled: POLYMARKET_AUTO_IMPORT_ENABLED,
+    polymarketImportLimit: POLYMARKET_AUTO_IMPORT_LIMIT,
+    polymarketImportIntervalMinutes: Math.round(POLYMARKET_AUTO_IMPORT_INTERVAL_MS / 60000),
     time: new Date().toISOString(),
   });
 });
 
 app.get("/api/bootstrap", async (_request, response) => {
+  await maybeAutoImportPolymarket("bootstrap");
   response.json(await getSnapshot());
 });
 
@@ -835,6 +1261,41 @@ app.post("/api/telegram-user", async (request, response) => {
   response.status(201).json(user);
 });
 
+
+app.get("/api/polymarket/import-status", async (_request, response) => {
+  const [lastImportAt, lastImportedCount, lastCheckedAt] = await Promise.all([
+    getAppSetting("polymarket_last_import_at"),
+    getAppSetting("polymarket_last_import_count"),
+    getAppSetting("polymarket_last_checked_at"),
+  ]);
+
+  response.json({
+    ok: true,
+    enabled: POLYMARKET_AUTO_IMPORT_ENABLED,
+    baseUrl: POLYMARKET_GAMMA_BASE_URL,
+    limit: POLYMARKET_AUTO_IMPORT_LIMIT,
+    minVolume: POLYMARKET_MIN_VOLUME,
+    intervalMinutes: Math.round(POLYMARKET_AUTO_IMPORT_INTERVAL_MS / 60000),
+    lastImportAt: lastImportAt || null,
+    lastImportedCount: lastImportedCount ? Number(lastImportedCount) : 0,
+    lastCheckedAt: lastCheckedAt ? Number(lastCheckedAt) : 0,
+  });
+});
+
+app.post("/api/polymarket/import", async (request, response) => {
+  if (!requireAdmin(request, response)) return;
+
+  try {
+    const limit = Math.min(100, Math.max(1, Number(request.body?.limit || POLYMARKET_AUTO_IMPORT_LIMIT)));
+    const result = await importPolymarketMarkets(limit);
+    response.status(201).json(result);
+  } catch (error) {
+    console.error(error);
+    response.status(500).json({
+      error: error instanceof Error ? error.message : "Не удалось импортировать рынки Polymarket",
+    });
+  }
+});
 
 app.post("/api/market-suggestions", async (request, response) => {
   try {
@@ -1632,7 +2093,7 @@ app.post("/api/reset", async (request, response) => {
   }
 
   await withTransaction(async (client) => {
-    await client.query("TRUNCATE favorites, comments, predictions, transactions, markets, users RESTART IDENTITY CASCADE");
+    await client.query("TRUNCATE favorites, comments, predictions, transactions, market_suggestions, markets, users, app_settings RESTART IDENTITY CASCADE");
 
     for (const user of defaultUsers) {
       await client.query(
