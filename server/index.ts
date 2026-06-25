@@ -57,11 +57,24 @@ type MarketComment = {
   mediaName?: string;
 };
 
+type BalanceTransaction = {
+  id: string;
+  userId: string;
+  type: "start" | "prediction_buy" | "payout" | "refund" | "system";
+  title: string;
+  description: string;
+  amount: number;
+  marketId?: string;
+  marketQuestion?: string;
+  createdAt: string;
+};
+
 type DatabaseSnapshot = {
   users: DemoUser[];
   markets: Market[];
   predictions: Prediction[];
   comments: MarketComment[];
+  transactions: BalanceTransaction[];
   favoriteMarketIdsByUser: Record<string, string[]>;
   adminUserIds: string[];
 };
@@ -115,6 +128,13 @@ function nowRu() {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function formatDbDateTime(value: unknown) {
+  if (!value) return nowRu();
+  const date = value instanceof Date ? value : new Date(String(value));
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString("ru-RU");
 }
 
 function getYesProbability(market: Pick<Market, "yesPool" | "noPool">) {
@@ -331,6 +351,56 @@ function toComment(row: any): MarketComment {
   };
 }
 
+function toTransaction(row: any): BalanceTransaction {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    type: row.type,
+    title: row.title,
+    description: row.description || "",
+    amount: Number(row.amount),
+    marketId: row.market_id || undefined,
+    marketQuestion: row.market_question || undefined,
+    createdAt: formatDbDateTime(row.created_at),
+  };
+}
+
+type QueryRunner = {
+  query: (text: string, params?: unknown[]) => Promise<{ rows: any[] }>;
+};
+
+async function addBalanceTransaction(
+  queryRunner: QueryRunner,
+  input: Omit<BalanceTransaction, "id" | "createdAt">
+) {
+  const transaction: BalanceTransaction = {
+    id: createId(),
+    createdAt: nowRu(),
+    ...input,
+  };
+
+  await queryRunner.query(
+    `
+      INSERT INTO transactions (
+        id, user_id, type, title, description, amount, market_id, market_question, created_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+    `,
+    [
+      transaction.id,
+      transaction.userId,
+      transaction.type,
+      transaction.title,
+      transaction.description,
+      transaction.amount,
+      transaction.marketId || null,
+      transaction.marketQuestion || null,
+    ]
+  );
+
+  return transaction;
+}
+
 // -----------------------------
 // Default seed data
 // -----------------------------
@@ -449,6 +519,18 @@ async function migrate() {
       media_name TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS transactions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      amount INTEGER NOT NULL,
+      market_id TEXT REFERENCES markets(id) ON DELETE SET NULL,
+      market_question TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
     CREATE TABLE IF NOT EXISTS favorites (
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       market_id TEXT NOT NULL REFERENCES markets(id) ON DELETE CASCADE,
@@ -458,6 +540,8 @@ async function migrate() {
     CREATE INDEX IF NOT EXISTS predictions_market_id_idx ON predictions(market_id);
     CREATE INDEX IF NOT EXISTS predictions_user_id_idx ON predictions(user_id);
     CREATE INDEX IF NOT EXISTS comments_market_id_idx ON comments(market_id);
+    CREATE INDEX IF NOT EXISTS transactions_user_id_idx ON transactions(user_id);
+    CREATE INDEX IF NOT EXISTS transactions_created_at_idx ON transactions(created_at);
     CREATE INDEX IF NOT EXISTS favorites_user_id_idx ON favorites(user_id);
   `);
 }
@@ -472,6 +556,13 @@ async function seedIfEmpty() {
         `INSERT INTO users (id, name, balance) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
         [user.id, user.name, user.balance]
       );
+      await addBalanceTransaction(pool, {
+        userId: user.id,
+        type: "start",
+        title: "Стартовый баланс",
+        description: "Начисление игровых баллов при создании профиля",
+        amount: START_BALANCE,
+      });
     }
   }
 
@@ -503,15 +594,33 @@ async function seedIfEmpty() {
       );
     }
   }
+
+  const transactionCount = await pool.query("SELECT COUNT(*)::int AS count FROM transactions");
+
+  if (transactionCount.rows[0].count === 0) {
+    const existingUsers = await pool.query("SELECT * FROM users ORDER BY name ASC");
+
+    for (const row of existingUsers.rows) {
+      const user = toUser(row);
+      await addBalanceTransaction(pool, {
+        userId: user.id,
+        type: "system",
+        title: "Перенос баланса",
+        description: "Текущий баланс перенесён в новую историю баллов",
+        amount: user.balance,
+      });
+    }
+  }
 }
 
 async function getSnapshot(): Promise<DatabaseSnapshot> {
-  const [usersResult, marketsResult, predictionsResult, commentsResult, favoritesResult] =
+  const [usersResult, marketsResult, predictionsResult, commentsResult, transactionsResult, favoritesResult] =
     await Promise.all([
       pool.query("SELECT * FROM users ORDER BY name ASC"),
       pool.query("SELECT * FROM markets ORDER BY created_at DESC"),
       pool.query("SELECT * FROM predictions ORDER BY id DESC"),
       pool.query("SELECT * FROM comments ORDER BY id DESC"),
+      pool.query("SELECT * FROM transactions ORDER BY created_at DESC LIMIT 500"),
       pool.query("SELECT * FROM favorites ORDER BY user_id ASC, market_id ASC"),
     ]);
 
@@ -530,6 +639,7 @@ async function getSnapshot(): Promise<DatabaseSnapshot> {
     markets: marketsResult.rows.map(toMarket),
     predictions: predictionsResult.rows.map(toPrediction),
     comments: commentsResult.rows.map(toComment),
+    transactions: transactionsResult.rows.map(toTransaction),
     favoriteMarketIdsByUser,
     adminUserIds: ADMIN_USER_IDS,
   };
@@ -600,6 +710,14 @@ app.post("/api/users", async (request, response) => {
     user.balance,
   ]);
 
+  await addBalanceTransaction(pool, {
+    userId: user.id,
+    type: "start",
+    title: "Стартовый баланс",
+    description: "Начисление игровых баллов при создании профиля",
+    amount: START_BALANCE,
+  });
+
   response.status(201).json(user);
 });
 
@@ -652,6 +770,14 @@ app.post("/api/telegram-user", async (request, response) => {
     user.name,
     user.balance,
   ]);
+
+  await addBalanceTransaction(pool, {
+    userId: user.id,
+    type: "start",
+    title: "Стартовый баланс",
+    description: "Начисление игровых баллов при первом входе через Telegram",
+    amount: START_BALANCE,
+  });
 
   response.status(201).json(user);
 });
@@ -811,6 +937,16 @@ app.delete("/api/markets/:marketId", async (request, response) => {
           userId,
           refund,
         ]);
+
+        await addBalanceTransaction(client, {
+          userId,
+          type: "refund",
+          title: "Возврат баллов",
+          description: `Возврат активных прогнозов после удаления рынка «${market.question}»`,
+          amount: refund,
+          marketId: market.id,
+          marketQuestion: market.question,
+        });
       }
     }
 
@@ -933,6 +1069,16 @@ app.post("/api/markets/:marketId/predictions", async (request, response) => {
       user.id,
       amount,
     ]);
+
+    await addBalanceTransaction(client, {
+      userId: user.id,
+      type: "prediction_buy",
+      title: `Прогноз «${outcome === "yes" ? "Да" : "Нет"}»`,
+      description: `Списание за прогноз по рынку «${market.question}»`,
+      amount: -amount,
+      marketId: market.id,
+      marketQuestion: market.question,
+    });
 
     if (outcome === "yes") {
       await client.query("UPDATE markets SET yes_pool = yes_pool + $2 WHERE id = $1", [
@@ -1058,6 +1204,18 @@ app.post("/api/markets/:marketId/resolve", async (request, response) => {
         userId,
         payout,
       ]);
+
+      if (payout > 0) {
+        await addBalanceTransaction(client, {
+          userId,
+          type: "payout",
+          title: "Выплата по рынку",
+          description: `Рынок рассчитан как «${outcome === "yes" ? "Да" : "Нет"}»: «${market.question}»`,
+          amount: payout,
+          marketId: market.id,
+          marketQuestion: market.question,
+        });
+      }
     }
 
     const updatedMarketResult = await client.query(
@@ -1217,13 +1375,20 @@ app.post("/api/reset", async (request, response) => {
   }
 
   await withTransaction(async (client) => {
-    await client.query("TRUNCATE favorites, comments, predictions, markets, users RESTART IDENTITY CASCADE");
+    await client.query("TRUNCATE favorites, comments, predictions, transactions, markets, users RESTART IDENTITY CASCADE");
 
     for (const user of defaultUsers) {
       await client.query(
         `INSERT INTO users (id, name, balance) VALUES ($1, $2, $3)`,
         [user.id, user.name, user.balance]
       );
+      await addBalanceTransaction(client, {
+        userId: user.id,
+        type: "start",
+        title: "Стартовый баланс",
+        description: "Начисление игровых баллов после сброса базы",
+        amount: START_BALANCE,
+      });
     }
 
     for (const market of defaultMarkets) {

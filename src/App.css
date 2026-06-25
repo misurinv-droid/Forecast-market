@@ -8,9 +8,22 @@ body,
   min-height: 100%;
 }
 
+html {
+  height: 100%;
+  overscroll-behavior-y: none;
+}
+
+body,
+#root {
+  min-height: var(--app-height, 100vh);
+}
+
 body {
   margin: 0;
-  background: #f3f5f8;
+  background:
+    radial-gradient(circle at 16% -8%, rgba(124, 92, 255, 0.18), transparent 28%),
+    radial-gradient(circle at 92% 2%, rgba(32, 201, 151, 0.16), transparent 30%),
+    linear-gradient(180deg, #f7f9ff 0%, #eef3ff 46%, #f7f8fb 100%);
   color: #101828;
   font-family: Inter, Arial, sans-serif;
 }
@@ -1346,4 +1359,1891 @@ h1 {
   .cardActionGrid {
     grid-template-columns: 1fr;
   }
+}
+
+
+
+/* Brighter product skin + fun loader */
+.hero,
+.profileHeroCard,
+.detailsHeroCard {
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before,
+.profileHeroCard::before,
+.detailsHeroCard::before {
+  content: "";
+  position: absolute;
+  inset: -70px -60px auto auto;
+  width: 190px;
+  height: 190px;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(124, 92, 255, 0.13), transparent 68%);
+}
+
+.balanceCard,
+.profileBalanceBox {
+  background:
+    radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.20), transparent 24%),
+    linear-gradient(135deg, #0b1020 0%, #18223d 48%, #2938a8 100%);
+}
+
+.marketCard,
+.profileCard,
+.marketToolbar,
+.detailSection,
+.detailTradeCard,
+.portfolio,
+.leaderboardBox,
+.statsBox,
+.activityBox {
+  backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.category,
+.statusBadge,
+.profileRole,
+.favoriteMarketItem span {
+  border: 1px solid rgba(80, 72, 229, 0.12);
+}
+
+.categoryTabs button.active,
+.productNav button.activeProductNav,
+.openDetailsButton,
+.createMarketButton,
+.sendCommentButton {
+  background: linear-gradient(135deg, #111827 0%, #3438cd 58%, #11b981 140%);
+}
+
+.loadingScreen {
+  min-height: var(--app-height, 100vh);
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  text-align: center;
+  padding: 42px 18px;
+  color: #101828;
+}
+
+.loadingOrb {
+  width: 78px;
+  height: 78px;
+  border-radius: 26px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 4px;
+  background:
+    radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.95), transparent 28%),
+    linear-gradient(135deg, #7c5cff 0%, #3438cd 52%, #11b981 100%);
+  box-shadow: 0 20px 55px rgba(52, 56, 205, 0.24);
+  animation: loadingFloat 1.9s ease-in-out infinite;
+}
+
+.loadingOrb span {
+  font-size: 34px;
+  filter: drop-shadow(0 8px 12px rgba(16, 24, 40, 0.18));
+}
+
+.loadingEyebrow {
+  margin: 0;
+  color: #3438cd;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.loadingScreen h1 {
+  margin: 0;
+  font-size: clamp(34px, 10vw, 52px);
+  letter-spacing: -0.055em;
+}
+
+.loadingText,
+.loadingJoke {
+  max-width: 360px;
+  margin: 0;
+  color: #475467;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.predictionLoader {
+  width: min(360px, 100%);
+  margin: 8px auto 0;
+}
+
+.predictionLoaderTrack {
+  position: relative;
+  height: 18px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(16, 24, 40, 0.08);
+  border: 1px solid rgba(16, 24, 40, 0.08);
+  box-shadow: inset 0 1px 3px rgba(16, 24, 40, 0.10);
+}
+
+.predictionLoaderFill {
+  position: absolute;
+  inset: 3px auto 3px 3px;
+  width: 42%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #12b76a, #7c5cff, #f79009, #12b76a);
+  background-size: 220% 100%;
+  box-shadow: 0 0 20px rgba(124, 92, 255, 0.34);
+  animation: marketLoad 2.25s ease-in-out infinite, gradientShift 1.2s linear infinite;
+}
+
+.predictionLoaderDot {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 22px;
+  min-width: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: white;
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.02em;
+  box-shadow: 0 10px 22px rgba(16, 24, 40, 0.18);
+}
+
+.predictionLoaderDotYes {
+  left: 8%;
+  background: #12b76a;
+  animation: yesBounce 2.25s ease-in-out infinite;
+}
+
+.predictionLoaderDotNo {
+  right: 8%;
+  background: #f04438;
+  animation: noBounce 2.25s ease-in-out infinite;
+}
+
+.loadingTicks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 7px;
+  color: #667085;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.loadingJoke {
+  font-size: 11.5px;
+  color: #667085;
+}
+
+@keyframes loadingFloat {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-8px) rotate(2deg); }
+}
+
+@keyframes marketLoad {
+  0% { left: 3px; width: 22%; }
+  35% { left: 18%; width: 52%; }
+  70% { left: 50%; width: 38%; }
+  100% { left: 3px; width: 22%; }
+}
+
+@keyframes gradientShift {
+  from { background-position: 0% 50%; }
+  to { background-position: 220% 50%; }
+}
+
+@keyframes yesBounce {
+  0%, 100% { transform: translateY(-50%) scale(1); }
+  50% { transform: translateY(-50%) scale(1.08); }
+}
+
+@keyframes noBounce {
+  0%, 100% { transform: translateY(-50%) scale(1.04); }
+  50% { transform: translateY(-50%) scale(0.94); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loadingOrb,
+  .predictionLoaderFill,
+  .predictionLoaderDotYes,
+  .predictionLoaderDotNo {
+    animation: none;
+  }
+}
+
+/* Telegram mobile compact mode */
+body.is-telegram-webapp {
+  background:
+    radial-gradient(circle at 15% -5%, rgba(124, 92, 255, 0.26), transparent 30%),
+    radial-gradient(circle at 96% 0%, rgba(32, 201, 151, 0.20), transparent 32%),
+    linear-gradient(180deg, #f2f6ff 0%, #f7f9ff 45%, #f4f7fb 100%);
+  overscroll-behavior-y: none;
+  -webkit-text-size-adjust: 100%;
+  touch-action: pan-y;
+}
+
+.telegramApp {
+  width: 100%;
+  max-width: none;
+  min-height: var(--app-height, 100vh);
+  /* В fullscreen на iPhone безопасная зона иногда приходит как 0, поэтому даём запас сверху. */
+  padding: calc(max(var(--tg-safe-top, 0px), env(safe-area-inset-top, 0px), 34px) + 10px) 10px calc(max(var(--tg-safe-bottom, 0px), env(safe-area-inset-bottom, 0px), 8px) + 14px);
+}
+
+@supports (height: 100dvh) {
+  .telegramApp {
+    min-height: 100dvh;
+  }
+}
+
+.telegramApp .hero {
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.telegramApp .eyebrow {
+  margin-bottom: 5px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+
+.telegramApp h1 {
+  font-size: 28px;
+  letter-spacing: -0.035em;
+}
+
+.telegramApp .subtitle {
+  max-width: none;
+  margin-top: 7px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.telegramApp .balanceCard {
+  min-height: 0;
+  padding: 12px;
+  border-radius: 18px;
+  box-shadow: 0 10px 24px rgba(16, 24, 40, 0.16);
+}
+
+.telegramApp .balanceCard strong {
+  margin: 5px 0;
+  font-size: 20px;
+}
+
+.telegramApp .balanceCard span,
+.telegramApp .balanceCard p {
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.telegramApp .balanceCard button {
+  margin-top: 8px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+.telegramApp .warning {
+  margin-bottom: 10px;
+  padding: 9px 10px;
+  border-radius: 14px;
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
+.telegramApp .productTopBar {
+  position: sticky;
+  top: calc(max(var(--tg-safe-top, 0px), env(safe-area-inset-top, 0px), 34px) + 4px);
+  z-index: 20;
+  margin-bottom: 10px;
+  padding: 6px;
+  border-radius: 18px;
+  gap: 6px;
+}
+
+.telegramApp .productNav {
+  gap: 6px;
+}
+
+.telegramApp .productNav button {
+  padding: 9px 10px;
+  font-size: 12px;
+}
+
+.telegramApp .connectionPill {
+  display: none;
+}
+
+.telegramApp .adminPanel,
+.telegramApp .marketToolbar,
+.telegramApp .marketCard,
+.telegramApp .portfolio,
+.telegramApp .leaderboardBox,
+.telegramApp .detailsHeroCard,
+.telegramApp .detailSection,
+.telegramApp .detailTradeCard,
+.telegramApp .adminMarketCard,
+.telegramApp .statsBox,
+.telegramApp .activityBox,
+.telegramApp .profileHeroCard,
+.telegramApp .profileCard {
+  border-radius: 18px;
+  box-shadow: 0 8px 20px rgba(16, 24, 40, 0.05);
+}
+
+.telegramApp .adminPanel,
+.telegramApp .marketToolbar,
+.telegramApp .marketCard,
+.telegramApp .portfolio,
+.telegramApp .leaderboardBox,
+.telegramApp .detailSection,
+.telegramApp .detailTradeCard,
+.telegramApp .adminMarketCard,
+.telegramApp .profileCard {
+  padding: 13px;
+}
+
+.telegramApp .adminPanel {
+  margin-bottom: 12px;
+}
+
+.telegramApp .adminHeader,
+.telegramApp .detailSectionHeader,
+.telegramApp .sectionHeader {
+  margin-bottom: 10px;
+  gap: 8px;
+}
+
+.telegramApp .sectionHeader h2,
+.telegramApp .userPanel h2,
+.telegramApp .adminHeader h2 {
+  font-size: 17px;
+}
+
+.telegramApp .sectionHeader span,
+.telegramApp .date,
+.telegramApp .marketCard p,
+.telegramApp .adminHeader p,
+.telegramApp .profileMainInfo p,
+.telegramApp .favoriteMarketItem small,
+.telegramApp .predictionDate,
+.telegramApp .activityItem small {
+  font-size: 11px;
+}
+
+.telegramApp .marketToolbar {
+  margin-bottom: 10px;
+  gap: 9px;
+}
+
+.telegramApp .marketToolbar label,
+.telegramApp .adminForm label,
+.telegramApp .detailTradeCard label,
+.telegramApp .editMarketForm label {
+  gap: 5px;
+  font-size: 11px;
+}
+
+.telegramApp .marketToolbar input,
+.telegramApp .marketToolbar select,
+.telegramApp .adminForm input,
+.telegramApp .adminForm textarea,
+.telegramApp .detailTradeCard input,
+.telegramApp .editMarketForm input,
+.telegramApp .editMarketForm textarea,
+.telegramApp .commentComposer textarea {
+  border-radius: 12px;
+  padding: 9px 10px;
+  font-size: 12px;
+}
+
+.telegramApp .categoryTabs {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 7px;
+  margin-bottom: 10px;
+  padding: 2px 0 6px;
+  scrollbar-width: none;
+}
+
+.telegramApp .categoryTabs::-webkit-scrollbar {
+  display: none;
+}
+
+.telegramApp .categoryTabs button {
+  min-width: auto;
+  white-space: nowrap;
+  padding: 8px 11px;
+  font-size: 12px;
+  box-shadow: none;
+}
+
+.telegramApp .layout,
+.telegramApp .detailsLayout,
+.telegramApp .profileContentGrid {
+  gap: 12px;
+}
+
+.telegramApp .sideColumn {
+  gap: 12px;
+}
+
+.telegramApp .marketCard {
+  margin-bottom: 10px;
+}
+
+.telegramApp .marketTop {
+  align-items: flex-start;
+  margin-bottom: 9px;
+  gap: 8px;
+}
+
+.telegramApp .category,
+.telegramApp .statusBadge,
+.telegramApp .profileRole,
+.telegramApp .favoriteMarketItem span {
+  padding: 5px 8px;
+  font-size: 10.5px;
+}
+
+.telegramApp .favoriteIconButton {
+  width: 31px;
+  height: 31px;
+  border-radius: 10px;
+  font-size: 17px;
+}
+
+.telegramApp .marketCard h3 {
+  font-size: 17px;
+  line-height: 1.25;
+}
+
+.telegramApp .marketCard p {
+  margin: 8px 0 10px;
+  line-height: 1.35;
+}
+
+.telegramApp .compactStats {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin: 9px 0 8px;
+}
+
+.telegramApp .compactStats div,
+.telegramApp .summaryGrid div,
+.telegramApp .statsGrid div,
+.telegramApp .probability div,
+.telegramApp .profileStatsGrid div {
+  padding: 8px;
+  border-radius: 12px;
+}
+
+.telegramApp .compactStats span,
+.telegramApp .summaryGrid span,
+.telegramApp .statsGrid span,
+.telegramApp .probability span,
+.telegramApp .profileStatsGrid span {
+  margin-bottom: 3px;
+  font-size: 10px;
+}
+
+.telegramApp .compactStats strong,
+.telegramApp .summaryGrid strong,
+.telegramApp .statsGrid strong,
+.telegramApp .profileStatsGrid strong {
+  font-size: 15px;
+}
+
+.telegramApp .bar {
+  height: 8px;
+  margin-bottom: 10px;
+}
+
+.telegramApp .cardActionGrid,
+.telegramApp .compactActions,
+.telegramApp .buttons {
+  gap: 7px;
+}
+
+.telegramApp .openDetailsButton,
+.telegramApp .secondaryOpenButton,
+.telegramApp .createMarketButton,
+.telegramApp .clearFiltersButton,
+.telegramApp .backButton,
+.telegramApp .adminMarketActions button,
+.telegramApp .editMarketButtons button,
+.telegramApp .sendCommentButton,
+.telegramApp .buttons button,
+.telegramApp .resolveBox button,
+.telegramApp .quickAmountRow button,
+.telegramApp .profileBalanceBox button {
+  border-radius: 12px;
+  padding: 9px 10px;
+  font-size: 12px;
+}
+
+.telegramApp .detailsHeroCard {
+  padding: 14px;
+}
+
+.telegramApp .detailsHeroCard h2 {
+  font-size: 21px;
+  line-height: 1.2;
+}
+
+.telegramApp .probability {
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.telegramApp .probability strong {
+  font-size: 20px;
+}
+
+.telegramApp .detailsTabs {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 6px;
+  scrollbar-width: none;
+}
+
+.telegramApp .detailsTabs::-webkit-scrollbar {
+  display: none;
+}
+
+.telegramApp .detailsTabs button {
+  white-space: nowrap;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.telegramApp .quickAmountRow {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.telegramApp .profilePage {
+  gap: 12px;
+}
+
+.telegramApp .profileHeroCard {
+  padding: 14px;
+  grid-template-columns: 52px 1fr;
+  gap: 11px;
+}
+
+.telegramApp .profileAvatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 17px;
+  font-size: 22px;
+}
+
+.telegramApp .profileMainInfo h2 {
+  margin: 5px 0 5px;
+  font-size: 22px;
+}
+
+.telegramApp .profileBalanceBox {
+  grid-column: 1 / -1;
+  padding: 12px;
+  border-radius: 16px;
+}
+
+.telegramApp .profileBalanceBox strong {
+  font-size: 20px;
+}
+
+.telegramApp .profileStatsGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.telegramApp .favoriteMarketList,
+.telegramApp .predictionList,
+.telegramApp .leaderboardList,
+.telegramApp .activityList,
+.telegramApp .commentList,
+.telegramApp .participantsGrid,
+.telegramApp .marketTradesList {
+  gap: 8px;
+}
+
+.telegramApp .prediction,
+.telegramApp .leaderboardItem,
+.telegramApp .activityItem,
+.telegramApp .participantCard,
+.telegramApp .marketTradeItem,
+.telegramApp .commentItem,
+.telegramApp .favoriteMarketItem {
+  border-radius: 14px;
+  padding: 10px;
+  gap: 8px;
+}
+
+.telegramApp .commentAvatar,
+.telegramApp .place,
+.telegramApp .predictionOutcome {
+  transform: scale(0.86);
+  transform-origin: center;
+}
+
+.telegramApp .empty,
+.telegramApp .emptyChat,
+.telegramApp .resolveBox,
+.telegramApp .resolvedBox {
+  padding: 10px;
+  border-radius: 13px;
+  font-size: 12px;
+}
+
+.telegramApp .activityFeedBox {
+  display: none;
+}
+
+
+.telegramApp .loadingScreen {
+  padding-top: calc(max(var(--tg-safe-top, 0px), env(safe-area-inset-top, 0px), 42px) + 18px);
+}
+
+.telegramApp .loadingOrb {
+  width: 66px;
+  height: 66px;
+  border-radius: 22px;
+}
+
+.telegramApp .loadingOrb span {
+  font-size: 30px;
+}
+
+.telegramApp .loadingScreen h1 {
+  font-size: 34px;
+}
+
+.telegramApp .predictionLoader {
+  width: min(320px, 100%);
+}
+
+.telegramApp .hero {
+  padding: 2px 2px 0;
+}
+
+.telegramApp .hero > div:first-child {
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.05);
+  backdrop-filter: blur(14px);
+}
+
+.telegramApp .marketCard {
+  border-color: rgba(124, 92, 255, 0.10);
+}
+
+.telegramApp .warning {
+  border-color: rgba(247, 144, 9, 0.22);
+  background: linear-gradient(135deg, rgba(255, 250, 235, 0.96), rgba(238, 244, 255, 0.74));
+}
+
+@media (max-width: 520px) {
+  .app {
+    width: 100%;
+    padding: 12px 10px 18px;
+  }
+
+  .hero {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  h1 {
+    font-size: 31px;
+  }
+
+  .subtitle {
+    margin-top: 8px;
+    font-size: 13px;
+  }
+
+  .balanceCard {
+    min-height: 0;
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .balanceCard strong {
+    margin: 7px 0;
+    font-size: 22px;
+  }
+
+  .warning {
+    margin-bottom: 12px;
+    padding: 10px;
+    border-radius: 14px;
+    font-size: 11px;
+  }
+
+  .productTopBar {
+    margin-bottom: 12px;
+    padding: 6px;
+  }
+
+  .productNav button {
+    padding: 9px 10px;
+    font-size: 12px;
+  }
+
+  .connectionPill {
+    display: none;
+  }
+
+  .marketCard,
+  .portfolio,
+  .leaderboardBox,
+  .detailsHeroCard,
+  .detailSection,
+  .detailTradeCard,
+  .adminMarketCard,
+  .profileCard,
+  .profileHeroCard {
+    padding: 13px;
+    border-radius: 18px;
+  }
+
+  .marketCard h3,
+  .sectionHeader h2 {
+    font-size: 17px;
+  }
+
+  .compactStats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .compactStats div,
+  .summaryGrid div,
+  .statsGrid div,
+  .probability div,
+  .profileStatsGrid div {
+    padding: 8px;
+    border-radius: 12px;
+  }
+
+  .compactStats strong,
+  .summaryGrid strong,
+  .statsGrid strong,
+  .profileStatsGrid strong {
+    font-size: 16px;
+  }
+
+  .categoryTabs,
+  .detailsTabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .categoryTabs::-webkit-scrollbar,
+  .detailsTabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .categoryTabs button,
+  .detailsTabs button {
+    white-space: nowrap;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .profileHeroCard {
+    grid-template-columns: 52px 1fr;
+    gap: 11px;
+  }
+
+  .profileAvatar {
+    width: 52px;
+    height: 52px;
+    border-radius: 17px;
+    font-size: 22px;
+  }
+
+  .profileMainInfo h2 {
+    font-size: 22px;
+  }
+
+  .profileBalanceBox {
+    grid-column: 1 / -1;
+  }
+
+  .profileStatsGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+  }
+}
+
+/* Responsive market feed rebuild */
+.productNav {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.marketDashboardStrip,
+.searchHeroPanel,
+.searchResultsPanel {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(234, 236, 240, 0.9);
+  border-radius: 24px;
+  box-shadow: 0 12px 40px rgba(16, 24, 40, 0.06);
+  backdrop-filter: blur(14px);
+}
+
+.marketDashboardStrip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) 180px;
+  gap: 12px;
+  align-items: stretch;
+  margin-bottom: 18px;
+  padding: 14px;
+}
+
+.marketDashboardStrip div {
+  padding: 13px 14px;
+  border: 1px solid rgba(234, 236, 240, 0.9);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(249, 250, 251, 0.92), rgba(238, 244, 255, 0.72));
+}
+
+.marketDashboardStrip span,
+.marketChipsRow span,
+.marketProbabilityMini span {
+  display: block;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.marketDashboardStrip strong {
+  display: block;
+  margin-top: 5px;
+  font-size: 23px;
+  letter-spacing: -0.02em;
+}
+
+.marketDashboardStrip button,
+.searchHeroPanel button {
+  border: 0;
+  border-radius: 18px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, #111827 0%, #3438cd 58%, #11b981 140%);
+  color: white;
+  font-weight: 950;
+}
+
+.marketFeedHeader {
+  align-items: flex-end;
+}
+
+.marketFeedHeader p {
+  margin: 5px 0 0;
+  color: #667085;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.marketFeedList,
+.searchResultsList {
+  display: grid;
+  gap: 12px;
+}
+
+.scrollMarketCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 248px;
+  gap: 18px;
+  align-items: stretch;
+  margin-bottom: 0;
+  padding: 18px;
+}
+
+.marketCardHeader,
+.marketBadgesRow,
+.marketChipsRow,
+.marketActionRow {
+  display: flex;
+  align-items: center;
+}
+
+.marketCardHeader {
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.marketBadgesRow,
+.marketChipsRow,
+.marketActionRow {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.scrollMarketCard h3 {
+  margin: 0;
+  font-size: 21px;
+  line-height: 1.24;
+}
+
+.scrollMarketCard .compactDescription {
+  margin: 9px 0 11px;
+  font-size: 14px;
+  line-height: 1.42;
+  -webkit-line-clamp: 2;
+}
+
+.marketChipsRow span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 6px 9px;
+  border: 1px solid rgba(234, 236, 240, 0.95);
+  border-radius: 999px;
+  background: rgba(249, 250, 251, 0.9);
+  font-size: 11.5px;
+  line-height: 1;
+}
+
+.marketChipsRow .myPredictionChip {
+  color: #3538cd;
+  background: #eef4ff;
+  border-color: #c7d7fe;
+}
+
+.marketCardSide {
+  display: grid;
+  align-content: space-between;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.94), rgba(238, 244, 255, 0.72));
+  border: 1px solid rgba(234, 236, 240, 0.9);
+}
+
+.marketProbabilityMini {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.marketProbabilityMini div {
+  padding: 10px;
+  border-radius: 14px;
+  background: white;
+  border: 1px solid rgba(234, 236, 240, 0.95);
+}
+
+.marketProbabilityMini strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 24px;
+  letter-spacing: -0.04em;
+}
+
+.marketProbabilityMini .yesMini strong {
+  color: #027a48;
+}
+
+.marketProbabilityMini .noMini strong {
+  color: #b42318;
+}
+
+.marketMiniBar {
+  height: 9px;
+  margin: 0;
+}
+
+.marketActionRow {
+  display: grid;
+  grid-template-columns: 1fr 72px;
+  gap: 8px;
+}
+
+.marketActionRow button {
+  padding: 10px 11px;
+  border-radius: 13px;
+  font-size: 13px;
+}
+
+.searchPage {
+  display: grid;
+  gap: 14px;
+}
+
+.searchHeroPanel {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  padding: 22px;
+}
+
+.searchHeroPanel h2 {
+  margin: 0;
+  font-size: 32px;
+  letter-spacing: -0.035em;
+}
+
+.searchHeroPanel p:last-child {
+  margin: 8px 0 0;
+  color: #667085;
+  line-height: 1.45;
+}
+
+.searchToolbar {
+  margin-bottom: 0;
+  grid-template-columns: minmax(240px, 1fr) 180px 230px 190px;
+}
+
+.searchCategoryTabs {
+  margin-bottom: 0;
+}
+
+.searchResultsPanel {
+  padding: 18px;
+}
+
+.searchMarketCard {
+  grid-template-columns: minmax(0, 1fr) 230px;
+  padding: 15px;
+}
+
+/* A little more top space for iPhone Dynamic Island / notch in Telegram fullscreen */
+.telegramApp {
+  padding-top: calc(max(var(--tg-safe-top, 0px), env(safe-area-inset-top, 0px), 62px) + 14px);
+}
+
+.telegramApp .productTopBar {
+  top: calc(max(var(--tg-safe-top, 0px), env(safe-area-inset-top, 0px), 62px) + 8px);
+}
+
+.telegramApp .hero {
+  padding-top: 4px;
+}
+
+.telegramApp .marketDashboardStrip,
+.telegramApp .searchHeroPanel,
+.telegramApp .searchResultsPanel {
+  border-radius: 18px;
+}
+
+.telegramApp .marketDashboardStrip {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  padding: 9px;
+  margin-bottom: 10px;
+}
+
+.telegramApp .marketDashboardStrip button {
+  grid-column: 1 / -1;
+  padding: 9px 10px;
+  border-radius: 13px;
+  font-size: 12px;
+}
+
+.telegramApp .marketDashboardStrip div {
+  padding: 8px;
+  border-radius: 13px;
+}
+
+.telegramApp .marketDashboardStrip span {
+  font-size: 9.5px;
+  line-height: 1.15;
+}
+
+.telegramApp .marketDashboardStrip strong {
+  margin-top: 3px;
+  font-size: 17px;
+}
+
+.telegramApp .marketFeedHeader {
+  margin-bottom: 8px;
+}
+
+.telegramApp .marketFeedHeader p {
+  display: none;
+}
+
+.telegramApp .marketFeedList,
+.telegramApp .searchResultsList {
+  gap: 8px;
+}
+
+.telegramApp .scrollMarketCard {
+  grid-template-columns: 1fr;
+  gap: 9px;
+  padding: 11px;
+  border-radius: 17px;
+}
+
+.telegramApp .marketCardHeader {
+  margin-bottom: 8px;
+  gap: 8px;
+}
+
+.telegramApp .marketBadgesRow {
+  gap: 6px;
+}
+
+.telegramApp .scrollMarketCard h3 {
+  font-size: 15.5px;
+  line-height: 1.22;
+}
+
+.telegramApp .scrollMarketCard .compactDescription {
+  margin: 6px 0 8px;
+  font-size: 11px;
+  line-height: 1.3;
+  -webkit-line-clamp: 1;
+}
+
+.telegramApp .marketChipsRow {
+  gap: 5px;
+}
+
+.telegramApp .marketChipsRow span {
+  min-height: 23px;
+  padding: 5px 7px;
+  font-size: 9.5px;
+}
+
+.telegramApp .marketCardSide {
+  grid-template-columns: 1fr;
+  gap: 7px;
+  padding: 8px;
+  border-radius: 14px;
+}
+
+.telegramApp .marketProbabilityMini {
+  gap: 6px;
+}
+
+.telegramApp .marketProbabilityMini div {
+  padding: 7px 8px;
+  border-radius: 11px;
+}
+
+.telegramApp .marketProbabilityMini span {
+  font-size: 9.5px;
+}
+
+.telegramApp .marketProbabilityMini strong {
+  font-size: 17px;
+}
+
+.telegramApp .marketMiniBar {
+  height: 7px;
+}
+
+.telegramApp .marketActionRow {
+  grid-template-columns: 1fr 68px;
+  gap: 6px;
+}
+
+.telegramApp .marketActionRow button {
+  padding: 8px 9px;
+  border-radius: 11px;
+  font-size: 11.5px;
+}
+
+.telegramApp .searchPage {
+  gap: 10px;
+}
+
+.telegramApp .searchHeroPanel {
+  padding: 12px;
+  align-items: stretch;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.telegramApp .searchHeroPanel h2 {
+  font-size: 22px;
+}
+
+.telegramApp .searchHeroPanel p:last-child {
+  margin-top: 6px;
+  font-size: 11px;
+}
+
+.telegramApp .searchHeroPanel button {
+  padding: 9px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+.telegramApp .searchToolbar {
+  grid-template-columns: 1fr 1fr;
+  padding: 11px;
+  gap: 8px;
+}
+
+.telegramApp .searchToolbar .toolbarSearch,
+.telegramApp .searchToolbar .toolbarCheckbox {
+  grid-column: 1 / -1;
+}
+
+.telegramApp .searchResultsPanel {
+  padding: 11px;
+}
+
+@media (max-width: 900px) {
+  .marketDashboardStrip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .marketDashboardStrip button {
+    grid-column: 1 / -1;
+  }
+
+  .scrollMarketCard,
+  .searchMarketCard {
+    grid-template-columns: 1fr;
+  }
+
+  .searchHeroPanel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .searchToolbar {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .searchToolbar .toolbarSearch,
+  .searchToolbar .toolbarCheckbox {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 520px) {
+  .productNav {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .marketDashboardStrip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+    padding: 9px;
+  }
+
+  .marketDashboardStrip div {
+    padding: 8px;
+    border-radius: 13px;
+  }
+
+  .marketDashboardStrip span {
+    font-size: 9.5px;
+  }
+
+  .marketDashboardStrip strong {
+    font-size: 17px;
+  }
+
+  .marketDashboardStrip button {
+    padding: 9px 10px;
+    border-radius: 13px;
+  }
+
+  .marketActionRow {
+    grid-template-columns: 1fr 68px;
+  }
+}
+
+/* My predictions + balance history update */
+.productNav {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: min(720px, 100%);
+}
+
+.marketMyPosition {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(53, 56, 205, 0.16);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(238, 244, 255, 0.96), rgba(236, 253, 243, 0.78));
+  display: grid;
+  gap: 3px;
+}
+
+.marketMyPosition span {
+  color: #3538cd;
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.marketMyPosition strong {
+  color: #101828;
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.myPredictionsPage {
+  display: grid;
+  gap: 16px;
+}
+
+.myPredictionsHero,
+.myPredictionsListCard,
+.balanceHistoryCard {
+  border: 1px solid rgba(234, 236, 240, 0.92);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 12px 40px rgba(16, 24, 40, 0.06);
+  backdrop-filter: blur(14px);
+}
+
+.myPredictionsHero {
+  padding: 24px;
+  display: grid;
+  grid-template-columns: 1fr 420px;
+  gap: 18px;
+  align-items: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.myPredictionsHero::before {
+  content: "";
+  position: absolute;
+  inset: -70px -70px auto auto;
+  width: 220px;
+  height: 220px;
+  background: radial-gradient(circle, rgba(17, 185, 129, 0.16), transparent 68%);
+  pointer-events: none;
+}
+
+.myPredictionsHero h2 {
+  margin: 0;
+  font-size: 34px;
+  line-height: 1.08;
+  letter-spacing: -0.04em;
+}
+
+.myPredictionsHero p:last-child {
+  max-width: 680px;
+  margin: 9px 0 0;
+  color: #667085;
+  line-height: 1.5;
+}
+
+.myPredictionsSummary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  position: relative;
+}
+
+.myPredictionsSummary div {
+  padding: 14px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(249, 250, 251, 0.94), rgba(238, 244, 255, 0.76));
+  border: 1px solid rgba(234, 236, 240, 0.94);
+}
+
+.myPredictionsSummary span,
+.myPredictionMetaGrid span,
+.transactionItem span {
+  display: block;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.myPredictionsSummary strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 22px;
+  letter-spacing: -0.03em;
+}
+
+.predictionTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.predictionTabs button {
+  border: 1px solid #d0d5dd;
+  border-radius: 999px;
+  padding: 10px 13px;
+  background: white;
+  color: #344054;
+  font-weight: 950;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.predictionTabs button span {
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #f2f4f7;
+  color: #475467;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+}
+
+.predictionTabs .activePredictionTab {
+  background: linear-gradient(135deg, #111827 0%, #3438cd 70%, #11b981 140%);
+  color: white;
+  border-color: transparent;
+}
+
+.predictionTabs .activePredictionTab span {
+  background: rgba(255, 255, 255, 0.18);
+  color: white;
+}
+
+.myPredictionsLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 18px;
+  align-items: start;
+}
+
+.myPredictionsListCard,
+.balanceHistoryCard {
+  padding: 20px;
+}
+
+.myPredictionList,
+.transactionList {
+  display: grid;
+  gap: 10px;
+}
+
+.myPredictionCard {
+  width: 100%;
+  border: 1px solid rgba(234, 236, 240, 0.94);
+  border-radius: 18px;
+  padding: 0;
+  background: #fcfcfd;
+  color: inherit;
+  text-align: left;
+  display: grid;
+  grid-template-columns: 58px 1fr;
+  overflow: hidden;
+  box-shadow: 0 7px 18px rgba(16, 24, 40, 0.04);
+}
+
+.myPredictionCard:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 13px 28px rgba(16, 24, 40, 0.08);
+}
+
+.myPredictionSide {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  color: white;
+  font-weight: 950;
+}
+
+.yesSide {
+  background: linear-gradient(180deg, #12b76a, #039855);
+}
+
+.noSide {
+  background: linear-gradient(180deg, #f04438, #d92d20);
+}
+
+.myPredictionBody {
+  padding: 13px 14px;
+  min-width: 0;
+}
+
+.myPredictionTopLine {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 7px;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.myPredictionTopLine strong {
+  color: #101828;
+}
+
+.myPredictionCard h4 {
+  margin: 0 0 10px;
+  color: #101828;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.myPredictionMetaGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.myPredictionMetaGrid div {
+  padding: 8px;
+  border-radius: 12px;
+  background: white;
+  border: 1px solid rgba(234, 236, 240, 0.92);
+}
+
+.myPredictionMetaGrid strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 14px;
+  color: #101828;
+}
+
+.myPredictionCard p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.compactMyPredictionList .myPredictionCard {
+  grid-template-columns: 48px 1fr;
+  border-radius: 16px;
+}
+
+.compactMyPredictionList .myPredictionBody {
+  padding: 11px;
+}
+
+.compactMyPredictionList .myPredictionMetaGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.compactMyPredictionList .myPredictionMetaGrid div {
+  padding: 6px;
+}
+
+.showAllPredictionsButton,
+.emptyActionState button {
+  border: 0;
+  border-radius: 14px;
+  padding: 11px 13px;
+  background: #101828;
+  color: white;
+  font-weight: 950;
+}
+
+.emptyActionState {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+.emptyActionState strong {
+  color: #101828;
+}
+
+.emptyActionState p {
+  margin: 0;
+  color: #667085;
+}
+
+.transactionItem {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid rgba(234, 236, 240, 0.94);
+  border-radius: 16px;
+  background: #fcfcfd;
+}
+
+.transactionAmount {
+  padding: 9px 10px;
+  border-radius: 13px;
+  text-align: center;
+  font-weight: 950;
+  font-size: 14px;
+}
+
+.positiveTransaction {
+  color: #027a48;
+  background: #ecfdf3;
+}
+
+.negativeTransaction {
+  color: #b42318;
+  background: #fee4e2;
+}
+
+.transactionItem strong {
+  display: block;
+  color: #101828;
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.transactionItem p {
+  margin: 4px 0;
+  color: #667085;
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+
+.profileRoleRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.profileLevelBadge {
+  display: inline-flex;
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: #ecfdf3;
+  color: #027a48;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.profileContentGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+  .productNav {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .productNav button {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .myPredictionsHero,
+  .myPredictionsLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .myPredictionsSummary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .profileContentGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .productNav {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .productNav button {
+    font-size: 11px;
+    padding: 9px 6px;
+  }
+
+  .myPredictionMetaGrid {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+/* Extra Telegram polish for lower header and denser portfolio */
+.telegramApp {
+  padding-top: calc(max(var(--tg-safe-top, 0px), env(safe-area-inset-top, 0px), 74px) + 18px);
+}
+
+.telegramApp .productTopBar {
+  top: calc(max(var(--tg-safe-top, 0px), env(safe-area-inset-top, 0px), 74px) + 12px);
+}
+
+.telegramApp .productNav {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.telegramApp .productNav button {
+  min-height: 34px;
+  padding: 8px 5px;
+  font-size: 10.5px;
+  letter-spacing: -0.01em;
+}
+
+.telegramApp .myPredictionsPage {
+  gap: 10px;
+}
+
+.telegramApp .myPredictionsHero {
+  grid-template-columns: 1fr;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 18px;
+}
+
+.telegramApp .myPredictionsHero h2 {
+  font-size: 22px;
+}
+
+.telegramApp .myPredictionsHero p:last-child {
+  font-size: 11px;
+  margin-top: 5px;
+}
+
+.telegramApp .myPredictionsSummary {
+  gap: 6px;
+}
+
+.telegramApp .myPredictionsSummary div {
+  padding: 8px;
+  border-radius: 12px;
+}
+
+.telegramApp .myPredictionsSummary span,
+.telegramApp .myPredictionMetaGrid span,
+.telegramApp .transactionItem span {
+  font-size: 9.5px;
+}
+
+.telegramApp .myPredictionsSummary strong {
+  font-size: 16px;
+}
+
+.telegramApp .predictionTabs {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 6px;
+  scrollbar-width: none;
+  padding-bottom: 3px;
+}
+
+.telegramApp .predictionTabs::-webkit-scrollbar {
+  display: none;
+}
+
+.telegramApp .predictionTabs button {
+  white-space: nowrap;
+  padding: 8px 9px;
+  font-size: 11px;
+}
+
+.telegramApp .predictionTabs button span {
+  min-width: 20px;
+  height: 20px;
+  font-size: 10px;
+}
+
+.telegramApp .myPredictionsLayout {
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.telegramApp .myPredictionsListCard,
+.telegramApp .balanceHistoryCard {
+  padding: 12px;
+  border-radius: 18px;
+}
+
+.telegramApp .myPredictionList,
+.telegramApp .transactionList {
+  gap: 8px;
+}
+
+.telegramApp .myPredictionCard {
+  grid-template-columns: 44px 1fr;
+  border-radius: 14px;
+}
+
+.telegramApp .myPredictionBody {
+  padding: 9px;
+}
+
+.telegramApp .myPredictionTopLine {
+  margin-bottom: 5px;
+  font-size: 10px;
+}
+
+.telegramApp .myPredictionCard h4 {
+  margin-bottom: 7px;
+  font-size: 12.5px;
+  line-height: 1.25;
+}
+
+.telegramApp .myPredictionMetaGrid {
+  gap: 5px;
+  margin-bottom: 6px;
+}
+
+.telegramApp .myPredictionMetaGrid div {
+  padding: 6px;
+  border-radius: 10px;
+}
+
+.telegramApp .myPredictionMetaGrid strong {
+  font-size: 11.5px;
+}
+
+.telegramApp .myPredictionCard p {
+  font-size: 10.5px;
+}
+
+.telegramApp .transactionItem {
+  grid-template-columns: 70px 1fr;
+  gap: 8px;
+  padding: 9px;
+  border-radius: 13px;
+}
+
+.telegramApp .transactionAmount {
+  padding: 7px 6px;
+  border-radius: 11px;
+  font-size: 11px;
+}
+
+.telegramApp .transactionItem strong {
+  font-size: 12px;
+}
+
+.telegramApp .transactionItem p {
+  margin: 3px 0;
+  font-size: 10.5px;
+}
+
+.telegramApp .profileLevelBadge {
+  padding: 5px 8px;
+  font-size: 10.5px;
+}
+
+.telegramApp .marketMyPosition {
+  margin-top: 7px;
+  padding: 8px;
+  border-radius: 12px;
+}
+
+.telegramApp .marketMyPosition span {
+  font-size: 9px;
+}
+
+.telegramApp .marketMyPosition strong {
+  font-size: 10.5px;
 }

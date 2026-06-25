@@ -5,7 +5,8 @@ type Outcome = "yes" | "no";
 type MarketStatus = "open" | "resolved";
 type SortMode = "newest" | "probability" | "trades" | "comments";
 type DetailsTab = "overview" | "trades" | "participants" | "chat";
-type MainView = "markets" | "profile";
+type MainView = "markets" | "search" | "predictions" | "profile";
+type MyPredictionTab = "active" | "settled" | "won" | "lost" | "all";
 
 type DemoUser = {
   id: string;
@@ -54,6 +55,18 @@ type MarketComment = {
   mediaName?: string;
 };
 
+type BalanceTransaction = {
+  id: string;
+  userId: string;
+  type: "start" | "prediction_buy" | "payout" | "refund" | "system";
+  title: string;
+  description: string;
+  amount: number;
+  marketId?: string;
+  marketQuestion?: string;
+  createdAt: string;
+};
+
 type CommentDraft = {
   text: string;
   mediaDataUrl: string;
@@ -82,6 +95,7 @@ type BootstrapData = {
   markets: Market[];
   predictions: Prediction[];
   comments: MarketComment[];
+  transactions?: BalanceTransaction[];
   favoriteMarketIdsByUser: Record<string, string[]>;
   adminUserIds?: string[];
 };
@@ -99,6 +113,25 @@ type TelegramWebApp = {
   close?: () => void;
   initData?: string;
   initDataUnsafe?: { user?: TelegramUser };
+  platform?: string;
+  version?: string;
+  colorScheme?: "light" | "dark";
+  isExpanded?: boolean;
+  isFullscreen?: boolean;
+  viewportHeight?: number;
+  viewportStableHeight?: number;
+  safeAreaInset?: { top?: number; bottom?: number; left?: number; right?: number };
+  contentSafeAreaInset?: { top?: number; bottom?: number; left?: number; right?: number };
+  requestFullscreen?: () => void;
+  exitFullscreen?: () => void;
+  disableVerticalSwipes?: () => void;
+  enableVerticalSwipes?: () => void;
+  setHeaderColor?: (color: string) => void;
+  setBackgroundColor?: (color: string) => void;
+  setBottomBarColor?: (color: string) => void;
+  isVersionAtLeast?: (version: string) => boolean;
+  onEvent?: (eventType: string, eventHandler: (...args: unknown[]) => void) => void;
+  offEvent?: (eventType: string, eventHandler: (...args: unknown[]) => void) => void;
   BackButton?: {
     show: () => void;
     hide: () => void;
@@ -175,6 +208,33 @@ function getOutcomeText(outcome?: Outcome) {
   return "—";
 }
 
+function getUserLevel(stats: { predictionsCount: number; winRate: number }, rank: number) {
+  if (stats.predictionsCount >= 35 && stats.winRate >= 65) {
+    return { emoji: "👑", title: "Легенда рынка", description: "Твои прогнозы уже похожи на инсайды." };
+  }
+  if (stats.predictionsCount >= 20 && stats.winRate >= 55) {
+    return { emoji: "🔮", title: "Оракул", description: "Ты стабильно видишь вероятности раньше остальных." };
+  }
+  if (rank > 0 && rank <= 3 && stats.predictionsCount >= 5) {
+    return { emoji: "🏆", title: "Топ-игрок", description: "Ты держишься в верхушке рейтинга." };
+  }
+  if (stats.predictionsCount >= 10) {
+    return { emoji: "🧠", title: "Аналитик", description: "Ты уже набираешь историю решений и стиль игры." };
+  }
+  if (stats.predictionsCount >= 3) {
+    return { emoji: "📈", title: "Трейдер прогнозов", description: "Первые рынки пройдены — начинается настоящая игра." };
+  }
+  return { emoji: "🚀", title: "Новичок", description: "Сделай несколько прогнозов и открой следующий статус." };
+}
+
+function estimatePredictionPayout(market: Market | undefined, prediction: Prediction) {
+  if (!market || market.status === "resolved") return prediction.payout || 0;
+  const totalPool = market.yesPool + market.noPool;
+  const outcomePool = prediction.outcome === "yes" ? market.yesPool : market.noPool;
+  if (outcomePool <= 0) return prediction.amount;
+  return Math.max(prediction.amount, Math.round((prediction.amount / outcomePool) * totalPool));
+}
+
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Неизвестная ошибка";
 }
@@ -202,6 +262,35 @@ function getTelegramInitData() {
   return window.Telegram?.WebApp?.initData || "";
 }
 
+function syncTelegramViewportVars(telegramWebApp?: TelegramWebApp) {
+  const viewportHeight = telegramWebApp?.viewportStableHeight || telegramWebApp?.viewportHeight || window.innerHeight;
+  const safeTop = telegramWebApp?.safeAreaInset?.top || telegramWebApp?.contentSafeAreaInset?.top || 0;
+  const safeBottom = telegramWebApp?.safeAreaInset?.bottom || telegramWebApp?.contentSafeAreaInset?.bottom || 0;
+
+  document.documentElement.style.setProperty("--app-height", `${Math.round(viewportHeight)}px`);
+  document.documentElement.style.setProperty("--tg-safe-top", `${safeTop}px`);
+  document.documentElement.style.setProperty("--tg-safe-bottom", `${safeBottom}px`);
+  document.body.classList.add("is-telegram-webapp");
+}
+
+function setupTelegramChrome(telegramWebApp?: TelegramWebApp) {
+  if (!telegramWebApp) return;
+
+  syncTelegramViewportVars(telegramWebApp);
+  telegramWebApp.ready?.();
+  telegramWebApp.expand?.();
+  telegramWebApp.disableVerticalSwipes?.();
+  telegramWebApp.setHeaderColor?.("#0b1020");
+  telegramWebApp.setBackgroundColor?.("#f2f6ff");
+  telegramWebApp.setBottomBarColor?.("#f2f6ff");
+
+  try {
+    telegramWebApp.requestFullscreen?.();
+  } catch {
+    // На старых клиентах Telegram fullscreen может быть недоступен — тогда останется обычный expand().
+  }
+}
+
 function App() {
   const [users, setUsers] = useState<DemoUser[]>([]);
   const [activeUserId, setActiveUserId] = useState("");
@@ -210,6 +299,7 @@ function App() {
   const [markets, setMarkets] = useState<Market[]>([]);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [comments, setComments] = useState<MarketComment[]>([]);
+  const [transactions, setTransactions] = useState<BalanceTransaction[]>([]);
   const [favoriteMarketIdsByUser, setFavoriteMarketIdsByUser] = useState<Record<string, string[]>>({});
   const [adminUserIds, setAdminUserIds] = useState<string[]>([]);
 
@@ -223,6 +313,7 @@ function App() {
   const [sortMode, setSortMode] = useState<SortMode>("newest");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [mainView, setMainView] = useState<MainView>("markets");
+  const [myPredictionTab, setMyPredictionTab] = useState<MyPredictionTab>("active");
 
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
   const [detailsTab, setDetailsTab] = useState<DetailsTab>("overview");
@@ -277,11 +368,28 @@ function App() {
     return activeUserPredictions.filter((prediction) => prediction.settledAt);
   }, [activeUserPredictions]);
 
+  const activeUserTransactions = useMemo(() => {
+    if (!activeUser) return [];
+    return transactions.filter((transaction) => transaction.userId === activeUser.id);
+  }, [transactions, activeUser]);
+
   const activeUserRank = useMemo(() => {
     if (!activeUser) return 0;
     const sortedUsers = [...users].sort((a, b) => b.balance - a.balance);
     return sortedUsers.findIndex((user) => user.id === activeUser.id) + 1;
   }, [users, activeUser]);
+
+  const activeUserLevel = useMemo(() => {
+    return getUserLevel(activeUserStats, activeUserRank);
+  }, [activeUserStats, activeUserRank]);
+
+  const myPredictionsByTab = useMemo(() => {
+    if (myPredictionTab === "active") return activeUserOpenPredictions;
+    if (myPredictionTab === "settled") return activeUserSettledPredictions;
+    if (myPredictionTab === "won") return activeUserSettledPredictions.filter((prediction) => prediction.outcome === prediction.resolvedOutcome);
+    if (myPredictionTab === "lost") return activeUserSettledPredictions.filter((prediction) => prediction.outcome !== prediction.resolvedOutcome);
+    return activeUserPredictions;
+  }, [myPredictionTab, activeUserOpenPredictions, activeUserSettledPredictions, activeUserPredictions]);
 
   const activeFavoriteMarkets = useMemo(() => {
     return markets.filter((market) => favoriteMarketIds.includes(market.id));
@@ -326,6 +434,17 @@ function App() {
         return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
       });
   }, [markets, selectedCategory, statusFilter, marketSearch, sortMode, predictions, comments, showFavoritesOnly, favoriteMarketIds]);
+
+  const feedMarkets = useMemo(() => {
+    return markets
+      .filter((market) => selectedCategory === "Все" || market.category === selectedCategory)
+      .sort((a, b) => {
+        if (a.status !== b.status) return a.status === "open" ? -1 : 1;
+        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+      });
+  }, [markets, selectedCategory]);
+
+  const openMarketsCount = useMemo(() => markets.filter((market) => market.status === "open").length, [markets]);
 
   const selectedMarket = useMemo(() => {
     return markets.find((market) => market.id === selectedMarketId) || null;
@@ -394,6 +513,7 @@ function App() {
     setMarkets(data.markets || []);
     setPredictions(data.predictions || []);
     setComments(data.comments || []);
+    setTransactions(data.transactions || []);
     setFavoriteMarketIdsByUser(data.favoriteMarketIdsByUser || {});
     setAdminUserIds(data.adminUserIds || []);
 
@@ -431,6 +551,27 @@ function App() {
     window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.("error");
   }
 
+  useEffect(() => {
+    const telegramWebApp = window.Telegram?.WebApp;
+    if (!telegramWebApp) return;
+
+    setIsTelegram(true);
+    setupTelegramChrome(telegramWebApp);
+
+    const handleViewportChange = () => syncTelegramViewportVars(telegramWebApp);
+    telegramWebApp.onEvent?.("viewportChanged", handleViewportChange);
+    telegramWebApp.onEvent?.("fullscreenChanged", handleViewportChange);
+    window.addEventListener("resize", handleViewportChange);
+    window.addEventListener("orientationchange", handleViewportChange);
+
+    return () => {
+      telegramWebApp.offEvent?.("viewportChanged", handleViewportChange);
+      telegramWebApp.offEvent?.("fullscreenChanged", handleViewportChange);
+      window.removeEventListener("resize", handleViewportChange);
+      window.removeEventListener("orientationchange", handleViewportChange);
+    };
+  }, []);
+
   async function initializeApp() {
     setIsLoading(true);
     setServerError("");
@@ -439,8 +580,7 @@ function App() {
       const telegramWebApp = window.Telegram?.WebApp;
       const telegramUser = telegramWebApp?.initDataUnsafe?.user;
       const telegramInitData = telegramWebApp?.initData || "";
-      telegramWebApp?.ready?.();
-      telegramWebApp?.expand?.();
+      setupTelegramChrome(telegramWebApp);
 
       const data = await apiRequest<BootstrapData>("/bootstrap");
       let nextUsers = data.users || [];
@@ -467,6 +607,7 @@ function App() {
       setMarkets(data.markets || []);
       setPredictions(data.predictions || []);
       setComments(data.comments || []);
+      setTransactions(data.transactions || []);
       setFavoriteMarketIdsByUser(data.favoriteMarketIdsByUser || {});
       setAdminUserIds(data.adminUserIds || []);
       setActiveUserId(nextActiveUserId);
@@ -784,7 +925,7 @@ function App() {
   }
 
   function exportDemoData() {
-    const payload = { version: 3, source: "postgres", exportedAt: new Date().toISOString(), users, markets, predictions, comments, favoriteMarketIdsByUser, adminUserIds };
+    const payload = { version: 3, source: "postgres", exportedAt: new Date().toISOString(), users, markets, predictions, comments, transactions, favoriteMarketIdsByUser, adminUserIds };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -943,6 +1084,257 @@ function App() {
   }
 
 
+  function clearMarketFilters() {
+    setMarketSearch("");
+    setStatusFilter("all");
+    setSortMode("newest");
+    setSelectedCategory("Все");
+    setShowFavoritesOnly(false);
+  }
+
+  function openMarketDetails(marketId: string, tab: DetailsTab = "overview") {
+    setSelectedMarketId(marketId);
+    setDetailsTab(tab);
+    sendHaptic();
+  }
+
+  function renderMarketCard(market: Market, variant: "feed" | "search" = "feed") {
+    const yesProbability = getYesProbability(market);
+    const noProbability = 100 - yesProbability;
+    const isResolved = market.status === "resolved";
+    const marketPredictions = predictions.filter((prediction) => prediction.marketId === market.id);
+    const marketComments = comments.filter((comment) => comment.marketId === market.id);
+    const uniqueParticipants = new Set(marketPredictions.map((prediction) => prediction.userId)).size;
+    const isFavorite = favoriteMarketIds.includes(market.id);
+    const activePrediction = activeUserPredictions.find((prediction) => prediction.marketId === market.id && !prediction.settledAt);
+
+    return (
+      <article className={`marketCard scrollMarketCard ${variant === "search" ? "searchMarketCard" : ""} ${isResolved ? "resolvedMarket" : ""}`} key={market.id}>
+        <div className="marketCardMain">
+          <div className="marketCardHeader">
+            <div className="marketBadgesRow">
+              <span className="category">{market.category}</span>
+              <span className={`statusBadge ${isResolved ? "resolvedBadge" : "openBadge"}`}>{isResolved ? `Рассчитан: ${getOutcomeText(market.resolvedOutcome)}` : "Открыт"}</span>
+            </div>
+            <button
+              className={`favoriteIconButton ${isFavorite ? "activeFavorite" : ""}`}
+              onClick={() => toggleFavoriteMarket(market.id)}
+              aria-label={isFavorite ? "Убрать из избранного" : "Добавить в избранное"}
+            >
+              {isFavorite ? "★" : "☆"}
+            </button>
+          </div>
+
+          <h3>{market.question}</h3>
+          <p className="compactDescription">{market.description}</p>
+
+          <div className="marketChipsRow">
+            <span>До {formatDateForDisplay(market.closesAt)}</span>
+            <span>{uniqueParticipants} участников</span>
+            <span>{marketPredictions.length} прогнозов</span>
+            <span>{marketComments.length} комм.</span>
+            {activePrediction && (
+              <span className="myPredictionChip">
+                Мой: {getOutcomeText(activePrediction.outcome)} · {activePrediction.amount.toLocaleString("ru-RU")} б.
+              </span>
+            )}
+          </div>
+
+          {activePrediction && (
+            <div className="marketMyPosition">
+              <span>Твоя позиция</span>
+              <strong>{getOutcomeText(activePrediction.outcome)} · потенциально {estimatePredictionPayout(market, activePrediction).toLocaleString("ru-RU")} баллов</strong>
+            </div>
+          )}
+        </div>
+
+        <div className="marketCardSide">
+          <div className="marketProbabilityMini">
+            <div className="yesMini"><span>Да</span><strong>{yesProbability}%</strong></div>
+            <div className="noMini"><span>Нет</span><strong>{noProbability}%</strong></div>
+          </div>
+          <div className="bar marketMiniBar"><div style={{ width: `${yesProbability}%` }} /></div>
+          <div className="marketActionRow">
+            <button className="openDetailsButton" onClick={() => openMarketDetails(market.id, "overview")}>Открыть</button>
+            <button className="secondaryOpenButton compactChatButton" onClick={() => openMarketDetails(market.id, "chat")}>Чат</button>
+          </div>
+        </div>
+      </article>
+    );
+  }
+
+  function renderPredictionCard(prediction: Prediction, variant: "compact" | "full" = "compact") {
+    const market = markets.find((item) => item.id === prediction.marketId);
+    const isSettled = Boolean(prediction.settledAt);
+    const isWinner = isSettled && prediction.outcome === prediction.resolvedOutcome;
+    const estimatedPayout = estimatePredictionPayout(market, prediction);
+    const currentProbability = market ? (prediction.outcome === "yes" ? getYesProbability(market) : 100 - getYesProbability(market)) : prediction.probabilityAtPurchase;
+
+    return (
+      <button
+        className={`myPredictionCard ${variant === "full" ? "myPredictionCardFull" : ""} ${isSettled ? "settledPredictionCard" : ""}`}
+        key={prediction.id}
+        onClick={() => {
+          setSelectedMarketId(prediction.marketId);
+          setDetailsTab("overview");
+        }}
+      >
+        <div className={`myPredictionSide ${prediction.outcome === "yes" ? "yesSide" : "noSide"}`}>
+          <span>{getOutcomeText(prediction.outcome)}</span>
+        </div>
+        <div className="myPredictionBody">
+          <div className="myPredictionTopLine">
+            <span>{isSettled ? "Завершён" : "Активный"}</span>
+            <strong>{prediction.amount.toLocaleString("ru-RU")} б.</strong>
+          </div>
+          <h4>{prediction.marketQuestion}</h4>
+          <div className="myPredictionMetaGrid">
+            <div><span>При покупке</span><strong>{prediction.probabilityAtPurchase}%</strong></div>
+            <div><span>{isSettled ? "Выплата" : "Потенциально"}</span><strong>{estimatedPayout.toLocaleString("ru-RU")}</strong></div>
+            <div><span>{isSettled ? "Результат" : "Сейчас"}</span><strong>{isSettled ? getOutcomeText(prediction.resolvedOutcome) : `${currentProbability}%`}</strong></div>
+          </div>
+          {isSettled ? (
+            <p className={isWinner ? "predictionSettlement winText" : "predictionSettlement lossText"}>
+              {isWinner ? "Выигрыш" : "Проигрыш"} · {prediction.settledAt}
+            </p>
+          ) : (
+            <p className="activePrediction">Ожидает расчёта · нажми, чтобы открыть рынок</p>
+          )}
+        </div>
+      </button>
+    );
+  }
+
+  function renderTransactions(limit?: number) {
+    const items = typeof limit === "number" ? activeUserTransactions.slice(0, limit) : activeUserTransactions;
+
+    if (items.length === 0) {
+      return <div className="empty">История баллов появится после первого прогноза, выплаты или возврата.</div>;
+    }
+
+    return (
+      <div className="transactionList">
+        {items.map((transaction) => (
+          <div className="transactionItem" key={transaction.id}>
+            <div className={`transactionAmount ${transaction.amount >= 0 ? "positiveTransaction" : "negativeTransaction"}`}>
+              {transaction.amount >= 0 ? "+" : "−"}{Math.abs(transaction.amount).toLocaleString("ru-RU")}
+            </div>
+            <div>
+              <strong>{transaction.title}</strong>
+              <p>{transaction.description}</p>
+              <span>{transaction.createdAt}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  function renderMyPredictionsPage() {
+    if (!activeUser) {
+      return <section className="myPredictionsPage"><div className="empty">Прогнозы пока не загружены.</div></section>;
+    }
+
+    const tabs: { id: MyPredictionTab; title: string; count: number }[] = [
+      { id: "active", title: "Активные", count: activeUserOpenPredictions.length },
+      { id: "settled", title: "Завершённые", count: activeUserSettledPredictions.length },
+      { id: "won", title: "Выигранные", count: activeUserSettledPredictions.filter((prediction) => prediction.outcome === prediction.resolvedOutcome).length },
+      { id: "lost", title: "Проигранные", count: activeUserSettledPredictions.filter((prediction) => prediction.outcome !== prediction.resolvedOutcome).length },
+      { id: "all", title: "Все", count: activeUserPredictions.length },
+    ];
+
+    return (
+      <section className="myPredictionsPage">
+        <section className="myPredictionsHero">
+          <div>
+            <p className="eyebrow">Личный портфель</p>
+            <h2>Мои прогнозы</h2>
+            <p>Все твои активные и завершённые позиции: сколько вложено, что может прийти и как менялся баланс.</p>
+          </div>
+          <div className="myPredictionsSummary">
+            <div><span>Активные</span><strong>{activeUserOpenPredictions.length}</strong></div>
+            <div><span>Winrate</span><strong>{activeUserStats.winRate}%</strong></div>
+            <div><span>Баланс</span><strong>{activeUser.balance.toLocaleString("ru-RU")}</strong></div>
+          </div>
+        </section>
+
+        <section className="predictionTabs">
+          {tabs.map((tab) => (
+            <button key={tab.id} className={myPredictionTab === tab.id ? "activePredictionTab" : ""} onClick={() => setMyPredictionTab(tab.id)}>
+              {tab.title}<span>{tab.count}</span>
+            </button>
+          ))}
+        </section>
+
+        <section className="myPredictionsLayout">
+          <div className="myPredictionsListCard">
+            <div className="sectionHeader">
+              <h2>Позиции</h2>
+              <span>{myPredictionsByTab.length}</span>
+            </div>
+            {myPredictionsByTab.length === 0 ? (
+              <div className="empty emptyActionState">
+                <strong>Здесь пока пусто</strong>
+                <p>Выбери интересный рынок, сделай прогноз и он появится в этом разделе.</p>
+                <button onClick={() => setMainView("markets")}>Перейти к рынкам</button>
+              </div>
+            ) : (
+              <div className="myPredictionList">
+                {myPredictionsByTab.map((prediction) => renderPredictionCard(prediction, "full"))}
+              </div>
+            )}
+          </div>
+
+          <aside className="balanceHistoryCard">
+            <div className="sectionHeader">
+              <h2>История баллов</h2>
+              <span>{activeUserTransactions.length}</span>
+            </div>
+            {renderTransactions(12)}
+          </aside>
+        </section>
+      </section>
+    );
+  }
+
+  function renderSearchPage() {
+    return (
+      <section className="searchPage">
+        <section className="searchHeroPanel">
+          <div>
+            <p className="eyebrow">Навигация по рынкам</p>
+            <h2>Поиск и фильтры</h2>
+            <p>Быстро найди нужное событие: по теме, категории, статусу, популярности или избранному.</p>
+          </div>
+          <button className="clearFiltersButton" onClick={clearMarketFilters}>Сбросить фильтры</button>
+        </section>
+
+        <section className="marketToolbar searchToolbar">
+          <label className="toolbarSearch">Поиск рынка<input placeholder="Например: ЦБ, GTA, Bitcoin, друзья..." value={marketSearch} onChange={(event) => setMarketSearch(event.target.value)} /></label>
+          <label>Статус<select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "all" | MarketStatus)}><option value="all">Все рынки</option><option value="open">Открытые</option><option value="resolved">Рассчитанные</option></select></label>
+          <label>Сортировка<select value={sortMode} onChange={(event) => setSortMode(event.target.value as SortMode)}><option value="newest">Сначала новые</option><option value="probability">По вероятности “Да”</option><option value="trades">По количеству сделок</option><option value="comments">По комментариям</option></select></label>
+          <label className="toolbarCheckbox"><input type="checkbox" checked={showFavoritesOnly} onChange={(event) => setShowFavoritesOnly(event.target.checked)} />Только избранные</label>
+        </section>
+
+        <section className="categoryTabs searchCategoryTabs">
+          {categories.map((category) => (
+            <button key={category} className={selectedCategory === category ? "activeTab" : ""} onClick={() => setSelectedCategory(category)}>{category}</button>
+          ))}
+        </section>
+
+        <section className="searchResultsPanel">
+          <div className="sectionHeader"><h2>Результаты</h2><span>{filteredMarkets.length} событий</span></div>
+          {filteredMarkets.length === 0 ? <div className="empty">По этим фильтрам рынков не найдено.</div> : (
+            <div className="searchResultsList">
+              {filteredMarkets.map((market) => renderMarketCard(market, "search"))}
+            </div>
+          )}
+        </section>
+      </section>
+    );
+  }
+
+
   function renderProfilePage() {
     if (!activeUser) {
       return <section className="profilePage"><div className="empty">Профиль пока не загружен.</div></section>;
@@ -950,17 +1342,19 @@ function App() {
 
     const displayInitial = activeUser.name.slice(0, 1).toUpperCase();
     const roleTitle = isAdmin ? "Администратор" : "Участник";
+    const level = activeUserLevel;
 
     return (
       <section className="profilePage">
         <article className="profileHeroCard">
           <div className="profileAvatar">{displayInitial}</div>
           <div className="profileMainInfo">
-            <span className="profileRole">{roleTitle}</span>
+            <div className="profileRoleRow">
+              <span className="profileRole">{roleTitle}</span>
+              <span className="profileLevelBadge">{level.emoji} {level.title}</span>
+            </div>
             <h2>{activeUser.name}</h2>
-            <p>
-              Личный кабинет Forecast Market: баланс, статистика, активные прогнозы и избранные рынки.
-            </p>
+            <p>{level.description}</p>
           </div>
           <div className="profileBalanceBox">
             <span>Баланс</span>
@@ -1005,18 +1399,8 @@ function App() {
             {activeUserOpenPredictions.length === 0 ? (
               <div className="empty">Активных прогнозов пока нет.</div>
             ) : (
-              <div className="predictionList">
-                {activeUserOpenPredictions.map((prediction) => (
-                  <div className="prediction" key={prediction.id}>
-                    <div className="predictionOutcome">{getOutcomeText(prediction.outcome)}</div>
-                    <div>
-                      <h4>{prediction.marketQuestion}</h4>
-                      <p>{prediction.amount.toLocaleString("ru-RU")} баллов · {prediction.probabilityAtPurchase}% при покупке</p>
-                      <p className="activePrediction">Ожидает расчета</p>
-                      <span className="predictionDate">{prediction.createdAt}</span>
-                    </div>
-                  </div>
-                ))}
+              <div className="myPredictionList compactMyPredictionList">
+                {activeUserOpenPredictions.slice(0, 5).map((prediction) => renderPredictionCard(prediction))}
               </div>
             )}
           </div>
@@ -1029,25 +1413,18 @@ function App() {
             {activeUserSettledPredictions.length === 0 ? (
               <div className="empty">Завершённых прогнозов пока нет.</div>
             ) : (
-              <div className="predictionList">
-                {activeUserSettledPredictions.slice(0, 8).map((prediction) => {
-                  const isWinner = prediction.outcome === prediction.resolvedOutcome;
-                  return (
-                    <div className="prediction" key={prediction.id}>
-                      <div className="predictionOutcome">{getOutcomeText(prediction.outcome)}</div>
-                      <div>
-                        <h4>{prediction.marketQuestion}</h4>
-                        <p>{prediction.amount.toLocaleString("ru-RU")} баллов · результат: {getOutcomeText(prediction.resolvedOutcome)}</p>
-                        <p className={isWinner ? "predictionSettlement winText" : "predictionSettlement lossText"}>
-                          {isWinner ? "Выигрыш" : "Проигрыш"} · Выплата: {(prediction.payout || 0).toLocaleString("ru-RU")} баллов
-                        </p>
-                        <span className="predictionDate">{prediction.settledAt || prediction.createdAt}</span>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="myPredictionList compactMyPredictionList">
+                {activeUserSettledPredictions.slice(0, 5).map((prediction) => renderPredictionCard(prediction))}
               </div>
             )}
+          </div>
+
+          <div className="profileCard">
+            <div className="sectionHeader">
+              <h2>История баллов</h2>
+              <span>{activeUserTransactions.length}</span>
+            </div>
+            {renderTransactions(8)}
           </div>
 
           <div className="profileCard profileWideCard">
@@ -1081,12 +1458,31 @@ function App() {
     );
   }
 
+  const appClassName = `app ${isTelegram ? "telegramApp" : ""}`;
+
   if (isLoading) {
     return (
-      <main className="app">
+      <main className={appClassName}>
         <div className="loadingScreen">
+          <div className="loadingOrb" aria-hidden="true">
+            <span>📈</span>
+          </div>
+          <p className="loadingEyebrow">Прогреваем рынок</p>
           <h1>Forecast Market</h1>
-          <p>Подключаемся к backend...</p>
+          <p className="loadingText">Сверяем вероятности, будим backend и начисляем удачу...</p>
+          <div className="predictionLoader" aria-label="Загрузка приложения">
+            <div className="predictionLoaderTrack">
+              <span className="predictionLoaderFill" />
+              <span className="predictionLoaderDot predictionLoaderDotYes">ДА</span>
+              <span className="predictionLoaderDot predictionLoaderDotNo">НЕТ</span>
+            </div>
+            <div className="loadingTicks">
+              <span>0%</span>
+              <span>50%</span>
+              <span>100%</span>
+            </div>
+          </div>
+          <p className="loadingJoke">Если вероятность загрузки выше 50% — мы уже почти победили.</p>
         </div>
       </main>
     );
@@ -1094,7 +1490,7 @@ function App() {
 
   if (serverError) {
     return (
-      <main className="app">
+      <main className={appClassName}>
         <div className="errorBox">
           <h1>Backend недоступен</h1>
           <p>{serverError}</p>
@@ -1106,7 +1502,7 @@ function App() {
   }
 
   return (
-    <main className="app">
+    <main className={appClassName}>
       <section className="hero">
         <div>
           <p className="eyebrow">Социальная биржа прогнозов</p>
@@ -1139,6 +1535,24 @@ function App() {
             }}
           >
             Рынки
+          </button>
+          <button
+            className={mainView === "search" && !selectedMarket ? "activeProductNav" : ""}
+            onClick={() => {
+              setSelectedMarketId(null);
+              setMainView("search");
+            }}
+          >
+            Поиск
+          </button>
+          <button
+            className={mainView === "predictions" && !selectedMarket ? "activeProductNav" : ""}
+            onClick={() => {
+              setSelectedMarketId(null);
+              setMainView("predictions");
+            }}
+          >
+            Мои прогнозы
           </button>
           <button
             className={mainView === "profile" ? "activeProductNav" : ""}
@@ -1188,10 +1602,12 @@ function App() {
 
       {mainView === "profile" && !selectedMarket ? (
         renderProfilePage()
+      ) : mainView === "predictions" && !selectedMarket ? (
+        renderMyPredictionsPage()
       ) : selectedMarket ? (
         <section className="detailsPage">
-          <button className="backButton" onClick={() => { setSelectedMarketId(null); setMainView("markets"); }}>
-            ← Назад к рынкам
+          <button className="backButton" onClick={() => setSelectedMarketId(null)}>
+            ← Назад
           </button>
 
           <div className="detailsLayout">
@@ -1395,6 +1811,8 @@ function App() {
             </aside>
           </div>
         </section>
+      ) : mainView === "search" ? (
+        renderSearchPage()
       ) : (
         <>
           {isAdmin ? (
@@ -1425,15 +1843,23 @@ function App() {
             </section>
           )}
 
-          <section className="marketToolbar">
-            <label className="toolbarSearch">Поиск рынка<input placeholder="Например: ЦБ, GTA, Bitcoin, друзья..." value={marketSearch} onChange={(event) => setMarketSearch(event.target.value)} /></label>
-            <label>Статус<select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "all" | MarketStatus)}><option value="all">Все рынки</option><option value="open">Открытые</option><option value="resolved">Рассчитанные</option></select></label>
-            <label>Сортировка<select value={sortMode} onChange={(event) => setSortMode(event.target.value as SortMode)}><option value="newest">Сначала новые</option><option value="probability">По вероятности “Да”</option><option value="trades">По количеству сделок</option><option value="comments">По комментариям</option></select></label>
-            <label className="toolbarCheckbox"><input type="checkbox" checked={showFavoritesOnly} onChange={(event) => setShowFavoritesOnly(event.target.checked)} />Только избранные</label>
-            <button className="clearFiltersButton" onClick={() => { setMarketSearch(""); setStatusFilter("all"); setSortMode("newest"); setSelectedCategory("Все"); setShowFavoritesOnly(false); }}>Сбросить</button>
+          <section className="marketDashboardStrip">
+            <div>
+              <span>Открыто рынков</span>
+              <strong>{openMarketsCount}</strong>
+            </div>
+            <div>
+              <span>Всего событий</span>
+              <strong>{markets.length}</strong>
+            </div>
+            <div>
+              <span>Мои прогнозы</span>
+              <strong>{activeUserPredictions.length}</strong>
+            </div>
+            <button onClick={() => setMainView("predictions")}>Мои прогнозы</button>
           </section>
 
-          <section className="categoryTabs">
+          <section className="categoryTabs feedCategoryTabs">
             {categories.map((category) => (
               <button key={category} className={selectedCategory === category ? "activeTab" : ""} onClick={() => setSelectedCategory(category)}>{category}</button>
             ))}
@@ -1441,43 +1867,17 @@ function App() {
 
           <section className="layout">
             <div className="markets">
-              <div className="sectionHeader"><h2>Рынки прогнозов</h2><span>{filteredMarkets.length} событий</span></div>
-              {filteredMarkets.length === 0 && <div className="empty">По этим фильтрам рынков не найдено.</div>}
-
-              {filteredMarkets.map((market) => {
-                const yesProbability = getYesProbability(market);
-                const noProbability = 100 - yesProbability;
-                const isResolved = market.status === "resolved";
-                const marketPredictions = predictions.filter((prediction) => prediction.marketId === market.id);
-                const marketComments = comments.filter((comment) => comment.marketId === market.id);
-                const isFavorite = favoriteMarketIds.includes(market.id);
-
-                return (
-                  <article className={`marketCard compactMarketCard ${isResolved ? "resolvedMarket" : ""}`} key={market.id}>
-                    <div className="marketTop">
-                      <span className="category">{market.category}</span>
-                      <div className="marketMeta">
-                        <button className={`favoriteIconButton ${isFavorite ? "activeFavorite" : ""}`} onClick={() => toggleFavoriteMarket(market.id)}>{isFavorite ? "★" : "☆"}</button>
-                        <span className={`statusBadge ${isResolved ? "resolvedBadge" : "openBadge"}`}>{isResolved ? `Рассчитан: ${getOutcomeText(market.resolvedOutcome)}` : "Открыт"}</span>
-                        <span className="date">До {formatDateForDisplay(market.closesAt)}</span>
-                      </div>
-                    </div>
-                    <h3>{market.question}</h3>
-                    <p className="compactDescription">{market.description}</p>
-                    <div className="compactStats">
-                      <div><span>Да</span><strong>{yesProbability}%</strong></div>
-                      <div><span>Нет</span><strong>{noProbability}%</strong></div>
-                      <div><span>Сделки</span><strong>{marketPredictions.length}</strong></div>
-                      <div><span>Комментарии</span><strong>{marketComments.length}</strong></div>
-                    </div>
-                    <div className="bar"><div style={{ width: `${yesProbability}%` }} /></div>
-                    <div className="cardActionGrid">
-                      <button className="openDetailsButton" onClick={() => { setSelectedMarketId(market.id); setDetailsTab("overview"); }}>Открыть детали</button>
-                      <button className="secondaryOpenButton" onClick={() => { setSelectedMarketId(market.id); setDetailsTab("chat"); }}>Чат</button>
-                    </div>
-                  </article>
-                );
-              })}
+              <div className="sectionHeader marketFeedHeader">
+                <div>
+                  <h2>Рынки прогнозов</h2>
+                  <p>Компактная лента событий — удобно скролить и быстро открывать детали.</p>
+                </div>
+                <span>{feedMarkets.length} событий</span>
+              </div>
+              {feedMarkets.length === 0 && <div className="empty">В этой категории рынков пока нет.</div>}
+              <div className="marketFeedList">
+                {feedMarkets.map((market) => renderMarketCard(market, "feed"))}
+              </div>
             </div>
 
             <aside className="sideColumn">
@@ -1495,24 +1895,15 @@ function App() {
 
               <section className="portfolio">
                 <div className="sectionHeader"><h2>Мои прогнозы</h2><span>{activeUserPredictions.length}</span></div>
-                {activeUserPredictions.length === 0 ? <div className="empty">У вас пока нет прогнозов.</div> : (
-                  <div className="predictionList">
-                    {activeUserPredictions.map((prediction) => {
-                      const isSettled = Boolean(prediction.settledAt);
-                      const isWinner = isSettled && prediction.outcome === prediction.resolvedOutcome;
-                      const payout = prediction.payout || 0;
-                      return (
-                        <div className="prediction" key={prediction.id}>
-                          <div className="predictionOutcome">{getOutcomeText(prediction.outcome)}</div>
-                          <div>
-                            <h4>{prediction.marketQuestion}</h4>
-                            <p>{prediction.amount.toLocaleString("ru-RU")} баллов · {prediction.probabilityAtPurchase}% при покупке</p>
-                            {isSettled ? <p className={isWinner ? "predictionSettlement winText" : "predictionSettlement lossText"}>{isWinner ? "Выигрыш" : "Проигрыш"} · Выплата: {payout.toLocaleString("ru-RU")} баллов</p> : <p className="activePrediction">Активный прогноз</p>}
-                            <span className="predictionDate">{prediction.createdAt}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
+                {activeUserPredictions.length === 0 ? (
+                  <div className="empty emptyActionState">
+                    <strong>Пока прогнозов нет</strong>
+                    <p>Открой рынок и сделай первый прогноз — здесь появится твой портфель.</p>
+                  </div>
+                ) : (
+                  <div className="myPredictionList compactMyPredictionList">
+                    {activeUserPredictions.slice(0, 4).map((prediction) => renderPredictionCard(prediction))}
+                    <button className="showAllPredictionsButton" onClick={() => setMainView("predictions")}>Смотреть все прогнозы</button>
                   </div>
                 )}
               </section>
