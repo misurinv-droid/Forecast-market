@@ -246,6 +246,24 @@ function getOutcomeText(outcome?: Outcome) {
   return "—";
 }
 
+function isPolymarketSource(source?: string) {
+  return /polymarket/i.test(source || "");
+}
+
+function getMarketSourceLabel(source?: string) {
+  return isPolymarketSource(source) ? "Polymarket" : source || "—";
+}
+
+function getMarketDescription(market?: Pick<Market, "description" | "source"> | null) {
+  if (!market) return "";
+
+  if (isPolymarketSource(market.source)) {
+    return "Событие импортировано из Polymarket как идея для развлекательного прогноза. В Forecast Market используются только игровые баллы — без денег, пополнений, вывода и реальных ставок.";
+  }
+
+  return market.description || "Описание пока не добавлено.";
+}
+
 function getSuggestionStatusText(status: SuggestionStatus) {
   if (status === "pending") return "На рассмотрении";
   if (status === "approved") return "Одобрено";
@@ -1284,7 +1302,7 @@ function App() {
           </div>
 
           <h3>{market.question}</h3>
-          <p className="compactDescription">{market.description}</p>
+          <p className="compactDescription">{getMarketDescription(market)}</p>
 
           <div className="marketChipsRow">
             <span>До {formatDateForDisplay(market.closesAt)}</span>
@@ -1345,7 +1363,7 @@ function App() {
             <span>{isSettled ? "Завершён" : "Активный"}</span>
             <strong>{prediction.amount.toLocaleString("ru-RU")} б.</strong>
           </div>
-          <h4>{prediction.marketQuestion}</h4>
+          <h4>{market?.question || prediction.marketQuestion}</h4>
           <div className="myPredictionMetaGrid">
             <div><span>При покупке</span><strong>{prediction.probabilityAtPurchase}%</strong></div>
             <div><span>{isSettled ? "Выплата" : "Потенциально"}</span><strong>{estimatedPayout.toLocaleString("ru-RU")}</strong></div>
@@ -1999,7 +2017,7 @@ function App() {
                 </div>
 
                 <h2>{selectedMarket.question}</h2>
-                <p>{selectedMarket.description}</p>
+                <p>{getMarketDescription(selectedMarket)}</p>
                 <div className="probability">
                   <div>
                     <span>Да</span>
@@ -2030,19 +2048,19 @@ function App() {
 
               {detailsTab === "overview" && (
                 <>
-                  <section className="detailSection">
+                  <section className="detailSection compactRulesSection">
                     <div className="detailSectionHeader">
-                      <h3>Правила расчета</h3>
-                      <span>Источник: {selectedMarket.source}</span>
+                      <h3>{isPolymarketSource(selectedMarket.source) ? "О событии" : "Условия расчёта"}</h3>
+                      <span>Источник: {getMarketSourceLabel(selectedMarket.source)}</span>
                     </div>
                     <div className="rulesBox">
-                      <p>{selectedMarket.description}</p>
+                      <p>{getMarketDescription(selectedMarket)}</p>
                       <ul>
                         <li>
                           Дата закрытия: <b>{formatDateForDisplay(selectedMarket.closesAt)}</b>
                         </li>
                         <li>
-                          Источник расчета: <b>{selectedMarket.source}</b>
+                          Формат: <b>игровой прогноз за баллы</b>
                         </li>
                         <li>
                           Статус: <b>{selectedMarket.status === "resolved" ? `Рассчитан как ${getOutcomeText(selectedMarket.resolvedOutcome)}` : "Открыт для прогнозов"}</b>

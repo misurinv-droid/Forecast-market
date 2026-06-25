@@ -159,6 +159,105 @@ function nowRu() {
   return new Date().toLocaleString("ru-RU");
 }
 
+const POLYMARKET_GAME_DESCRIPTION =
+  "Событие импортировано из Polymarket как идея для развлекательного прогноза. В Forecast Market используются только игровые баллы: они не являются деньгами, не покупаются, не продаются, не передаются и не выводятся.";
+
+function isPolymarketSourceValue(source: unknown) {
+  return /polymarket/i.test(String(source || ""));
+}
+
+function cleanPolymarketQuestionText(value: unknown) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .replace(/\s+\?/g, "?")
+    .trim();
+}
+
+function translateKnownPolymarketTerms(text: string) {
+  return text
+    .replace(/the 2028 US Presidential Election/gi, "президентских выборах США в 2028 году")
+    .replace(/the 2024 US Presidential Election/gi, "президентских выборах США в 2024 году")
+    .replace(/the 2026 US Presidential Election/gi, "президентских выборах США в 2026 году")
+    .replace(/US Presidential Election/gi, "президентских выборах США")
+    .replace(/Presidential Election/gi, "президентских выборах")
+    .replace(/Democratic nomination/gi, "номинации Демократической партии")
+    .replace(/Republican nomination/gi, "номинации Республиканской партии")
+    .replace(/election/gi, "выборах")
+    .replace(/Bitcoin/gi, "Bitcoin")
+    .replace(/Ethereum/gi, "Ethereum")
+    .replace(/Solana/gi, "Solana")
+    .replace(/BTC/gi, "BTC")
+    .replace(/ETH/gi, "ETH")
+    .replace(/above/gi, "выше")
+    .replace(/below/gi, "ниже")
+    .replace(/over/gi, "выше")
+    .replace(/under/gi, "ниже")
+    .replace(/before/gi, "до")
+    .replace(/after/gi, "после")
+    .replace(/by/gi, "к")
+    .replace(/in 2024/gi, "в 2024 году")
+    .replace(/in 2025/gi, "в 2025 году")
+    .replace(/in 2026/gi, "в 2026 году")
+    .replace(/in 2027/gi, "в 2027 году")
+    .replace(/in 2028/gi, "в 2028 году");
+}
+
+function translatePolymarketQuestion(rawQuestion: unknown) {
+  const question = cleanPolymarketQuestionText(rawQuestion);
+  if (!question) return "Событие Polymarket";
+
+  let match = question.match(/^Will\s+(.+?)\s+win\s+(.+?)\?$/i);
+  if (match) {
+    return `Победит ли ${match[1]} на ${translateKnownPolymarketTerms(match[2])}?`;
+  }
+
+  match = question.match(/^Will\s+(.+?)\s+be\s+above\s+(.+?)\?$/i);
+  if (match) {
+    return `Будет ли ${translateKnownPolymarketTerms(match[1])} выше ${translateKnownPolymarketTerms(match[2])}?`;
+  }
+
+  match = question.match(/^Will\s+(.+?)\s+be\s+below\s+(.+?)\?$/i);
+  if (match) {
+    return `Будет ли ${translateKnownPolymarketTerms(match[1])} ниже ${translateKnownPolymarketTerms(match[2])}?`;
+  }
+
+  match = question.match(/^Will\s+(.+?)\s+hit\s+(.+?)\?$/i);
+  if (match) {
+    return `Достигнет ли ${translateKnownPolymarketTerms(match[1])} уровня ${translateKnownPolymarketTerms(match[2])}?`;
+  }
+
+  match = question.match(/^Will\s+(.+?)\s+reach\s+(.+?)\?$/i);
+  if (match) {
+    return `Достигнет ли ${translateKnownPolymarketTerms(match[1])} уровня ${translateKnownPolymarketTerms(match[2])}?`;
+  }
+
+  match = question.match(/^Will\s+(.+?)\?$/i);
+  if (match) {
+    return `Будет ли ${translateKnownPolymarketTerms(match[1])}?`;
+  }
+
+  match = question.match(/^Will there be\s+(.+?)\?$/i);
+  if (match) {
+    return `Будет ли ${translateKnownPolymarketTerms(match[1])}?`;
+  }
+
+  return translateKnownPolymarketTerms(question);
+}
+
+function getDisplayMarketRow(row: any) {
+  if (!isPolymarketSourceValue(row.source) && !String(row.id || "").startsWith("polymarket-")) {
+    return row;
+  }
+
+  return {
+    ...row,
+    question: translatePolymarketQuestion(row.question),
+    category: row.category === "Polymarket" ? "Мировые события" : row.category,
+    description: POLYMARKET_GAME_DESCRIPTION,
+    source: "Polymarket",
+  };
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -335,13 +434,15 @@ function toUser(row: any): DemoUser {
 }
 
 function toMarket(row: any): Market {
+  const displayRow = getDisplayMarketRow(row);
+
   return {
-    id: row.id,
-    question: row.question,
-    category: row.category,
-    description: row.description,
-    source: row.source,
-    closesAt: row.closes_at,
+    id: displayRow.id,
+    question: displayRow.question,
+    category: displayRow.category,
+    description: displayRow.description,
+    source: displayRow.source,
+    closesAt: displayRow.closes_at,
     yesPool: Number(row.yes_pool),
     noPool: Number(row.no_pool),
     status: row.status,
@@ -523,7 +624,7 @@ function getPolymarketUrl(event: PolymarketEvent, market: PolymarketMarket) {
 }
 
 function getPolymarketQuestion(event: PolymarketEvent, market: PolymarketMarket) {
-  return String(
+  const rawQuestion = String(
     market.question ||
       market.title ||
       event.title ||
@@ -531,27 +632,12 @@ function getPolymarketQuestion(event: PolymarketEvent, market: PolymarketMarket)
       event.slug ||
       "Polymarket event"
   ).trim();
+
+  return translatePolymarketQuestion(rawQuestion);
 }
 
-function getPolymarketDescription(event: PolymarketEvent, market: PolymarketMarket) {
-  const baseDescription = String(
-    market.description ||
-      market.rules ||
-      event.description ||
-      event.resolutionSource ||
-      "Правила расчета смотри в оригинальном событии Polymarket."
-  ).trim();
-
-  const url = getPolymarketUrl(event, market);
-
-  return [
-    baseDescription,
-    "",
-    "Автоматически импортировано из Polymarket. В Forecast Market используются только игровые баллы: они не являются деньгами, не покупаются, не продаются, не передаются и не выводятся.",
-    `Оригинал: ${url}`,
-  ]
-    .filter(Boolean)
-    .join("\n");
+function getPolymarketDescription(_event: PolymarketEvent, _market: PolymarketMarket) {
+  return POLYMARKET_GAME_DESCRIPTION;
 }
 
 function mapPolymarketCategory(event: PolymarketEvent, market: PolymarketMarket) {
@@ -753,8 +839,7 @@ async function importPolymarketMarkets(limit = POLYMARKET_AUTO_IMPORT_LIMIT): Pr
             const yesProbability = getInitialYesProbabilityFromPolymarket(market);
             const closesAt = getPolymarketCloseDate(event, market);
             const category = mapPolymarketCategory(event, market);
-            const sourceUrl = getPolymarketUrl(event, market);
-            const source = `Polymarket: ${sourceUrl}`;
+            const source = "Polymarket";
             const description = getPolymarketDescription(event, market);
 
             const result = await pool.query(
