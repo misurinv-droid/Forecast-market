@@ -9,12 +9,19 @@ body,
 }
 
 html {
-  height: 100%;
-  overscroll-behavior-y: none;
+  height: auto;
+  min-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior-y: auto;
 }
 
 body,
 #root {
+  min-height: 100vh;
+}
+
+body.is-telegram-webapp,
+body.is-telegram-webapp #root {
   min-height: var(--app-height, 100vh);
 }
 
@@ -3812,4 +3819,22 @@ body,
   .marketCardSide {
     grid-template-columns: 1fr;
   }
+}
+
+
+/* Browser scroll fix: Telegram SDK exists in index.html even in browser,
+   so desktop/web must always keep normal mouse-wheel page scrolling. */
+html,
+body {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+body:not(.is-telegram-webapp) {
+  overscroll-behavior-y: auto;
+  touch-action: auto;
+}
+
+body:not(.is-telegram-webapp) .app {
+  min-height: auto;
 }

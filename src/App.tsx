@@ -321,7 +321,19 @@ async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 function getTelegramInitData() {
-  return window.Telegram?.WebApp?.initData || "";
+  return getRealTelegramWebApp()?.initData || "";
+}
+
+function getRealTelegramWebApp() {
+  const telegramWebApp = window.Telegram?.WebApp;
+  if (!telegramWebApp) return undefined;
+
+  // Telegram SDK может существовать и в обычном браузере, если скрипт подключен в index.html.
+  // Настоящий запуск Mini App отличаем по initData / Telegram user.
+  const hasSignedInitData = Boolean(telegramWebApp.initData && telegramWebApp.initData.length > 0);
+  const hasTelegramUser = Boolean(telegramWebApp.initDataUnsafe?.user?.id);
+
+  return hasSignedInitData || hasTelegramUser ? telegramWebApp : undefined;
 }
 
 function syncTelegramViewportVars(telegramWebApp?: TelegramWebApp) {
@@ -615,20 +627,24 @@ function App() {
   }
 
   function sendHaptic(type: "light" | "medium" | "heavy" = "light") {
-    window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.(type);
+    getRealTelegramWebApp()?.HapticFeedback?.impactOccurred?.(type);
   }
 
   function sendSuccess() {
-    window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.("success");
+    getRealTelegramWebApp()?.HapticFeedback?.notificationOccurred?.("success");
   }
 
   function sendError() {
-    window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.("error");
+    getRealTelegramWebApp()?.HapticFeedback?.notificationOccurred?.("error");
   }
 
   useEffect(() => {
-    const telegramWebApp = window.Telegram?.WebApp;
-    if (!telegramWebApp) return;
+    const telegramWebApp = getRealTelegramWebApp();
+    if (!telegramWebApp) {
+      setIsTelegram(false);
+      document.body.classList.remove("is-telegram-webapp");
+      return;
+    }
 
     setIsTelegram(true);
     setupTelegramChrome(telegramWebApp);
@@ -652,7 +668,7 @@ function App() {
     setServerError("");
 
     try {
-      const telegramWebApp = window.Telegram?.WebApp;
+      const telegramWebApp = getRealTelegramWebApp();
       const telegramUser = telegramWebApp?.initDataUnsafe?.user;
       const telegramInitData = telegramWebApp?.initData || "";
       setupTelegramChrome(telegramWebApp);
@@ -699,7 +715,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const backButton = window.Telegram?.WebApp?.BackButton;
+    const backButton = getRealTelegramWebApp()?.BackButton;
     if (!backButton) return;
 
     const handleBack = () => {
@@ -1113,8 +1129,9 @@ function App() {
 
   function shareMarket(market: Market) {
     const text = `Forecast Market: ${market.question}`;
-    if (window.Telegram?.WebApp?.openTelegramLink) {
-      window.Telegram.WebApp.openTelegramLink(`https://t.me/share/url?text=${encodeURIComponent(text)}`);
+    const telegramWebApp = getRealTelegramWebApp();
+    if (telegramWebApp?.openTelegramLink) {
+      telegramWebApp.openTelegramLink(`https://t.me/share/url?text=${encodeURIComponent(text)}`);
       return;
     }
     void navigator.clipboard?.writeText(text);
