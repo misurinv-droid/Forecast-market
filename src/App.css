@@ -3989,3 +3989,712 @@ body:not(.is-telegram-webapp) .app {
     font-size: 11px;
   }
 }
+
+/* Settlement queue update */
+.pendingBadge {
+  background: rgba(245, 158, 11, 0.14);
+  color: #92400e;
+  border-color: rgba(245, 158, 11, 0.28);
+}
+
+.closedMarket {
+  border-color: rgba(245, 158, 11, 0.32);
+  background: linear-gradient(135deg, rgba(255, 251, 235, 0.96), rgba(255, 255, 255, 0.92));
+}
+
+.closedMarket .marketCardSide {
+  background: rgba(255, 251, 235, 0.72);
+}
+
+.marketClosedNotice {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  color: #92400e;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.settlementPage {
+  display: grid;
+  gap: 16px;
+}
+
+.settlementHeroPanel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.9fr);
+  gap: 16px;
+  align-items: stretch;
+  padding: 22px;
+  border-radius: 28px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background:
+    radial-gradient(circle at 12% 20%, rgba(245, 158, 11, 0.18), transparent 30%),
+    radial-gradient(circle at 90% 0%, rgba(59, 130, 246, 0.16), transparent 32%),
+    rgba(255, 255, 255, 0.82);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(16px);
+}
+
+.settlementHeroPanel h2 {
+  margin: 4px 0 8px;
+  font-size: clamp(25px, 4vw, 38px);
+  letter-spacing: -0.04em;
+}
+
+.settlementHeroPanel p {
+  margin: 0;
+  color: #64748b;
+  max-width: 760px;
+}
+
+.settlementHeroStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.settlementHeroStats div,
+.settlementMiniGrid div {
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.settlementHeroStats span,
+.settlementMiniGrid span {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+  margin-bottom: 5px;
+}
+
+.settlementHeroStats strong,
+.settlementMiniGrid strong {
+  display: block;
+  color: #0f172a;
+  font-size: 18px;
+}
+
+.settlementQueueSection,
+.settlementUpcomingSection {
+  padding: 18px;
+  border-radius: 28px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 14px 42px rgba(15, 23, 42, 0.06);
+}
+
+.settlementGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.settlementCard {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 24px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.06);
+}
+
+.settlementCardHot {
+  border-color: rgba(245, 158, 11, 0.34);
+  background: linear-gradient(145deg, rgba(255, 251, 235, 0.96), rgba(255, 255, 255, 0.9));
+}
+
+.settlementCardTop,
+.settlementCardBadges,
+.settlementActions,
+.settlementPools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settlementCardTop {
+  justify-content: space-between;
+}
+
+.settlementCardBadges {
+  flex-wrap: wrap;
+}
+
+.settlementCard h3 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.22;
+  letter-spacing: -0.025em;
+}
+
+.settlementMiniGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.settlementPools {
+  align-items: stretch;
+}
+
+.settlementPools > div {
+  flex: 1;
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.settlementPoolYes {
+  background: rgba(22, 163, 74, 0.08);
+}
+
+.settlementPoolNo {
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.settlementPools span,
+.settlementPools small {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.settlementPools strong {
+  display: block;
+  margin: 2px 0;
+  font-size: 22px;
+  color: #0f172a;
+}
+
+.settlementActions {
+  flex-wrap: wrap;
+}
+
+.settlementActions button {
+  flex: 1 1 120px;
+}
+
+.settlementUpcomingGrid .settlementCard {
+  opacity: 0.92;
+}
+
+@media (max-width: 860px) {
+  .settlementHeroPanel {
+    grid-template-columns: 1fr;
+    padding: 16px;
+    border-radius: 22px;
+  }
+
+  .settlementHeroStats,
+  .settlementGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .settlementQueueSection,
+  .settlementUpcomingSection {
+    padding: 12px;
+    border-radius: 22px;
+  }
+
+  .settlementCard {
+    padding: 12px;
+    border-radius: 20px;
+    gap: 10px;
+  }
+
+  .settlementCard h3 {
+    font-size: 15px;
+  }
+
+  .settlementMiniGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .settlementMiniGrid div,
+  .settlementHeroStats div {
+    padding: 9px;
+    border-radius: 14px;
+  }
+
+  .settlementMiniGrid span,
+  .settlementHeroStats span,
+  .settlementPools span,
+  .settlementPools small {
+    font-size: 11px;
+  }
+
+  .settlementMiniGrid strong,
+  .settlementHeroStats strong {
+    font-size: 15px;
+  }
+
+  .settlementPools > div {
+    padding: 9px;
+    border-radius: 14px;
+  }
+
+  .settlementPools strong {
+    font-size: 18px;
+  }
+
+  .settlementActions button {
+    min-height: 36px;
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+}
+
+/* Visual refresh: collapsible markets + better web layout */
+body:not(.is-telegram-webapp) {
+  background:
+    radial-gradient(circle at 8% -10%, rgba(29, 78, 216, 0.18), transparent 30%),
+    radial-gradient(circle at 92% 4%, rgba(16, 185, 129, 0.18), transparent 34%),
+    radial-gradient(circle at 50% 110%, rgba(124, 58, 237, 0.11), transparent 34%),
+    linear-gradient(180deg, #f8fbff 0%, #edf4ff 46%, #f8fafc 100%);
+}
+
+body:not(.is-telegram-webapp) .app {
+  width: min(1360px, calc(100% - 42px));
+  padding-top: 30px;
+}
+
+body:not(.is-telegram-webapp) .hero {
+  grid-template-columns: minmax(0, 1.35fr) 360px;
+  padding: 26px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 34px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.58)),
+    radial-gradient(circle at 18% 5%, rgba(79, 70, 229, 0.14), transparent 28%);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.10);
+  backdrop-filter: blur(18px);
+}
+
+body:not(.is-telegram-webapp) .hero h1 {
+  font-size: clamp(44px, 5.2vw, 76px);
+}
+
+body:not(.is-telegram-webapp) .subtitle {
+  max-width: 780px;
+}
+
+body:not(.is-telegram-webapp) .balanceCard {
+  background:
+    radial-gradient(circle at 16% 12%, rgba(255, 255, 255, 0.28), transparent 32%),
+    linear-gradient(145deg, #0f172a 0%, #312e81 52%, #0284c7 100%);
+  box-shadow: 0 24px 80px rgba(49, 46, 129, 0.28);
+}
+
+body:not(.is-telegram-webapp) .productTopBar {
+  position: sticky;
+  top: 12px;
+  z-index: 12;
+  backdrop-filter: blur(18px);
+  border-color: rgba(148, 163, 184, 0.2);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 16px 45px rgba(15, 23, 42, 0.09);
+}
+
+body:not(.is-telegram-webapp) .layout {
+  grid-template-columns: minmax(0, 1fr) 360px;
+  align-items: start;
+}
+
+body:not(.is-telegram-webapp) .sideColumn {
+  position: sticky;
+  top: 108px;
+}
+
+body:not(.is-telegram-webapp) .leaderboardBox,
+body:not(.is-telegram-webapp) .portfolio,
+body:not(.is-telegram-webapp) .activityFeedBox,
+body:not(.is-telegram-webapp) .adminPanel,
+body:not(.is-telegram-webapp) .marketDashboardStrip,
+body:not(.is-telegram-webapp) .categoryTabs,
+body:not(.is-telegram-webapp) .marketAccordionGroup,
+body:not(.is-telegram-webapp) .searchHeroPanel,
+body:not(.is-telegram-webapp) .marketToolbar,
+body:not(.is-telegram-webapp) .searchResultsPanel,
+body:not(.is-telegram-webapp) .importedHeroCard,
+body:not(.is-telegram-webapp) .importedControlsCard {
+  border-color: rgba(148, 163, 184, 0.22);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 18px 55px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(16px);
+}
+
+.marketAccordionStack {
+  display: grid;
+  gap: 12px;
+}
+
+.marketAccordionGroup {
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 14px 42px rgba(15, 23, 42, 0.06);
+}
+
+.marketAccordionSummary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 15px 17px;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.marketAccordionSummary::-webkit-details-marker {
+  display: none;
+}
+
+.marketAccordionSummary strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 18px;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  color: #0f172a;
+}
+
+.accordionKicker {
+  display: block;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.accordionMetrics {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.accordionMetrics span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(241, 245, 249, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.accordionMetrics .openMetric {
+  color: #047857;
+  background: rgba(16, 185, 129, 0.10);
+}
+
+.accordionMetrics .pendingMetric {
+  color: #92400e;
+  background: rgba(245, 158, 11, 0.13);
+}
+
+.accordionChevron {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #0f172a;
+  color: white;
+  transition: transform 0.18s ease;
+}
+
+.marketAccordionGroup[open] .accordionChevron {
+  transform: rotate(180deg);
+}
+
+.marketAccordionList {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  gap: 11px;
+  padding: 0 14px 14px;
+}
+
+.marketAccordionList .scrollMarketCard {
+  grid-template-columns: 1fr;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 20px;
+  margin-bottom: 0;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.92));
+  transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
+}
+
+body:not(.is-telegram-webapp) .marketAccordionList .scrollMarketCard:hover {
+  transform: translateY(-2px);
+  border-color: rgba(59, 130, 246, 0.28);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.11);
+}
+
+.marketAccordionList .marketCardSide {
+  background: linear-gradient(135deg, rgba(239, 246, 255, 0.85), rgba(240, 253, 250, 0.68));
+}
+
+.marketAccordionList .marketProbabilityMini {
+  grid-template-columns: 1fr 1fr;
+}
+
+.marketAccordionList .marketActionRow {
+  grid-template-columns: 1fr 76px;
+}
+
+/* Telegram compact home: sidebar first, long lists hidden inside accordions */
+.telegramApp .hero {
+  margin-top: 12px;
+}
+
+.telegramApp .layout {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.telegramApp .sideColumn {
+  order: -1;
+  display: grid;
+  gap: 9px;
+}
+
+.telegramApp .activityFeedBox {
+  display: none;
+}
+
+.telegramApp .leaderboardBox,
+.telegramApp .portfolio {
+  padding: 10px;
+  border-radius: 18px;
+}
+
+.telegramApp .leaderboardBox .sectionHeader,
+.telegramApp .portfolio .sectionHeader {
+  margin-bottom: 8px;
+}
+
+.telegramApp .leaderboardBox .sectionHeader h2,
+.telegramApp .portfolio .sectionHeader h2,
+.telegramApp .marketFeedHeader h2 {
+  font-size: 15px;
+}
+
+.telegramApp .leaderboardItem:nth-child(n+4) {
+  display: none;
+}
+
+.telegramApp .compactMyPredictionList .myPredictionCard:nth-child(n+4) {
+  display: none;
+}
+
+.telegramApp .marketAccordionStack {
+  gap: 8px;
+}
+
+.telegramApp .marketAccordionGroup {
+  border-radius: 18px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+}
+
+.telegramApp .marketAccordionSummary {
+  padding: 10px 11px;
+  gap: 8px;
+}
+
+.telegramApp .marketAccordionSummary strong {
+  font-size: 14px;
+}
+
+.telegramApp .accordionKicker {
+  font-size: 9px;
+}
+
+.telegramApp .accordionMetrics {
+  gap: 4px;
+  font-size: 9px;
+}
+
+.telegramApp .accordionMetrics span {
+  min-height: 20px;
+  padding: 3px 6px;
+}
+
+.telegramApp .accordionMetrics span:nth-child(n+3) {
+  display: none;
+}
+
+.telegramApp .accordionChevron {
+  width: 22px;
+  height: 22px;
+  font-size: 12px;
+}
+
+.telegramApp .marketAccordionList {
+  grid-template-columns: 1fr;
+  gap: 7px;
+  padding: 0 8px 8px;
+}
+
+.telegramApp .marketAccordionList .scrollMarketCard {
+  padding: 9px;
+  border-radius: 15px;
+}
+
+.telegramApp .marketAccordionList .marketCardSide {
+  padding: 6px;
+}
+
+.telegramApp .marketAccordionList .marketActionRow {
+  grid-template-columns: minmax(0, 1fr) 56px;
+}
+
+.telegramApp .marketDashboardStrip {
+  margin-bottom: 8px;
+}
+
+.telegramApp .feedCategoryTabs {
+  margin-bottom: 8px;
+}
+
+.telegramApp .marketFeedHeader {
+  padding: 0 2px;
+}
+
+.telegramApp .marketFeedHeader span {
+  font-size: 11px;
+}
+
+@media (max-width: 900px) {
+  body:not(.is-telegram-webapp) .hero {
+    grid-template-columns: 1fr;
+    padding: 20px;
+  }
+
+  body:not(.is-telegram-webapp) .layout {
+    display: flex;
+    flex-direction: column;
+  }
+
+  body:not(.is-telegram-webapp) .sideColumn {
+    order: -1;
+    position: static;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  body:not(.is-telegram-webapp) .activityFeedBox {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  body:not(.is-telegram-webapp) .app {
+    width: min(100% - 20px, 720px);
+  }
+
+  body:not(.is-telegram-webapp) .sideColumn {
+    grid-template-columns: 1fr;
+  }
+
+  .marketAccordionSummary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .accordionMetrics {
+    justify-content: flex-start;
+  }
+}
+
+/* Notifications + sharing */
+.shareMarketButton {
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  background: rgba(255, 255, 255, 0.86);
+  color: #1d4ed8;
+  box-shadow: none;
+}
+
+.shareMarketButton:hover {
+  transform: translateY(-1px);
+  border-color: rgba(37, 99, 235, 0.34);
+  background: rgba(239, 246, 255, 0.95);
+}
+
+.detailsShareCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px;
+  margin-top: 14px;
+  border: 1px solid rgba(37, 99, 235, 0.14);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(59, 130, 246, 0.14), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(239, 246, 255, 0.82));
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+}
+
+.detailsShareCard div {
+  display: grid;
+  gap: 4px;
+}
+
+.detailsShareCard strong {
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.detailsShareCard span {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.detailsShareCard button {
+  white-space: nowrap;
+}
+
+.telegramApp .shareMarketButton {
+  padding: 9px 10px;
+  font-size: 11px;
+}
+
+.telegramApp .detailsShareCard {
+  align-items: stretch;
+  flex-direction: column;
+  padding: 12px;
+  border-radius: 18px;
+}
+
+.telegramApp .detailsShareCard button {
+  width: 100%;
+}
+
+@media (max-width: 720px) {
+  .detailsShareCard {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .detailsShareCard button {
+    width: 100%;
+  }
+}

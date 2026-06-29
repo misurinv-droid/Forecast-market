@@ -8,7 +8,7 @@ import { Pool, PoolClient } from "pg";
 // -----------------------------
 
 type Outcome = "yes" | "no";
-type MarketStatus = "open" | "resolved";
+type MarketStatus = "open" | "closed" | "resolved";
 type SuggestionStatus = "pending" | "approved" | "rejected";
 
 type DemoUser = {
@@ -110,6 +110,7 @@ const PORT = Number(process.env.PORT || 4000);
 const START_BALANCE = 10000;
 const DATABASE_URL = process.env.DATABASE_URL;
 const BOT_TOKEN = process.env.BOT_TOKEN || "";
+const APP_PUBLIC_URL = (process.env.APP_PUBLIC_URL || process.env.FRONTEND_URL || "").trim();
 const TELEGRAM_AUTH_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 const ADMIN_TELEGRAM_IDS = (process.env.ADMIN_TELEGRAM_IDS || "")
   .split(",")
@@ -551,6 +552,159 @@ async function addBalanceTransaction(
   );
 
   return transaction;
+}
+
+
+function escapeTelegramHtml(value: unknown) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function getTelegramChatIdFromUserId(userId: string) {
+  const directId = String(userId || "").trim();
+
+  if (/^\d+$/.test(directId)) {
+    return directId;
+  }
+
+  const match = directId.match(/^telegram-(\d+)$/);
+  return match?.[1] || null;
+}
+
+function getMarketAppUrl(marketId?: string) {
+  if (!APP_PUBLIC_URL) return "";
+
+  try {
+    const url = new URL(APP_PUBLIC_URL);
+
+    if (marketId) {
+      url.searchParams.set("market", marketId);
+    }
+
+    return url.toString();
+  } catch {
+    const separator = APP_PUBLIC_URL.includes("?") ? "&" : "?";
+    return marketId ? `${APP_PUBLIC_URL}${separator}market=${encodeURIComponent(marketId)}` : APP_PUBLIC_URL;
+  }
+}
+
+async function sendTelegramMessageToUser(userId: string, html: string, marketId?: string) {
+  if (!BOT_TOKEN) return { ok: false, reason: "BOT_TOKEN не настроен" } as const;
+
+  const chatId = getTelegramChatIdFromUserId(userId);
+  if (!chatId) return { ok: false, reason: "Пользователь не Telegram" } as const;
+
+  const marketUrl = getMarketAppUrl(marketId);
+  const payload: Record<string, unknown> = {
+    chat_id: chatId,
+    text: html,
+    parse_mode: "HTML",
+    disable_web_page_preview: true,
+  };
+
+  if (marketUrl) {
+    payload.reply_markup = {
+      inline_keyboard: [[{ text: "Открыть Forecast Market", url: marketUrl }]],
+    };
+  }
+
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      console.warn(`Telegram sendMessage failed for ${userId}: ${response.status} ${body}`);
+      return { ok: false, reason: `Telegram ${response.status}` } as const;
+    }
+
+    return { ok: true } as const;
+  } catch (error) {
+    console.warn("Telegram sendMessage error:", error);
+    return { ok: false, reason: "Ошибка сети Telegram" } as const;
+  }
+}
+
+async function sendSettlementNotifications(market: Market, outcome: Outcome, payoutsByUser: Record<string, number>) {
+  const userIds = Object.keys(payoutsByUser);
+  if (userIds.length === 0) return;
+
+  const usersResult = await pool.query(
+    `SELECT id, name, balance FROM users WHERE id = ANY($1::text[])`,
+    [userIds]
+  );
+
+  const usersById = new Map(usersResult.rows.map((row) => [String(row.id), toUser(row)]));
+  const resultText = outcome === "yes" ? "Да" : "Нет";
+
+  await Promise.allSettled(
+    userIds.map(async (userId) => {
+      const payout = payoutsByUser[userId] || 0;
+      const user = usersById.get(userId);
+      const isWinner = payout > 0;
+      const userName = user?.name || "участник";
+      const balanceText = user ? `\nБаланс: <b>${user.balance.toLocaleString("ru-RU")} баллов</b>` : "";
+
+      const html = isWinner
+        ? `🎯 <b>Рынок рассчитан</b>\n\n${escapeTelegramHtml(market.question)}\n\nРезультат: <b>${resultText}</b>\n${escapeTelegramHtml(userName)}, твой прогноз сыграл.\nНачислено: <b>+${payout.toLocaleString("ru-RU")} баллов</b>${balanceText}`
+        : `🎯 <b>Рынок рассчитан</b>\n\n${escapeTelegramHtml(market.question)}\n\nРезультат: <b>${resultText}</b>\n${escapeTelegramHtml(userName)}, этот прогноз не сыграл. Попробуй следующий рынок 👀${balanceText}`;
+
+      await sendTelegramMessageToUser(userId, html, market.id);
+    })
+  );
+}
+
+async function rememberNotificationEvent(queryRunner: QueryRunner, eventType: string, userId: string, marketId: string) {
+  const result = await queryRunner.query(
+    `
+      INSERT INTO notification_events (id, event_type, user_id, market_id, created_at)
+      VALUES ($1, $2, $3, $4, NOW())
+      ON CONFLICT (event_type, user_id, market_id) DO NOTHING
+      RETURNING id
+    `,
+    [createId(), eventType, userId, marketId]
+  );
+
+  return Boolean(result.rows[0]);
+}
+
+async function sendClosingTodayReminders() {
+  if (!BOT_TOKEN) return;
+
+  try {
+    await closeExpiredMarkets();
+
+    const result = await pool.query(
+      `
+        SELECT DISTINCT p.user_id, m.id AS market_id, m.question, m.closes_at
+        FROM predictions p
+        JOIN markets m ON m.id = p.market_id
+        WHERE m.status = 'open'
+          AND m.closes_at = CURRENT_DATE::TEXT
+          AND p.settled_at IS NULL
+        LIMIT 100
+      `
+    );
+
+    for (const row of result.rows) {
+      const userId = String(row.user_id);
+      const marketId = String(row.market_id);
+      const inserted = await rememberNotificationEvent(pool, "market_closing_today", userId, marketId);
+
+      if (!inserted) continue;
+
+      const html = `⏳ <b>Рынок закрывается сегодня</b>\n\n${escapeTelegramHtml(row.question)}\n\nПрогнозы скоро закроются, а после расчёта ты получишь результат в Forecast Market.`;
+      await sendTelegramMessageToUser(userId, html, marketId);
+    }
+  } catch (error) {
+    console.warn("Ошибка отправки напоминаний о закрытии рынков:", error);
+  }
 }
 
 
@@ -1126,6 +1280,15 @@ async function migrate() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS notification_events (
+      id TEXT PRIMARY KEY,
+      event_type TEXT NOT NULL,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      market_id TEXT REFERENCES markets(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (event_type, user_id, market_id)
+    );
+
     CREATE INDEX IF NOT EXISTS predictions_market_id_idx ON predictions(market_id);
     CREATE INDEX IF NOT EXISTS predictions_user_id_idx ON predictions(user_id);
     CREATE INDEX IF NOT EXISTS comments_market_id_idx ON comments(market_id);
@@ -1134,6 +1297,8 @@ async function migrate() {
     CREATE INDEX IF NOT EXISTS market_suggestions_user_id_idx ON market_suggestions(user_id);
     CREATE INDEX IF NOT EXISTS market_suggestions_status_idx ON market_suggestions(status);
     CREATE INDEX IF NOT EXISTS favorites_user_id_idx ON favorites(user_id);
+    CREATE INDEX IF NOT EXISTS notification_events_user_id_idx ON notification_events(user_id);
+    CREATE INDEX IF NOT EXISTS notification_events_market_id_idx ON notification_events(market_id);
   `);
 }
 
@@ -1204,7 +1369,20 @@ async function seedIfEmpty() {
   }
 }
 
+async function closeExpiredMarkets(db: Pool | PoolClient = pool) {
+  await db.query(`
+    UPDATE markets
+    SET status = 'closed'
+    WHERE status = 'open'
+      AND closes_at IS NOT NULL
+      AND closes_at <> ''
+      AND closes_at < CURRENT_DATE::TEXT
+  `);
+}
+
 async function getSnapshot(): Promise<DatabaseSnapshot> {
+  await closeExpiredMarkets();
+
   const [usersResult, marketsResult, predictionsResult, commentsResult, transactionsResult, suggestionsResult, favoritesResult] =
     await Promise.all([
       pool.query("SELECT * FROM users ORDER BY name ASC"),
@@ -1261,6 +1439,14 @@ setInterval(() => {
   void maybeAutoImportPolymarket("interval");
 }, POLYMARKET_AUTO_IMPORT_INTERVAL_MS);
 
+setTimeout(() => {
+  void sendClosingTodayReminders();
+}, 15000);
+
+setInterval(() => {
+  void sendClosingTodayReminders();
+}, 30 * 60 * 1000);
+
 const app = express();
 
 app.use(
@@ -1283,7 +1469,11 @@ app.get("/", (_request, response) => {
 });
 
 app.get("/api/health", async (_request, response) => {
-  const dbCheck = await pool.query("SELECT NOW() AS now");
+  await closeExpiredMarkets();
+  const [dbCheck, pendingResult] = await Promise.all([
+    pool.query("SELECT NOW() AS now"),
+    pool.query("SELECT COUNT(*)::int AS count FROM markets WHERE status = 'closed'"),
+  ]);
 
   response.json({
     ok: true,
@@ -1291,9 +1481,12 @@ app.get("/api/health", async (_request, response) => {
     databaseTime: dbCheck.rows[0].now,
     adminUsersConfigured: ADMIN_USER_IDS.length,
     telegramAuthConfigured: Boolean(BOT_TOKEN),
+    telegramNotificationsConfigured: Boolean(BOT_TOKEN),
+    appPublicUrlConfigured: Boolean(APP_PUBLIC_URL),
     polymarketAutoImportEnabled: POLYMARKET_AUTO_IMPORT_ENABLED,
     polymarketImportLimit: POLYMARKET_AUTO_IMPORT_LIMIT,
     polymarketImportIntervalMinutes: Math.round(POLYMARKET_AUTO_IMPORT_INTERVAL_MS / 60000),
+    pendingResolutionMarkets: pendingResult.rows[0].count,
     time: new Date().toISOString(),
   });
 });
@@ -1736,7 +1929,16 @@ app.patch("/api/markets/:marketId", async (request, response) => {
   const result = await pool.query(
     `
       UPDATE markets
-      SET question = $2, category = $3, description = $4, source = $5, closes_at = $6
+      SET
+        question = $2,
+        category = $3,
+        description = $4,
+        source = $5,
+        closes_at = $6,
+        status = CASE
+          WHEN status = 'closed' AND $6 >= CURRENT_DATE::TEXT THEN 'open'
+          ELSE status
+        END
       WHERE id = $1
       RETURNING *
     `,
@@ -1752,6 +1954,43 @@ app.patch("/api/markets/:marketId", async (request, response) => {
     marketId,
     question,
   ]);
+
+  response.json(toMarket(result.rows[0]));
+});
+
+app.post("/api/markets/:marketId/extend", async (request, response) => {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+
+  const marketId = request.params.marketId;
+  const closesAt = String(request.body?.closesAt || "").trim();
+
+  if (!closesAt) {
+    response.status(400).json({ error: "Укажите новую дату закрытия" });
+    return;
+  }
+
+  const result = await pool.query(
+    `
+      UPDATE markets
+      SET
+        closes_at = $2,
+        status = CASE
+          WHEN status <> 'resolved' AND $2 >= CURRENT_DATE::TEXT THEN 'open'
+          WHEN status <> 'resolved' AND $2 < CURRENT_DATE::TEXT THEN 'closed'
+          ELSE status
+        END
+      WHERE id = $1
+      RETURNING *
+    `,
+    [marketId, closesAt]
+  );
+
+  if (!result.rows[0]) {
+    response.status(404).json({ error: "Рынок не найден" });
+    return;
+  }
 
   response.json(toMarket(result.rows[0]));
 });
@@ -1908,8 +2147,8 @@ app.post("/api/markets/:marketId/predictions", async (request, response) => {
     const user = toUser(userRow);
     const market = toMarket(marketRow);
 
-    if (market.status === "resolved") {
-      return { error: "Рынок уже рассчитан" } as const;
+    if (market.status !== "open") {
+      return { error: market.status === "closed" ? "Рынок закрыт и ожидает расчёта" : "Рынок уже рассчитан" } as const;
     }
 
     if (amount > user.balance) {
@@ -2093,6 +2332,8 @@ app.post("/api/markets/:marketId/resolve", async (request, response) => {
     response.status(status).json({ error: result.error });
     return;
   }
+
+  void sendSettlementNotifications(result.market, outcome, result.payoutsByUser);
 
   response.json(result);
 });

@@ -2,11 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
 type Outcome = "yes" | "no";
-type MarketStatus = "open" | "resolved";
+type MarketStatus = "open" | "closed" | "resolved";
 type SuggestionStatus = "pending" | "approved" | "rejected";
 type SortMode = "newest" | "probability" | "trades" | "comments";
 type DetailsTab = "overview" | "trades" | "participants" | "chat";
-type MainView = "markets" | "imported" | "search" | "predictions" | "suggest" | "moderation" | "profile";
+type MainView = "markets" | "imported" | "search" | "predictions" | "suggest" | "moderation" | "settlement" | "profile";
 type MyPredictionTab = "active" | "settled" | "won" | "lost" | "all";
 
 type DemoUser = {
@@ -142,7 +142,7 @@ type TelegramWebApp = {
   expand?: () => void;
   close?: () => void;
   initData?: string;
-  initDataUnsafe?: { user?: TelegramUser };
+  initDataUnsafe?: { user?: TelegramUser; start_param?: string };
   platform?: string;
   version?: string;
   colorScheme?: "light" | "dark";
@@ -182,6 +182,7 @@ declare global {
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://forecast-market.onrender.com/api";
+const TELEGRAM_MINI_APP_URL = String(import.meta.env.VITE_TELEGRAM_MINI_APP_URL || "").trim();
 
 const emptyNewMarketForm: NewMarketForm = {
   question: "",
@@ -262,6 +263,40 @@ function getMarketDescription(market?: Pick<Market, "description" | "source"> | 
   }
 
   return market.description || "Описание пока не добавлено.";
+}
+
+function getMarketStatusText(market: Pick<Market, "status" | "resolvedOutcome">) {
+  if (market.status === "resolved") return `Рассчитан: ${getOutcomeText(market.resolvedOutcome)}`;
+  if (market.status === "closed") return "Ожидает расчёта";
+  return "Открыт";
+}
+
+function getMarketStatusClass(market: Pick<Market, "status">) {
+  if (market.status === "resolved") return "resolvedBadge";
+  if (market.status === "closed") return "pendingBadge";
+  return "openBadge";
+}
+
+function getMarketStatusWeight(status: MarketStatus) {
+  if (status === "closed") return 0;
+  if (status === "open") return 1;
+  return 2;
+}
+
+function isMarketTradable(market: Pick<Market, "status">) {
+  return market.status === "open";
+}
+
+function getMarketCloseLabel(market: Pick<Market, "status" | "closesAt">) {
+  if (market.status === "closed") return `Закрыт ${formatDateForDisplay(market.closesAt)}`;
+  if (market.status === "resolved") return `Закрыт ${formatDateForDisplay(market.closesAt)}`;
+  return `До ${formatDateForDisplay(market.closesAt)}`;
+}
+
+function getNextWeekDateInput() {
+  const date = new Date();
+  date.setDate(date.getDate() + 7);
+  return date.toISOString().slice(0, 10);
 }
 
 function getSuggestionStatusText(status: SuggestionStatus) {
@@ -365,6 +400,51 @@ function setupTelegramChrome(telegramWebApp?: TelegramWebApp) {
   }
 }
 
+
+function extractMarketIdFromStartParam(value?: string | null) {
+  const rawValue = String(value || "").trim();
+  if (!rawValue) return "";
+
+  if (rawValue.startsWith("market_")) {
+    return rawValue.slice("market_".length);
+  }
+
+  if (rawValue.startsWith("market-")) {
+    return rawValue.slice("market-".length);
+  }
+
+  return rawValue;
+}
+
+function getLaunchMarketId(telegramWebApp?: TelegramWebApp) {
+  const params = new URLSearchParams(window.location.search);
+  const directMarketId = params.get("market") || params.get("marketId");
+
+  if (directMarketId) {
+    return extractMarketIdFromStartParam(directMarketId);
+  }
+
+  const telegramStartParam = telegramWebApp?.initDataUnsafe?.start_param || params.get("startapp") || params.get("tgWebAppStartParam");
+  return extractMarketIdFromStartParam(telegramStartParam);
+}
+
+function getMarketShareUrl(marketId: string) {
+  if (TELEGRAM_MINI_APP_URL) {
+    try {
+      const miniAppUrl = new URL(TELEGRAM_MINI_APP_URL);
+      miniAppUrl.searchParams.set("startapp", `market_${marketId}`);
+      return miniAppUrl.toString();
+    } catch {
+      const separator = TELEGRAM_MINI_APP_URL.includes("?") ? "&" : "?";
+      return `${TELEGRAM_MINI_APP_URL}${separator}startapp=market_${encodeURIComponent(marketId)}`;
+    }
+  }
+
+  const url = new URL(window.location.href);
+  url.searchParams.set("market", marketId);
+  return url.toString();
+}
+
 function App() {
   const [users, setUsers] = useState<DemoUser[]>([]);
   const [activeUserId, setActiveUserId] = useState("");
@@ -444,6 +524,7 @@ function App() {
     return activeUserPredictions.filter((prediction) => !prediction.settledAt);
   }, [activeUserPredictions]);
 
+
   const activeUserSettledPredictions = useMemo(() => {
     return activeUserPredictions.filter((prediction) => prediction.settledAt);
   }, [activeUserPredictions]);
@@ -506,7 +587,7 @@ function App() {
           .includes(normalizedSearch);
       })
       .sort((a, b) => {
-        if (a.status !== b.status) return a.status === "open" ? -1 : 1;
+        if (a.status !== b.status) return getMarketStatusWeight(a.status) - getMarketStatusWeight(b.status);
         return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
       });
   }, [markets, importedCategory, importedSearch]);
@@ -558,12 +639,30 @@ function App() {
     return markets
       .filter((market) => selectedCategory === "Все" || market.category === selectedCategory)
       .sort((a, b) => {
-        if (a.status !== b.status) return a.status === "open" ? -1 : 1;
+        if (a.status !== b.status) return getMarketStatusWeight(a.status) - getMarketStatusWeight(b.status);
         return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
       });
   }, [markets, selectedCategory]);
 
   const openMarketsCount = useMemo(() => markets.filter((market) => market.status === "open").length, [markets]);
+  const closedMarketsCount = useMemo(() => markets.filter((market) => market.status === "closed").length, [markets]);
+
+  const settlementQueueMarkets = useMemo(() => {
+    return markets
+      .filter((market) => market.status === "closed")
+      .sort((a, b) => {
+        const predictionsDiff = predictions.filter((prediction) => prediction.marketId === b.id).length - predictions.filter((prediction) => prediction.marketId === a.id).length;
+        if (predictionsDiff !== 0) return predictionsDiff;
+        return new Date(a.closesAt || 0).getTime() - new Date(b.closesAt || 0).getTime();
+      });
+  }, [markets, predictions]);
+
+  const upcomingSettlementMarkets = useMemo(() => {
+    return markets
+      .filter((market) => market.status === "open")
+      .sort((a, b) => new Date(a.closesAt || 0).getTime() - new Date(b.closesAt || 0).getTime())
+      .slice(0, 8);
+  }, [markets]);
 
   const selectedMarket = useMemo(() => {
     return markets.find((market) => market.id === selectedMarketId) || null;
@@ -704,6 +803,7 @@ function App() {
       const telegramWebApp = getRealTelegramWebApp();
       const telegramUser = telegramWebApp?.initDataUnsafe?.user;
       const telegramInitData = telegramWebApp?.initData || "";
+      const launchMarketId = getLaunchMarketId(telegramWebApp);
       setupTelegramChrome(telegramWebApp);
 
       const data = await apiRequest<BootstrapData>("/bootstrap");
@@ -736,6 +836,12 @@ function App() {
       setFavoriteMarketIdsByUser(data.favoriteMarketIdsByUser || {});
       setAdminUserIds(data.adminUserIds || []);
       setActiveUserId(nextActiveUserId);
+
+      if (launchMarketId && (data.markets || []).some((market) => market.id === launchMarketId)) {
+        setSelectedMarketId(launchMarketId);
+        setDetailsTab("overview");
+        setMainView("markets");
+      }
     } catch (error) {
       setServerError(getErrorMessage(error));
     } finally {
@@ -1041,6 +1147,37 @@ function App() {
     }
   }
 
+  async function extendMarket(market: Market) {
+    if (!requireClientAdmin()) return;
+
+    const defaultDate = getNextWeekDateInput();
+    const enteredDate = prompt(
+      `Новая дата закрытия для рынка:\n${market.question}\n\nФормат: ГГГГ-ММ-ДД`,
+      normalizeDateForInput(market.closesAt) || defaultDate
+    );
+
+    if (!enteredDate) return;
+
+    const closesAt = normalizeDateForInput(enteredDate.trim());
+    if (!closesAt) {
+      alert("Укажи дату в формате ГГГГ-ММ-ДД");
+      return;
+    }
+
+    try {
+      await apiRequest(`/markets/${market.id}/extend`, {
+        method: "POST",
+        headers: adminHeaders(),
+        body: JSON.stringify({ closesAt }),
+      });
+      await refreshData(activeUser?.id);
+      sendSuccess();
+    } catch (error) {
+      sendError();
+      alert(getErrorMessage(error));
+    }
+  }
+
   function updateCommentText(marketId: string, text: string) {
     setCommentDrafts((currentDrafts) => ({
       ...currentDrafts,
@@ -1160,15 +1297,31 @@ function App() {
     URL.revokeObjectURL(url);
   }
 
-  function shareMarket(market: Market) {
-    const text = `Forecast Market: ${market.question}`;
+  async function shareMarket(market: Market) {
+    const url = getMarketShareUrl(market.id);
+    const text = `Я сделал прогноз в Forecast Market 👀\n\n${market.question}\n\nА ты как думаешь?`;
+    const telegramShareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
     const telegramWebApp = getRealTelegramWebApp();
+
     if (telegramWebApp?.openTelegramLink) {
-      telegramWebApp.openTelegramLink(`https://t.me/share/url?text=${encodeURIComponent(text)}`);
+      telegramWebApp.openTelegramLink(telegramShareUrl);
+      sendSuccess();
       return;
     }
-    void navigator.clipboard?.writeText(text);
-    alert("Текст скопирован.");
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "Forecast Market", text, url });
+        sendSuccess();
+        return;
+      } catch {
+        // Пользователь мог закрыть системное окно шеринга.
+      }
+    }
+
+    await navigator.clipboard?.writeText(`${text}\n${url}`);
+    sendSuccess();
+    alert("Ссылка на рынок скопирована.");
   }
 
   function renderTradeHistory(marketPredictions: Prediction[]) {
@@ -1353,6 +1506,7 @@ function App() {
     const yesProbability = getYesProbability(market);
     const noProbability = 100 - yesProbability;
     const isResolved = market.status === "resolved";
+    const isClosed = market.status === "closed";
     const marketPredictions = predictions.filter((prediction) => prediction.marketId === market.id);
     const marketComments = comments.filter((comment) => comment.marketId === market.id);
     const uniqueParticipants = new Set(marketPredictions.map((prediction) => prediction.userId)).size;
@@ -1361,13 +1515,13 @@ function App() {
     const activePrediction = activeUserPredictions.find((prediction) => prediction.marketId === market.id && !prediction.settledAt);
 
     return (
-      <article className={`marketCard scrollMarketCard ${variant === "search" ? "searchMarketCard" : ""} ${isResolved ? "resolvedMarket" : ""}`} key={market.id}>
+      <article className={`marketCard scrollMarketCard ${variant === "search" ? "searchMarketCard" : ""} ${isResolved ? "resolvedMarket" : ""} ${isClosed ? "closedMarket" : ""}`} key={market.id}>
         <div className="marketCardMain">
           <div className="marketCardHeader">
             <div className="marketBadgesRow">
               <span className="category">{market.category}</span>
               {isImported && <span className="sourceBadge polymarketBadge">Polymarket</span>}
-              <span className={`statusBadge ${isResolved ? "resolvedBadge" : "openBadge"}`}>{isResolved ? `Рассчитан: ${getOutcomeText(market.resolvedOutcome)}` : "Открыт"}</span>
+              <span className={`statusBadge ${getMarketStatusClass(market)}`}>{getMarketStatusText(market)}</span>
             </div>
             <button
               className={`favoriteIconButton ${isFavorite ? "activeFavorite" : ""}`}
@@ -1382,7 +1536,7 @@ function App() {
           <p className="compactDescription">{getMarketDescription(market)}</p>
 
           <div className="marketChipsRow">
-            <span>До {formatDateForDisplay(market.closesAt)}</span>
+            <span>{getMarketCloseLabel(market)}</span>
             <span>{uniqueParticipants} участников</span>
             <span>{marketPredictions.length} прогнозов</span>
             <span>{marketComments.length} комм.</span>
@@ -1410,6 +1564,7 @@ function App() {
           <div className="marketActionRow">
             <button className="openDetailsButton" onClick={() => openMarketDetails(market.id, "overview")}>Открыть</button>
             <button className="secondaryOpenButton compactChatButton" onClick={() => openMarketDetails(market.id, "chat")}>Чат</button>
+            <button className="shareMarketButton" onClick={() => void shareMarket(market)}>Поделиться</button>
             {isAdmin && isImported && <button className="hideImportedButton" onClick={() => deleteMarket(market)}>Скрыть</button>}
           </div>
         </div>
@@ -1604,11 +1759,64 @@ function App() {
           {importedMarkets.length === 0 ? (
             <div className="empty">Импортированных рынков пока нет или они не подходят под фильтр.</div>
           ) : (
-            <div className="marketList compactMarketList">
-              {importedMarkets.map((market) => renderMarketCard(market, "search"))}
-            </div>
+            renderMarketGroups(importedMarkets, "imported")
           )}
         </section>
+      </div>
+    );
+  }
+
+
+  function renderMarketGroups(marketsToRender: Market[], mode: "feed" | "imported" | "search" = "feed") {
+    const activeCategory = mode === "imported" ? importedCategory : selectedCategory;
+    const cardVariant: "feed" | "search" = mode === "feed" ? "feed" : "search";
+
+    const groups = activeCategory === "Все"
+      ? Array.from(new Set(marketsToRender.map((market) => market.category || "Без категории")))
+          .map((category) => ({
+            title: category,
+            subtitle: "Категория",
+            markets: marketsToRender.filter((market) => (market.category || "Без категории") === category),
+          }))
+          .sort((a, b) => b.markets.length - a.markets.length)
+      : ([
+          { title: "Открытые", subtitle: "Можно сделать прогноз", markets: marketsToRender.filter((market) => market.status === "open") },
+          { title: "Ожидают расчёта", subtitle: "Прогнозы уже закрыты", markets: marketsToRender.filter((market) => market.status === "closed") },
+          { title: "Рассчитанные", subtitle: "Результат уже известен", markets: marketsToRender.filter((market) => market.status === "resolved") },
+        ].filter((group) => group.markets.length > 0));
+
+    if (groups.length === 0) {
+      return <div className="empty">Рынков пока нет.</div>;
+    }
+
+    return (
+      <div className={`marketAccordionStack ${mode === "imported" ? "importedAccordionStack" : ""}`}>
+        {groups.map((group, index) => {
+          const openCount = group.markets.filter((market) => market.status === "open").length;
+          const closedCount = group.markets.filter((market) => market.status === "closed").length;
+          const resolvedCount = group.markets.filter((market) => market.status === "resolved").length;
+
+          return (
+            <details className="marketAccordionGroup" key={`${mode}-${group.title}`} open={index === 0}>
+              <summary className="marketAccordionSummary">
+                <div>
+                  <span className="accordionKicker">{group.subtitle}</span>
+                  <strong>{group.title}</strong>
+                </div>
+                <div className="accordionMetrics">
+                  <span>{group.markets.length} событий</span>
+                  {openCount > 0 && <span className="openMetric">{openCount} открыто</span>}
+                  {closedCount > 0 && <span className="pendingMetric">{closedCount} расчёт</span>}
+                  {resolvedCount > 0 && <span>{resolvedCount} завершено</span>}
+                  <b className="accordionChevron">⌄</b>
+                </div>
+              </summary>
+              <div className="marketAccordionList">
+                {group.markets.map((market) => renderMarketCard(market, cardVariant))}
+              </div>
+            </details>
+          );
+        })}
       </div>
     );
   }
@@ -1627,7 +1835,7 @@ function App() {
 
         <section className="marketToolbar searchToolbar">
           <label className="toolbarSearch">Поиск рынка<input placeholder="Например: ЦБ, GTA, Bitcoin, друзья..." value={marketSearch} onChange={(event) => setMarketSearch(event.target.value)} /></label>
-          <label>Статус<select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "all" | MarketStatus)}><option value="all">Все рынки</option><option value="open">Открытые</option><option value="resolved">Рассчитанные</option></select></label>
+          <label>Статус<select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "all" | MarketStatus)}><option value="all">Все рынки</option><option value="open">Открытые</option><option value="closed">Ожидают расчёта</option><option value="resolved">Рассчитанные</option></select></label>
           <label>Сортировка<select value={sortMode} onChange={(event) => setSortMode(event.target.value as SortMode)}><option value="newest">Сначала новые</option><option value="probability">По вероятности “Да”</option><option value="trades">По количеству сделок</option><option value="comments">По комментариям</option></select></label>
           <label className="toolbarCheckbox"><input type="checkbox" checked={showFavoritesOnly} onChange={(event) => setShowFavoritesOnly(event.target.checked)} />Только избранные</label>
         </section>
@@ -1641,9 +1849,7 @@ function App() {
         <section className="searchResultsPanel">
           <div className="sectionHeader"><h2>Результаты</h2><span>{filteredMarkets.length} событий</span></div>
           {filteredMarkets.length === 0 ? <div className="empty">По этим фильтрам рынков не найдено.</div> : (
-            <div className="searchResultsList">
-              {filteredMarkets.map((market) => renderMarketCard(market, "search"))}
-            </div>
+            renderMarketGroups(filteredMarkets, "search")
           )}
         </section>
       </section>
@@ -1651,6 +1857,177 @@ function App() {
   }
 
 
+
+  function renderSettlementPage() {
+    if (!isAdmin) {
+      return (
+        <section className="settlementPage">
+          <div className="adminOnlyNotice">Очередь расчёта доступна только администраторам.</div>
+        </section>
+      );
+    }
+
+    const waitingPredictionsCount = settlementQueueMarkets.reduce(
+      (sum, market) => sum + predictions.filter((prediction) => prediction.marketId === market.id && !prediction.settledAt).length,
+      0
+    );
+
+    const waitingPool = settlementQueueMarkets.reduce((sum, market) => sum + market.yesPool + market.noPool, 0);
+
+    function renderSettlementMarketCard(market: Market, mode: "queue" | "upcoming") {
+      const marketPredictions = predictions.filter((prediction) => prediction.marketId === market.id);
+      const activePredictions = marketPredictions.filter((prediction) => !prediction.settledAt);
+      const yesAmount = activePredictions
+        .filter((prediction) => prediction.outcome === "yes")
+        .reduce((sum, prediction) => sum + prediction.amount, 0);
+      const noAmount = activePredictions
+        .filter((prediction) => prediction.outcome === "no")
+        .reduce((sum, prediction) => sum + prediction.amount, 0);
+      const participants = new Set(activePredictions.map((prediction) => prediction.userId)).size;
+      const yesProbability = getYesProbability(market);
+      const isImported = isPolymarketSource(market.source);
+
+      return (
+        <article className={`settlementCard ${mode === "queue" ? "settlementCardHot" : ""}`} key={market.id}>
+          <div className="settlementCardTop">
+            <div className="settlementCardBadges">
+              <span className="category">{market.category}</span>
+              {isImported && <span className="sourceBadge polymarketBadge">Polymarket</span>}
+              <span className={`statusBadge ${getMarketStatusClass(market)}`}>{getMarketStatusText(market)}</span>
+            </div>
+            <button className="secondaryOpenButton" onClick={() => openMarketDetails(market.id)}>
+              Детали
+            </button>
+          </div>
+
+          <h3>{market.question}</h3>
+
+          <div className="settlementMiniGrid">
+            <div>
+              <span>Дата закрытия</span>
+              <strong>{formatDateForDisplay(market.closesAt)}</strong>
+            </div>
+            <div>
+              <span>Участники</span>
+              <strong>{participants}</strong>
+            </div>
+            <div>
+              <span>Прогнозы</span>
+              <strong>{activePredictions.length}</strong>
+            </div>
+            <div>
+              <span>Пул</span>
+              <strong>{(market.yesPool + market.noPool).toLocaleString("ru-RU")}</strong>
+            </div>
+          </div>
+
+          <div className="settlementPools">
+            <div className="settlementPoolYes">
+              <span>Да</span>
+              <strong>{yesProbability}%</strong>
+              <small>{yesAmount.toLocaleString("ru-RU")} б.</small>
+            </div>
+            <div className="settlementPoolNo">
+              <span>Нет</span>
+              <strong>{100 - yesProbability}%</strong>
+              <small>{noAmount.toLocaleString("ru-RU")} б.</small>
+            </div>
+          </div>
+
+          {mode === "queue" ? (
+            <div className="settlementActions">
+              <button className="resolveYesButton" onClick={() => resolveMarket(market, "yes")}>
+                Победило Да
+              </button>
+              <button className="resolveNoButton" onClick={() => resolveMarket(market, "no")}>
+                Победило Нет
+              </button>
+              <button className="secondaryButton" onClick={() => extendMarket(market)}>
+                Продлить
+              </button>
+              {isImported && (
+                <button className="dangerButton" onClick={() => deleteMarket(market)}>
+                  Скрыть
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="settlementActions settlementUpcomingActions">
+              <button className="secondaryButton" onClick={() => openMarketDetails(market.id)}>
+                Открыть
+              </button>
+              <button className="secondaryButton" onClick={() => extendMarket(market)}>
+                Изменить дату
+              </button>
+            </div>
+          )}
+        </article>
+      );
+    }
+
+    return (
+      <section className="settlementPage pageStack">
+        <section className="settlementHeroPanel">
+          <div>
+            <p className="eyebrow">Админский цикл рынков</p>
+            <h2>Очередь расчёта</h2>
+            <p>
+              Здесь собраны рынки, дата закрытия которых уже прошла. Они больше не принимают прогнозы и ждут решения администратора.
+            </p>
+          </div>
+          <div className="settlementHeroStats">
+            <div>
+              <span>Ждут расчёта</span>
+              <strong>{settlementQueueMarkets.length}</strong>
+            </div>
+            <div>
+              <span>Активных прогнозов</span>
+              <strong>{waitingPredictionsCount}</strong>
+            </div>
+            <div>
+              <span>Баллов в очереди</span>
+              <strong>{waitingPool.toLocaleString("ru-RU")}</strong>
+            </div>
+          </div>
+        </section>
+
+        <section className="settlementQueueSection">
+          <div className="sectionHeader">
+            <div>
+              <h2>Нужно рассчитать</h2>
+              <p>Нажми победивший исход — backend начислит выплаты и запишет историю баллов.</p>
+            </div>
+            <span>{settlementQueueMarkets.length}</span>
+          </div>
+
+          {settlementQueueMarkets.length === 0 ? (
+            <div className="empty emptyActionState">
+              <strong>Очередь пустая</strong>
+              <p>Когда дата закрытия рынка пройдёт, он автоматически появится здесь и перестанет принимать новые прогнозы.</p>
+            </div>
+          ) : (
+            <div className="settlementGrid">
+              {settlementQueueMarkets.map((market) => renderSettlementMarketCard(market, "queue"))}
+            </div>
+          )}
+        </section>
+
+        <section className="settlementUpcomingSection">
+          <div className="sectionHeader">
+            <div>
+              <h2>Скоро закрываются</h2>
+              <p>Открытые рынки с ближайшей датой закрытия. Можно заранее проверить формулировку и источник.</p>
+            </div>
+            <span>{upcomingSettlementMarkets.length}</span>
+          </div>
+
+          <div className="settlementGrid settlementUpcomingGrid">
+            {upcomingSettlementMarkets.map((market) => renderSettlementMarketCard(market, "upcoming"))}
+          </div>
+        </section>
+      </section>
+    );
+  }
 
   function renderSuggestionStatusBadge(status: SuggestionStatus) {
     return <span className={`suggestionStatus ${status}`}>{getSuggestionStatusText(status)}</span>;
@@ -2086,6 +2463,17 @@ function App() {
               Заявки {pendingSuggestions.length > 0 ? `· ${pendingSuggestions.length}` : ""}
             </button>
           )}
+          {isAdmin && (
+            <button
+              className={mainView === "settlement" && !selectedMarket ? "activeProductNav" : ""}
+              onClick={() => {
+                setSelectedMarketId(null);
+                setMainView("settlement");
+              }}
+            >
+              Расчёт {closedMarketsCount > 0 ? `· ${closedMarketsCount}` : ""}
+            </button>
+          )}
           <button
             className={mainView === "profile" ? "activeProductNav" : ""}
             onClick={() => {
@@ -2140,6 +2528,8 @@ function App() {
         renderSuggestionPage()
       ) : mainView === "moderation" && !selectedMarket ? (
         renderModerationPage()
+      ) : mainView === "settlement" && !selectedMarket ? (
+        renderSettlementPage()
       ) : selectedMarket ? (
         <section className="detailsPage">
           <button className="backButton" onClick={() => setSelectedMarketId(null)}>
@@ -2158,10 +2548,10 @@ function App() {
                     >
                       {favoriteMarketIds.includes(selectedMarket.id) ? "★" : "☆"}
                     </button>
-                    <span className={`statusBadge ${selectedMarket.status === "resolved" ? "resolvedBadge" : "openBadge"}`}>
-                      {selectedMarket.status === "resolved" ? `Рассчитан: ${getOutcomeText(selectedMarket.resolvedOutcome)}` : "Открыт"}
+                    <span className={`statusBadge ${getMarketStatusClass(selectedMarket)}`}>
+                      {getMarketStatusText(selectedMarket)}
                     </span>
-                    <span className="date">До {formatDateForDisplay(selectedMarket.closesAt)}</span>
+                    <span className="date">{getMarketCloseLabel(selectedMarket)}</span>
                   </div>
                 </div>
 
@@ -2212,7 +2602,7 @@ function App() {
                           Формат: <b>игровой прогноз за баллы</b>
                         </li>
                         <li>
-                          Статус: <b>{selectedMarket.status === "resolved" ? `Рассчитан как ${getOutcomeText(selectedMarket.resolvedOutcome)}` : "Открыт для прогнозов"}</b>
+                          Статус: <b>{getMarketStatusText(selectedMarket)}</b>
                         </li>
                       </ul>
                     </div>
@@ -2253,6 +2643,9 @@ function App() {
             <aside className="detailsSide">
               <section className="detailTradeCard">
                 <h3>Сделать прогноз</h3>
+                {selectedMarket.status === "closed" && (
+                  <div className="marketClosedNotice">Рынок закрыт и ждёт расчёта. Новые прогнозы уже не принимаются.</div>
+                )}
                 <label>
                   Сумма прогноза
                   <input
@@ -2260,27 +2653,27 @@ function App() {
                     min="1"
                     step="100"
                     value={amountByMarket[selectedMarket.id] || 500}
-                    disabled={selectedMarket.status === "resolved"}
+                    disabled={!isMarketTradable(selectedMarket)}
                     onChange={(event) => setAmountByMarket((current) => ({ ...current, [selectedMarket.id]: Number(event.target.value) }))}
                   />
                 </label>
 
                 <div className="quickAmountRow">
                   {[100, 500, 1000, 2500].map((amount) => (
-                    <button key={amount} disabled={selectedMarket.status === "resolved"} onClick={() => setQuickAmount(selectedMarket.id, amount)}>
+                    <button key={amount} disabled={!isMarketTradable(selectedMarket)} onClick={() => setQuickAmount(selectedMarket.id, amount)}>
                       {amount}
                     </button>
                   ))}
-                  <button disabled={selectedMarket.status === "resolved"} onClick={() => setQuickAmount(selectedMarket.id, activeUser?.balance || 0)}>
+                  <button disabled={!isMarketTradable(selectedMarket)} onClick={() => setQuickAmount(selectedMarket.id, activeUser?.balance || 0)}>
                     Всё
                   </button>
                 </div>
 
                 <div className="buttons">
-                  <button className="yesButton" disabled={selectedMarket.status === "resolved"} onClick={() => buyPrediction(selectedMarket, "yes")}>
+                  <button className="yesButton" disabled={!isMarketTradable(selectedMarket)} onClick={() => buyPrediction(selectedMarket, "yes")}>
                     Купить Да
                   </button>
-                  <button className="noButton" disabled={selectedMarket.status === "resolved"} onClick={() => buyPrediction(selectedMarket, "no")}>
+                  <button className="noButton" disabled={!isMarketTradable(selectedMarket)} onClick={() => buyPrediction(selectedMarket, "no")}>
                     Купить Нет
                   </button>
                 </div>
@@ -2303,6 +2696,14 @@ function App() {
                 )}
               </section>
 
+              <section className="detailsShareCard">
+                <div>
+                  <strong>Позови друзей в этот рынок</strong>
+                  <span>Ссылка откроет событие сразу в Forecast Market.</span>
+                </div>
+                <button onClick={() => void shareMarket(selectedMarket)}>Поделиться рынком</button>
+              </section>
+
               {isAdmin && (
                 <section className="adminMarketCard">
                   <h3>Управление рынком</h3>
@@ -2310,7 +2711,8 @@ function App() {
                     <div className="adminMarketActions">
                       <button onClick={() => startEditMarket(selectedMarket)}>Редактировать рынок</button>
                       <button onClick={() => duplicateMarket(selectedMarket)}>Дублировать рынок</button>
-                      <button onClick={() => shareMarket(selectedMarket)}>Поделиться</button>
+                      {selectedMarket.status !== "resolved" && <button onClick={() => extendMarket(selectedMarket)}>Продлить</button>}
+                      <button onClick={() => void shareMarket(selectedMarket)}>Поделиться</button>
                       <button className={favoriteMarketIds.includes(selectedMarket.id) ? "secondaryButton" : ""} onClick={() => toggleFavoriteMarket(selectedMarket.id)}>
                         {favoriteMarketIds.includes(selectedMarket.id) ? "Убрать из избранного" : "В избранное"}
                       </button>
@@ -2387,6 +2789,10 @@ function App() {
               <strong>{openMarketsCount}</strong>
             </div>
             <div>
+              <span>Ждут расчёта</span>
+              <strong>{closedMarketsCount}</strong>
+            </div>
+            <div>
               <span>Всего событий</span>
               <strong>{markets.length}</strong>
             </div>
@@ -2412,10 +2818,11 @@ function App() {
                 </div>
                 <span>{feedMarkets.length} событий</span>
               </div>
-              {feedMarkets.length === 0 && <div className="empty">В этой категории рынков пока нет.</div>}
-              <div className="marketFeedList">
-                {feedMarkets.map((market) => renderMarketCard(market, "feed"))}
-              </div>
+              {feedMarkets.length === 0 ? (
+                <div className="empty">В этой категории рынков пока нет.</div>
+              ) : (
+                renderMarketGroups(feedMarkets, "feed")
+              )}
             </div>
 
             <aside className="sideColumn">
