@@ -6315,3 +6315,67 @@ body:not(.is-telegram-webapp) .discoveryHeroGrid {
     min-width: 0;
   }
 }
+
+/* Telegram scroll fix for Android and Telegram Desktop on Windows.
+   The page must scroll by the document itself, not by a hidden inner wrapper. */
+html,
+body,
+#root {
+  height: auto !important;
+  min-height: 100% !important;
+  overflow-x: hidden !important;
+}
+
+body.is-telegram-webapp,
+body.is-telegram-webapp #root {
+  height: auto !important;
+  min-height: 100dvh !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior-y: auto !important;
+  touch-action: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+body.is-telegram-webapp .telegramApp {
+  height: auto !important;
+  min-height: 100dvh !important;
+  max-height: none !important;
+  overflow: visible !important;
+  overscroll-behavior-y: auto !important;
+  touch-action: auto !important;
+}
+
+body.is-telegram-webapp .telegramApp main,
+body.is-telegram-webapp .telegramApp section,
+body.is-telegram-webapp .telegramApp .layout,
+body.is-telegram-webapp .telegramApp .mainColumn,
+body.is-telegram-webapp .telegramApp .marketFeedList,
+body.is-telegram-webapp .telegramApp .categoryMarketGroupList,
+body.is-telegram-webapp .telegramApp .profilePage,
+body.is-telegram-webapp .telegramApp .searchPage {
+  max-height: none !important;
+  overflow-y: visible !important;
+}
+
+body.is-telegram-webapp .productTopBar {
+  position: sticky;
+}
+
+/* On Android / Telegram Desktop we avoid nested horizontal rails stealing wheel/touch gestures. */
+body.tg-platform-android .telegramApp .featuredMarketRail,
+body.tg-platform-tdesktop .telegramApp .featuredMarketRail,
+body.tg-platform-android .telegramApp .productNav,
+body.tg-platform-tdesktop .telegramApp .productNav {
+  touch-action: pan-x pan-y;
+}
+
+/* Telegram Desktop on Windows: mouse wheel should always move the main page. */
+body.tg-platform-tdesktop,
+body.tg-platform-web,
+body.tg-platform-weba,
+body.tg-platform-webk {
+  overflow-y: auto !important;
+  overscroll-behavior-y: auto !important;
+  touch-action: auto !important;
+}

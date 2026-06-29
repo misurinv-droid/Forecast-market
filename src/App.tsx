@@ -373,12 +373,16 @@ function getRealTelegramWebApp() {
 
 function syncTelegramViewportVars(telegramWebApp?: TelegramWebApp) {
   const viewportHeight = telegramWebApp?.viewportStableHeight || telegramWebApp?.viewportHeight || window.innerHeight;
-  const safeTop = telegramWebApp?.safeAreaInset?.top || telegramWebApp?.contentSafeAreaInset?.top || 0;
-  const safeBottom = telegramWebApp?.safeAreaInset?.bottom || telegramWebApp?.contentSafeAreaInset?.bottom || 0;
+  const safeTop = telegramWebApp?.safeAreaInset?.top || 0;
+  const contentSafeTop = telegramWebApp?.contentSafeAreaInset?.top || 0;
+  const safeBottom = telegramWebApp?.safeAreaInset?.bottom || 0;
+  const contentSafeBottom = telegramWebApp?.contentSafeAreaInset?.bottom || 0;
 
   document.documentElement.style.setProperty("--app-height", `${Math.round(viewportHeight)}px`);
   document.documentElement.style.setProperty("--tg-safe-top", `${safeTop}px`);
+  document.documentElement.style.setProperty("--tg-content-safe-top", `${contentSafeTop}px`);
   document.documentElement.style.setProperty("--tg-safe-bottom", `${safeBottom}px`);
+  document.documentElement.style.setProperty("--tg-content-safe-bottom", `${contentSafeBottom}px`);
   document.body.classList.add("is-telegram-webapp");
 }
 
@@ -386,17 +390,35 @@ function setupTelegramChrome(telegramWebApp?: TelegramWebApp) {
   if (!telegramWebApp) return;
 
   syncTelegramViewportVars(telegramWebApp);
+
+  const platform = String(telegramWebApp.platform || "unknown").toLowerCase();
+  Array.from(document.body.classList)
+    .filter((className) => className.startsWith("tg-platform-"))
+    .forEach((className) => document.body.classList.remove(className));
+  document.body.classList.add(`tg-platform-${platform.replace(/[^a-z0-9_-]/g, "") || "unknown"}`);
+
   telegramWebApp.ready?.();
   telegramWebApp.expand?.();
-  telegramWebApp.disableVerticalSwipes?.();
+
+  // В Android и Telegram Desktop вызов disableVerticalSwipes иногда ломает обычный скролл.
+  // Для нашего приложения важнее нормальная прокрутка ленты, поэтому явно оставляем свайпы включёнными.
+  try {
+    telegramWebApp.enableVerticalSwipes?.();
+  } catch {
+    // Игнорируем старые клиенты Telegram, где метода нет.
+  }
+
   telegramWebApp.setHeaderColor?.("#0b1020");
   telegramWebApp.setBackgroundColor?.("#f2f6ff");
   telegramWebApp.setBottomBarColor?.("#f2f6ff");
 
-  try {
-    telegramWebApp.requestFullscreen?.();
-  } catch {
-    // На старых клиентах Telegram fullscreen может быть недоступен — тогда останется обычный expand().
+  // Fullscreen нужен мобильному приложению. На Telegram Desktop / Web он может мешать прокрутке.
+  if (platform === "ios" || platform === "android") {
+    try {
+      telegramWebApp.requestFullscreen?.();
+    } catch {
+      // На старых клиентах Telegram fullscreen может быть недоступен — тогда останется обычный expand().
+    }
   }
 }
 
@@ -814,6 +836,9 @@ function App() {
     if (!telegramWebApp) {
       setIsTelegram(false);
       document.body.classList.remove("is-telegram-webapp");
+      Array.from(document.body.classList)
+        .filter((className) => className.startsWith("tg-platform-"))
+        .forEach((className) => document.body.classList.remove(className));
       return;
     }
 
