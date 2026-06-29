@@ -567,10 +567,10 @@ function App() {
   const showDebugTools = false;
 
   const activeUser = useMemo(() => {
-    return users.find((user) => user.id === activeUserId) || users[0] || null;
+    return users.find((user) => user.id === activeUserId) || null;
   }, [users, activeUserId]);
 
-  const isAdmin = Boolean(activeUser && adminUserIds.includes(activeUser.id));
+  const isAdmin = Boolean(isTelegram && activeUser && adminUserIds.includes(activeUser.id));
 
   const dailyBonusInfo = useMemo(() => getDailyBonusInfo(activeUser), [activeUser]);
 
@@ -857,7 +857,7 @@ function App() {
 
     const nextActiveUserId = preferredActiveUserId || activeUserId;
     const hasActiveUser = data.users.some((user) => user.id === nextActiveUserId);
-    setActiveUserId(nextActiveUserId && hasActiveUser ? nextActiveUserId : data.users[0]?.id || "");
+    setActiveUserId(nextActiveUserId && hasActiveUser ? nextActiveUserId : "");
   }
 
   function adminHeaders() {
@@ -964,7 +964,7 @@ function App() {
 
       const data = await apiRequest<BootstrapData>("/bootstrap");
       let nextUsers = data.users || [];
-      let nextActiveUserId = nextUsers[0]?.id || "";
+      let nextActiveUserId = "";
 
       if (telegramUser?.id) {
         setIsTelegram(true);
@@ -2921,6 +2921,15 @@ function App() {
 
   return (
     <main className={appClassName}>
+      {!activeUser && !isLoading && (
+        <section className="authWarningCard">
+          <div>
+            <strong>Открыто без Telegram-авторизации</strong>
+            <p>Можно смотреть рынки, но прогнозы, бонусы и админ-действия доступны только при запуске через Telegram Mini App.</p>
+          </div>
+        </section>
+      )}
+
       <section className="hero">
         <div>
           <p className="eyebrow">Социальная биржа прогнозов</p>

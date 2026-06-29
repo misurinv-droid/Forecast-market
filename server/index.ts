@@ -394,9 +394,14 @@ function isAdminUserId(userId: string) {
 function assertRequestMatchesUser(request: express.Request, response: express.Response, userId: string) {
   const initData = getTelegramInitData(request);
 
-  // В браузерной версии пока оставляем мягкую проверку, как и для прогнозов.
-  // В Telegram Mini App при наличии initData обязательно сверяем подпись и пользователя.
-  if (!initData) return true;
+  // Все действия от имени пользователя должны подтверждаться Telegram initData.
+  // Прямые web-ссылки остаются режимом просмотра и не могут работать от имени чужого аккаунта.
+  if (!initData) {
+    response.status(401).json({
+      error: "Требуется Telegram-авторизация. Открой приложение через Telegram Mini App.",
+    });
+    return false;
+  }
 
   const telegramAuth = validateTelegramInitData(initData);
 
@@ -1527,6 +1532,8 @@ app.get("/api/health", async (_request, response) => {
     telegramNotificationsConfigured: Boolean(BOT_TOKEN),
     appPublicUrlConfigured: Boolean(APP_PUBLIC_URL),
     dailyBonusAmount: DAILY_BONUS_AMOUNT,
+    strictTelegramUserActions: true,
+    publicUserCreationDisabled: true,
     polymarketAutoImportEnabled: POLYMARKET_AUTO_IMPORT_ENABLED,
     polymarketImportLimit: POLYMARKET_AUTO_IMPORT_LIMIT,
     polymarketImportIntervalMinutes: Math.round(POLYMARKET_AUTO_IMPORT_INTERVAL_MS / 60000),
@@ -1540,35 +1547,10 @@ app.get("/api/bootstrap", async (_request, response) => {
   response.json(await getSnapshot());
 });
 
-app.post("/api/users", async (request, response) => {
-  const name = String(request.body?.name || "").trim();
-
-  if (!name) {
-    response.status(400).json({ error: "Введите имя участника" });
-    return;
-  }
-
-  const user: DemoUser = {
-    id: createId(),
-    name,
-    balance: START_BALANCE,
-  };
-
-  await pool.query(`INSERT INTO users (id, name, balance) VALUES ($1, $2, $3)`, [
-    user.id,
-    user.name,
-    user.balance,
-  ]);
-
-  await addBalanceTransaction(pool, {
-    userId: user.id,
-    type: "start",
-    title: "Стартовый баланс",
-    description: "Начисление игровых баллов при создании профиля",
-    amount: START_BALANCE,
+app.post("/api/users", async (_request, response) => {
+  response.status(410).json({
+    error: "Создание тестовых пользователей отключено. Вход доступен только через Telegram Mini App.",
   });
-
-  response.status(201).json(user);
 });
 
 app.post("/api/telegram-user", async (request, response) => {
@@ -1743,6 +1725,8 @@ app.post("/api/market-suggestions", async (request, response) => {
       response.status(400).json({ error: "Не передан userId" });
       return;
     }
+
+    if (!assertRequestMatchesUser(request, response, String(userId))) return;
 
     if (normalizedQuestion.length < 8) {
       response.status(400).json({ error: "Сформулируй вопрос рынка подробнее" });
@@ -2222,6 +2206,13 @@ app.post("/api/markets/:marketId/predictions", async (request, response) => {
   const outcome = normalizeOutcome(request.body?.outcome);
   const amount = Number(request.body?.amount);
 
+  if (!userId) {
+    response.status(400).json({ error: "Не передан userId" });
+    return;
+  }
+
+  if (!assertRequestMatchesUser(request, response, userId)) return;
+
   if (!outcome) {
     response.status(400).json({ error: "Некорректный исход" });
     return;
@@ -2450,6 +2441,13 @@ app.post("/api/markets/:marketId/comments", async (request, response) => {
   const mediaDataUrl = String(request.body?.mediaDataUrl || "").trim();
   const mediaName = String(request.body?.mediaName || "").trim();
 
+  if (!userId) {
+    response.status(400).json({ error: "Не передан userId" });
+    return;
+  }
+
+  if (!assertRequestMatchesUser(request, response, userId)) return;
+
   const [marketResult, userResult] = await Promise.all([
     pool.query("SELECT * FROM markets WHERE id = $1", [marketId]),
     pool.query("SELECT * FROM users WHERE id = $1", [userId]),
@@ -2525,6 +2523,8 @@ app.delete("/api/comments/:commentId", async (request, response) => {
 
 app.post("/api/users/:userId/favorites/:marketId", async (request, response) => {
   const { userId, marketId } = request.params;
+
+  if (!assertRequestMatchesUser(request, response, userId)) return;
 
   const [userResult, marketResult] = await Promise.all([
     pool.query("SELECT id FROM users WHERE id = $1", [userId]),
