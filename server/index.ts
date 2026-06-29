@@ -15,6 +15,7 @@ type DemoUser = {
   id: string;
   name: string;
   balance: number;
+  lastDailyBonusAt?: string;
 };
 
 type Market = {
@@ -61,7 +62,7 @@ type MarketComment = {
 type BalanceTransaction = {
   id: string;
   userId: string;
-  type: "start" | "prediction_buy" | "payout" | "refund" | "system";
+  type: "start" | "prediction_buy" | "payout" | "refund" | "system" | "daily_bonus";
   title: string;
   description: string;
   amount: number;
@@ -108,6 +109,8 @@ type DatabaseSnapshot = {
 
 const PORT = Number(process.env.PORT || 4000);
 const START_BALANCE = 10000;
+const DAILY_BONUS_AMOUNT = 500;
+const DAILY_BONUS_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const DATABASE_URL = process.env.DATABASE_URL;
 const BOT_TOKEN = process.env.BOT_TOKEN || "";
 const APP_PUBLIC_URL = (process.env.APP_PUBLIC_URL || process.env.FRONTEND_URL || "").trim();
@@ -388,6 +391,38 @@ function isAdminUserId(userId: string) {
   return ADMIN_USER_IDS.includes(userId);
 }
 
+function assertRequestMatchesUser(request: express.Request, response: express.Response, userId: string) {
+  const initData = getTelegramInitData(request);
+
+  // В браузерной версии пока оставляем мягкую проверку, как и для прогнозов.
+  // В Telegram Mini App при наличии initData обязательно сверяем подпись и пользователя.
+  if (!initData) return true;
+
+  const telegramAuth = validateTelegramInitData(initData);
+
+  if (!telegramAuth.ok) {
+    response.status(401).json({ error: `Telegram-авторизация не пройдена: ${telegramAuth.error}` });
+    return false;
+  }
+
+  const telegramId = String(telegramAuth.user.id);
+  const telegramUserId = `telegram-${telegramId}`;
+
+  if (userId !== telegramId && userId !== telegramUserId) {
+    response.status(403).json({ error: "Нельзя выполнить действие за другого пользователя." });
+    return false;
+  }
+
+  return true;
+}
+
+function getNextDailyBonusAt(lastDailyBonusAt: unknown) {
+  if (!lastDailyBonusAt) return null;
+  const last = lastDailyBonusAt instanceof Date ? lastDailyBonusAt.getTime() : new Date(String(lastDailyBonusAt)).getTime();
+  if (!Number.isFinite(last)) return null;
+  return new Date(last + DAILY_BONUS_INTERVAL_MS);
+}
+
 function requireAdmin(request: express.Request, response: express.Response) {
   const telegramAuth = validateTelegramInitData(getTelegramInitData(request));
 
@@ -432,6 +467,11 @@ function toUser(row: any): DemoUser {
     id: row.id,
     name: row.name,
     balance: Number(row.balance),
+    lastDailyBonusAt: row.last_daily_bonus_at
+      ? (row.last_daily_bonus_at instanceof Date
+          ? row.last_daily_bonus_at.toISOString()
+          : new Date(String(row.last_daily_bonus_at)).toISOString())
+      : undefined,
   };
 }
 
@@ -1197,7 +1237,8 @@ async function migrate() {
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      balance INTEGER NOT NULL DEFAULT 10000
+      balance INTEGER NOT NULL DEFAULT 10000,
+      last_daily_bonus_at TIMESTAMPTZ
     );
 
     CREATE TABLE IF NOT EXISTS markets (
@@ -1299,6 +1340,8 @@ async function migrate() {
     CREATE INDEX IF NOT EXISTS favorites_user_id_idx ON favorites(user_id);
     CREATE INDEX IF NOT EXISTS notification_events_user_id_idx ON notification_events(user_id);
     CREATE INDEX IF NOT EXISTS notification_events_market_id_idx ON notification_events(market_id);
+
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS last_daily_bonus_at TIMESTAMPTZ;
   `);
 }
 
@@ -1483,6 +1526,7 @@ app.get("/api/health", async (_request, response) => {
     telegramAuthConfigured: Boolean(BOT_TOKEN),
     telegramNotificationsConfigured: Boolean(BOT_TOKEN),
     appPublicUrlConfigured: Boolean(APP_PUBLIC_URL),
+    dailyBonusAmount: DAILY_BONUS_AMOUNT,
     polymarketAutoImportEnabled: POLYMARKET_AUTO_IMPORT_ENABLED,
     polymarketImportLimit: POLYMARKET_AUTO_IMPORT_LIMIT,
     polymarketImportIntervalMinutes: Math.round(POLYMARKET_AUTO_IMPORT_INTERVAL_MS / 60000),
@@ -1586,6 +1630,67 @@ app.post("/api/telegram-user", async (request, response) => {
   });
 
   response.status(201).json(user);
+});
+
+app.post("/api/users/:userId/daily-bonus", async (request, response) => {
+  const userId = String(request.params.userId || "").trim();
+
+  if (!userId) {
+    response.status(400).json({ error: "Не указан пользователь" });
+    return;
+  }
+
+  if (!assertRequestMatchesUser(request, response, userId)) return;
+
+  try {
+    const result = await withTransaction(async (client) => {
+      const userResult = await client.query("SELECT * FROM users WHERE id = $1 FOR UPDATE", [userId]);
+      const userRow = userResult.rows[0];
+
+      if (!userRow) {
+        response.status(404).json({ error: "Пользователь не найден" });
+        return null;
+      }
+
+      const nextDailyBonusAt = getNextDailyBonusAt(userRow.last_daily_bonus_at);
+
+      if (nextDailyBonusAt && nextDailyBonusAt.getTime() > Date.now()) {
+        response.status(429).json({
+          error: "Ежедневный бонус уже забран. Возвращайся позже.",
+          nextDailyBonusAt: nextDailyBonusAt.toISOString(),
+        });
+        return null;
+      }
+
+      const updatedUserResult = await client.query(
+        `UPDATE users
+         SET balance = balance + $2, last_daily_bonus_at = NOW()
+         WHERE id = $1
+         RETURNING *`,
+        [userId, DAILY_BONUS_AMOUNT]
+      );
+
+      const transaction = await addBalanceTransaction(client, {
+        userId,
+        type: "daily_bonus",
+        title: "Ежедневный бонус",
+        description: "Бонус за возвращение в Forecast Market",
+        amount: DAILY_BONUS_AMOUNT,
+      });
+
+      return { user: toUser(updatedUserResult.rows[0]), transaction };
+    });
+
+    if (!result) return;
+
+    response.json({
+      ...result,
+      nextDailyBonusAt: new Date(Date.now() + DAILY_BONUS_INTERVAL_MS).toISOString(),
+    });
+  } catch (error) {
+    console.error("daily bonus failed", error);
+    response.status(500).json({ error: "Не удалось начислить ежедневный бонус" });
+  }
 });
 
 

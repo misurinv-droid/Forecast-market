@@ -13,6 +13,7 @@ type DemoUser = {
   id: string;
   name: string;
   balance: number;
+  lastDailyBonusAt?: string;
 };
 
 type Market = {
@@ -59,7 +60,7 @@ type MarketComment = {
 type BalanceTransaction = {
   id: string;
   userId: string;
-  type: "start" | "prediction_buy" | "payout" | "refund" | "system";
+  type: "start" | "prediction_buy" | "payout" | "refund" | "system" | "daily_bonus";
   title: string;
   description: string;
   amount: number;
@@ -182,6 +183,9 @@ declare global {
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://forecast-market.onrender.com/api";
+const DAILY_BONUS_AMOUNT = 500;
+const DAILY_BONUS_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const ONBOARDING_STORAGE_KEY = "forecast-market-onboarding-seen";
 const TELEGRAM_MINI_APP_URL = String(import.meta.env.VITE_TELEGRAM_MINI_APP_URL || "").trim();
 
 const emptyNewMarketForm: NewMarketForm = {
@@ -334,6 +338,49 @@ function estimatePredictionPayout(market: Market | undefined, prediction: Predic
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Неизвестная ошибка";
+}
+
+function getDailyBonusInfo(user: DemoUser | null) {
+  if (!user?.lastDailyBonusAt) {
+    return { canClaim: Boolean(user), nextDailyBonusAt: null as Date | null, remainingMs: 0, progress: 100 };
+  }
+
+  const lastClaimedAt = new Date(user.lastDailyBonusAt).getTime();
+
+  if (!Number.isFinite(lastClaimedAt)) {
+    return { canClaim: Boolean(user), nextDailyBonusAt: null as Date | null, remainingMs: 0, progress: 100 };
+  }
+
+  const nextDailyBonusAt = new Date(lastClaimedAt + DAILY_BONUS_INTERVAL_MS);
+  const remainingMs = Math.max(0, nextDailyBonusAt.getTime() - Date.now());
+  const elapsedMs = Math.max(0, DAILY_BONUS_INTERVAL_MS - remainingMs);
+
+  return {
+    canClaim: Boolean(user) && remainingMs <= 0,
+    nextDailyBonusAt,
+    remainingMs,
+    progress: Math.min(100, Math.round((elapsedMs / DAILY_BONUS_INTERVAL_MS) * 100)),
+  };
+}
+
+function formatBonusCountdown(remainingMs: number) {
+  if (remainingMs <= 0) return "можно забрать сейчас";
+
+  const totalMinutes = Math.ceil(remainingMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours <= 0) return `${minutes} мин`;
+  if (minutes <= 0) return `${hours} ч`;
+  return `${hours} ч ${minutes} мин`;
+}
+
+function markOnboardingSeen() {
+  try {
+    window.localStorage.setItem(ONBOARDING_STORAGE_KEY, "1");
+  } catch {
+    // localStorage может быть недоступен во встроенном WebView — это не критично.
+  }
 }
 
 async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
@@ -507,6 +554,15 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [serverError, setServerError] = useState("");
   const [isTelegram, setIsTelegram] = useState(false);
+  const [isDailyBonusClaiming, setIsDailyBonusClaiming] = useState(false);
+  const [isRulesOpen, setIsRulesOpen] = useState(false);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(() => {
+    try {
+      return window.localStorage.getItem(ONBOARDING_STORAGE_KEY) !== "1";
+    } catch {
+      return true;
+    }
+  });
 
   const showDebugTools = false;
 
@@ -515,6 +571,8 @@ function App() {
   }, [users, activeUserId]);
 
   const isAdmin = Boolean(activeUser && adminUserIds.includes(activeUser.id));
+
+  const dailyBonusInfo = useMemo(() => getDailyBonusInfo(activeUser), [activeUser]);
 
   const favoriteMarketIds = useMemo(() => {
     if (!activeUser) return [];
@@ -829,6 +887,40 @@ function App() {
 
   function sendError() {
     getRealTelegramWebApp()?.HapticFeedback?.notificationOccurred?.("error");
+  }
+
+  function closeOnboarding() {
+    markOnboardingSeen();
+    setIsOnboardingOpen(false);
+  }
+
+  async function claimDailyBonus() {
+    if (!activeUser) {
+      alert("Профиль пока не загружен");
+      return;
+    }
+
+    const bonusInfo = getDailyBonusInfo(activeUser);
+
+    if (!bonusInfo.canClaim) {
+      alert(`Следующий бонус будет доступен через ${formatBonusCountdown(bonusInfo.remainingMs)}.`);
+      return;
+    }
+
+    try {
+      setIsDailyBonusClaiming(true);
+      await apiRequest<{ user: DemoUser; transaction: BalanceTransaction; nextDailyBonusAt: string }>(`/users/${activeUser.id}/daily-bonus`, {
+        method: "POST",
+        headers: adminHeaders(),
+      });
+      await refreshData(activeUser.id);
+      sendSuccess();
+    } catch (error) {
+      sendError();
+      alert(getErrorMessage(error));
+    } finally {
+      setIsDailyBonusClaiming(false);
+    }
   }
 
   useEffect(() => {
@@ -1904,6 +1996,100 @@ function App() {
     );
   }
 
+  function renderDailyBonusCard(mode: "home" | "profile" = "home") {
+    const canClaim = dailyBonusInfo.canClaim;
+    const countdown = formatBonusCountdown(dailyBonusInfo.remainingMs);
+
+    return (
+      <article className={`dailyBonusCard ${mode === "profile" ? "profileDailyBonusCard" : ""}`}>
+        <div className="dailyBonusGlow" aria-hidden="true" />
+        <div className="dailyBonusTop">
+          <span className="dailyBonusIcon">🎁</span>
+          <div>
+            <p className="eyebrow">Ежедневный бонус</p>
+            <h2>+{DAILY_BONUS_AMOUNT.toLocaleString("ru-RU")} баллов</h2>
+          </div>
+        </div>
+        <p>Забирай бонус раз в 24 часа и возвращайся проверить новые рынки.</p>
+        <div className="dailyBonusProgress" aria-label="Прогресс до следующего бонуса">
+          <span style={{ width: `${dailyBonusInfo.progress}%` }} />
+        </div>
+        <div className="dailyBonusFooter">
+          <small>{canClaim ? "Бонус готов" : `Следующий через ${countdown}`}</small>
+          <button disabled={!canClaim || isDailyBonusClaiming} onClick={() => void claimDailyBonus()}>
+            {isDailyBonusClaiming ? "Начисляем..." : canClaim ? "Забрать" : "Ждём"}
+          </button>
+        </div>
+      </article>
+    );
+  }
+
+  function renderRulesContent() {
+    return (
+      <div className="rulesContent">
+        <div className="rulesIntro">
+          <span>⚖️</span>
+          <div>
+            <h2>Правила Forecast Market</h2>
+            <p>Простая игра прогнозов: выбираешь исход, используешь игровые баллы и соревнуешься в рейтинге.</p>
+          </div>
+        </div>
+        <div className="rulesGrid">
+          <div><b>1</b><span>Все прогнозы делаются только за игровые баллы.</span></div>
+          <div><b>2</b><span>Баллы не являются деньгами и не имеют имущественной ценности.</span></div>
+          <div><b>3</b><span>Баллы нельзя купить, продать, передать другому человеку или вывести.</span></div>
+          <div><b>4</b><span>После закрытия рынка администратор рассчитывает результат: Да или Нет.</span></div>
+          <div><b>5</b><span>События Polymarket используются только как идеи для развлекательных прогнозов.</span></div>
+          <div><b>6</b><span>Forecast Market не является букмекерской конторой, казино или сервисом ставок на деньги.</span></div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderOnboardingModal() {
+    if (!isOnboardingOpen) return null;
+
+    return (
+      <div className="modalOverlay onboardingOverlay">
+        <section className="onboardingModal">
+          <div className="onboardingHero">
+            <span>📊</span>
+            <div>
+              <p className="eyebrow">Добро пожаловать</p>
+              <h2>Forecast Market — игра прогнозов</h2>
+              <p>Выбирай события, делай прогнозы за игровые баллы и соревнуйся с друзьями.</p>
+            </div>
+          </div>
+          <div className="onboardingSteps">
+            <div><b>1</b><span>Открой рынок</span></div>
+            <div><b>2</b><span>Выбери Да или Нет</span></div>
+            <div><b>3</b><span>Дождись расчёта</span></div>
+          </div>
+          <div className="onboardingDisclaimer">
+            Игровые баллы не являются деньгами, не покупаются, не продаются, не передаются и не выводятся.
+          </div>
+          <div className="onboardingActions">
+            <button className="secondaryButton" onClick={() => setIsRulesOpen(true)}>Правила</button>
+            <button onClick={closeOnboarding}>Понятно, начать</button>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  function renderRulesModal() {
+    if (!isRulesOpen) return null;
+
+    return (
+      <div className="modalOverlay">
+        <section className="rulesModal">
+          <button className="modalCloseButton" onClick={() => setIsRulesOpen(false)}>×</button>
+          {renderRulesContent()}
+        </section>
+      </div>
+    );
+  }
+
   function renderHomePage() {
     const topLeaderboard = leaderboard.slice(0, isTelegram ? 3 : 5);
     const visiblePopularMarkets = popularMarkets.length > 0 ? popularMarkets : feedMarkets.slice(0, 6);
@@ -1954,6 +2140,8 @@ function App() {
               <button className="secondaryButton" onClick={() => setMainView("imported")}>Polymarket</button>
             </div>
           </div>
+
+          {renderDailyBonusCard("home")}
 
           <div className="quickPanel quickPanelPredictions">
             <div className="sectionHeader">
@@ -2603,6 +2791,16 @@ function App() {
         </section>
 
         <section className="profileContentGrid">
+          {renderDailyBonusCard("profile")}
+
+          <div className="profileCard profileRulesCard">
+            <div className="sectionHeader">
+              <h2>Правила и безопасность</h2>
+              <button onClick={() => setIsRulesOpen(true)}>Открыть</button>
+            </div>
+            <p>Коротко: это фановые прогнозы за игровые баллы. Никаких реальных денег, вывода, пополнений или ставок.</p>
+          </div>
+
           <div className="profileCard">
             <div className="sectionHeader">
               <h2>Активные прогнозы</h2>
@@ -2738,6 +2936,7 @@ function App() {
             <p>{isAdmin ? "Администратор" : "Участник"} · {activeUserStats.predictionsCount} прогнозов · Winrate {activeUserStats.winRate}%</p>
           </div>
           <button onClick={() => setMainView("profile")}>Открыть профиль</button>
+          <button className="secondaryButton" onClick={() => setIsRulesOpen(true)}>Правила</button>
         </div>
       </section>
 
@@ -3096,6 +3295,9 @@ function App() {
       ) : (
         renderHomePage()
       )}
+
+      {renderOnboardingModal()}
+      {renderRulesModal()}
     </main>
   );
 }
