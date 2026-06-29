@@ -644,6 +644,63 @@ function App() {
       });
   }, [markets, selectedCategory]);
 
+
+  const popularMarkets = useMemo(() => {
+    return [...markets]
+      .filter((market) => market.status === "open")
+      .sort((a, b) => {
+        const aPredictions = predictions.filter((prediction) => prediction.marketId === a.id).length;
+        const bPredictions = predictions.filter((prediction) => prediction.marketId === b.id).length;
+        const aComments = comments.filter((comment) => comment.marketId === a.id).length;
+        const bComments = comments.filter((comment) => comment.marketId === b.id).length;
+        const aFavorite = favoriteMarketIds.includes(a.id) ? 4 : 0;
+        const bFavorite = favoriteMarketIds.includes(b.id) ? 4 : 0;
+        const aImported = isPolymarketSource(a.source) ? 1 : 2;
+        const bImported = isPolymarketSource(b.source) ? 1 : 2;
+        const aScore = aPredictions * 3 + aComments + aFavorite + aImported;
+        const bScore = bPredictions * 3 + bComments + bFavorite + bImported;
+        if (aScore !== bScore) return bScore - aScore;
+        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+      })
+      .slice(0, 6);
+  }, [markets, predictions, comments, favoriteMarketIds]);
+
+  const recommendedMarkets = useMemo(() => {
+    const predictedMarketIds = new Set(activeUserOpenPredictions.map((prediction) => prediction.marketId));
+    return [...markets]
+      .filter((market) => market.status === "open" && !predictedMarketIds.has(market.id))
+      .sort((a, b) => {
+        const aPredictions = predictions.filter((prediction) => prediction.marketId === a.id).length;
+        const bPredictions = predictions.filter((prediction) => prediction.marketId === b.id).length;
+        if (aPredictions !== bPredictions) return bPredictions - aPredictions;
+        return Math.abs(50 - getYesProbability(a)) - Math.abs(50 - getYesProbability(b));
+      })
+      .slice(0, 4);
+  }, [markets, predictions, activeUserOpenPredictions]);
+
+  const categoryHubs = useMemo(() => {
+    return Array.from(new Set(markets.map((market) => market.category || "Без категории")))
+      .map((category) => {
+        const categoryMarkets = markets
+          .filter((market) => (market.category || "Без категории") === category)
+          .sort((a, b) => {
+            if (a.status !== b.status) return getMarketStatusWeight(a.status) - getMarketStatusWeight(b.status);
+            const aPredictions = predictions.filter((prediction) => prediction.marketId === a.id).length;
+            const bPredictions = predictions.filter((prediction) => prediction.marketId === b.id).length;
+            if (aPredictions !== bPredictions) return bPredictions - aPredictions;
+            return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+          });
+        return {
+          category,
+          markets: categoryMarkets,
+          openCount: categoryMarkets.filter((market) => market.status === "open").length,
+          importedCount: categoryMarkets.filter((market) => isPolymarketSource(market.source)).length,
+        };
+      })
+      .filter((group) => group.markets.length > 0)
+      .sort((a, b) => b.openCount - a.openCount || b.markets.length - a.markets.length);
+  }, [markets, predictions]);
+
   const openMarketsCount = useMemo(() => markets.filter((market) => market.status === "open").length, [markets]);
   const closedMarketsCount = useMemo(() => markets.filter((market) => market.status === "closed").length, [markets]);
 
@@ -706,24 +763,6 @@ function App() {
   }, [selectedMarketPredictions]);
 
   const selectedCommentDraft = selectedMarket ? commentDrafts[selectedMarket.id] || emptyCommentDraft : emptyCommentDraft;
-
-  const activityItems = useMemo(() => {
-    const predictionItems = predictions.slice(0, 8).map((prediction) => ({
-      id: `prediction-${prediction.id}`,
-      title: `${prediction.userName} купил ${getOutcomeText(prediction.outcome)}`,
-      description: `${prediction.marketQuestion} · ${prediction.amount.toLocaleString("ru-RU")} баллов`,
-      date: prediction.createdAt,
-    }));
-
-    const commentItems = comments.slice(0, 8).map((comment) => ({
-      id: `comment-${comment.id}`,
-      title: `${comment.userName} оставил комментарий`,
-      description: comment.text || "Фото/GIF",
-      date: comment.createdAt,
-    }));
-
-    return [...predictionItems, ...commentItems].slice(0, 10);
-  }, [predictions, comments]);
 
   async function refreshData(preferredActiveUserId?: string | null) {
     const data = await apiRequest<BootstrapData>("/bootstrap");
@@ -1701,6 +1740,282 @@ function App() {
             </div>
             {renderTransactions(12)}
           </aside>
+        </section>
+      </section>
+    );
+  }
+
+
+  function renderMarketSignal(market: Market) {
+    const yesProbability = getYesProbability(market);
+    return (
+      <div className="signalBar" aria-label={`Вероятность Да ${yesProbability}%`}>
+        <span style={{ width: `${yesProbability}%` }} />
+      </div>
+    );
+  }
+
+  function renderMarketMiniRow(market: Market, context: "category" | "compact" = "category") {
+    const yesProbability = getYesProbability(market);
+    const marketPredictions = predictions.filter((prediction) => prediction.marketId === market.id);
+    const marketComments = comments.filter((comment) => comment.marketId === market.id);
+    const activePrediction = activeUserPredictions.find((prediction) => prediction.marketId === market.id && !prediction.settledAt);
+    const isFavorite = favoriteMarketIds.includes(market.id);
+    const isImported = isPolymarketSource(market.source);
+
+    return (
+      <article className={`marketMiniRow ${context === "compact" ? "marketMiniRowCompact" : ""}`} key={market.id}>
+        <button className="marketMiniMain" onClick={() => openMarketDetails(market.id)}>
+          <div className="marketMiniTop">
+            <span className="miniCategory">{market.category}</span>
+            {isImported && <span className="miniSource">Polymarket</span>}
+            <span className={`miniStatus ${getMarketStatusClass(market)}`}>{getMarketStatusText(market)}</span>
+          </div>
+          <strong>{market.question}</strong>
+          <div className="miniMetaLine">
+            <span>{getMarketCloseLabel(market)}</span>
+            <span>{marketPredictions.length} прогнозов</span>
+            <span>{marketComments.length} комм.</span>
+            {activePrediction && <span className="miniMine">Мой: {getOutcomeText(activePrediction.outcome)}</span>}
+          </div>
+          {renderMarketSignal(market)}
+        </button>
+        <div className="marketMiniOdds">
+          <button onClick={() => openMarketDetails(market.id)}>
+            <span>Да</span>
+            <b>{yesProbability}%</b>
+          </button>
+          <button onClick={() => openMarketDetails(market.id)}>
+            <span>Нет</span>
+            <b>{100 - yesProbability}%</b>
+          </button>
+          <button
+            className={`miniFavorite ${isFavorite ? "activeFavorite" : ""}`}
+            onClick={() => toggleFavoriteMarket(market.id)}
+            aria-label={isFavorite ? "Убрать из избранного" : "Добавить в избранное"}
+          >
+            {isFavorite ? "★" : "☆"}
+          </button>
+        </div>
+      </article>
+    );
+  }
+
+  function renderFeaturedMarketTile(market: Market, index: number) {
+    const yesProbability = getYesProbability(market);
+    const marketPredictions = predictions.filter((prediction) => prediction.marketId === market.id);
+    const activePrediction = activeUserPredictions.find((prediction) => prediction.marketId === market.id && !prediction.settledAt);
+    const isImported = isPolymarketSource(market.source);
+
+    return (
+      <article className="featuredMarketTile" key={market.id}>
+        <div className="featuredTileHead">
+          <span className="tileNumber">#{index + 1}</span>
+          <span className="category">{market.category}</span>
+          {isImported && <span className="sourceBadge polymarketBadge">Polymarket</span>}
+        </div>
+        <button className="featuredQuestion" onClick={() => openMarketDetails(market.id)}>
+          {market.question}
+        </button>
+        <div className="featuredOddsRow">
+          <div>
+            <span>Да</span>
+            <strong>{yesProbability}%</strong>
+          </div>
+          <div>
+            <span>Нет</span>
+            <strong>{100 - yesProbability}%</strong>
+          </div>
+        </div>
+        {renderMarketSignal(market)}
+        <div className="featuredTileFoot">
+          <span>{marketPredictions.length} прогнозов</span>
+          <span>{getMarketCloseLabel(market)}</span>
+        </div>
+        {activePrediction ? (
+          <div className="featuredMyPosition">Ты выбрал {getOutcomeText(activePrediction.outcome)} · {activePrediction.amount.toLocaleString("ru-RU")} б.</div>
+        ) : (
+          <div className="featuredActions">
+            <button onClick={() => openMarketDetails(market.id)}>Сделать прогноз</button>
+            <button className="secondaryButton" onClick={() => void shareMarket(market)}>Поделиться</button>
+          </div>
+        )}
+      </article>
+    );
+  }
+
+  function renderCategoryHub(group: { category: string; markets: Market[]; openCount: number; importedCount: number }, index: number) {
+    const visibleMarkets = group.markets.slice(0, 4);
+
+    return (
+      <details className="categoryHub" key={group.category} open={index < 2}>
+        <summary className="categoryHubSummary">
+          <div className="categoryHubTitleBlock">
+            <span className="categoryEmoji">{index % 4 === 0 ? "⚡" : index % 4 === 1 ? "🎯" : index % 4 === 2 ? "🌍" : "📈"}</span>
+            <div>
+              <strong>{group.category}</strong>
+              <p>{group.openCount} открыто · {group.markets.length} всего{group.importedCount ? ` · ${group.importedCount} Polymarket` : ""}</p>
+            </div>
+          </div>
+          <span className="categoryHubChevron">⌄</span>
+        </summary>
+        <div className="categoryHubBody">
+          {visibleMarkets.map((market) => renderMarketMiniRow(market))}
+          {group.markets.length > visibleMarkets.length && (
+            <button
+              className="showCategoryButton"
+              onClick={() => {
+                setSelectedCategory(group.category);
+                setMarketSearch("");
+                setStatusFilter("all");
+                setMainView("search");
+              }}
+            >
+              Показать все {group.markets.length} событий
+            </button>
+          )}
+        </div>
+      </details>
+    );
+  }
+
+  function renderHomePage() {
+    const topLeaderboard = leaderboard.slice(0, isTelegram ? 3 : 5);
+    const visiblePopularMarkets = popularMarkets.length > 0 ? popularMarkets : feedMarkets.slice(0, 6);
+    const quickPredictions = activeUserOpenPredictions.slice(0, 3);
+
+    return (
+      <section className="discoveryPage">
+        {isAdmin && (
+          <details className="adminDrawer">
+            <summary>
+              <div>
+                <strong>Админ-панель</strong>
+                <span>Создание рынков и управление событиями</span>
+              </div>
+              <b>{isAdminOpen ? "Свернуть" : "Открыть"}</b>
+            </summary>
+            <div className="adminDrawerBody">
+              <div className="adminHeader compactAdminHeader">
+                <div>
+                  <h2>Новый рынок</h2>
+                  <p>Создавай собственные события. Импорт Polymarket живёт в отдельной вкладке.</p>
+                </div>
+                <button onClick={() => setIsAdminOpen((current) => !current)}>{isAdminOpen ? "Скрыть форму" : "Показать форму"}</button>
+              </div>
+
+              {isAdminOpen && (
+                <div className="adminForm compactAdminForm">
+                  <label className="wideField">Вопрос рынка<input placeholder="Например: Поедем ли мы компанией в отпуск в августе?" value={newMarket.question} onChange={(event) => setNewMarket((current) => ({ ...current, question: event.target.value }))} /></label>
+                  <label>Категория<input placeholder="Друзья" value={newMarket.category} onChange={(event) => setNewMarket((current) => ({ ...current, category: event.target.value }))} /></label>
+                  <label>Дата закрытия<input type="date" value={newMarket.closesAt} onChange={(event) => setNewMarket((current) => ({ ...current, closesAt: event.target.value }))} /></label>
+                  <label className="wideField">Описание и правила расчета<textarea placeholder="Опиши, что должно произойти, чтобы рынок был рассчитан как «Да»." value={newMarket.description} onChange={(event) => setNewMarket((current) => ({ ...current, description: event.target.value }))} /></label>
+                  <label className="wideField">Источник расчета<input placeholder="Например: решение в общем чате / официальный сайт / публичная новость" value={newMarket.source} onChange={(event) => setNewMarket((current) => ({ ...current, source: event.target.value }))} /></label>
+                  <label>Начальная вероятность “Да”, %<input type="number" min="1" max="99" value={newMarket.yesProbability} onChange={(event) => setNewMarket((current) => ({ ...current, yesProbability: Number(event.target.value) }))} /></label>
+                  <button className="createMarketButton" onClick={createMarket}>Создать рынок</button>
+                </div>
+              )}
+            </div>
+          </details>
+        )}
+
+        <section className="discoveryHeroGrid">
+          <div className="discoveryHeroCard">
+            <p className="eyebrow">Главная лента</p>
+            <h2>Выбирай не из простыни, а из понятных подборок</h2>
+            <p>Сначала показываем популярные рынки и твои активные прогнозы. Остальные события спрятаны по категориям.</p>
+            <div className="discoveryHeroActions">
+              <button onClick={() => setMainView("search")}>Найти рынок</button>
+              <button className="secondaryButton" onClick={() => setMainView("imported")}>Polymarket</button>
+            </div>
+          </div>
+
+          <div className="quickPanel quickPanelPredictions">
+            <div className="sectionHeader">
+              <h2>Мои прогнозы</h2>
+              <button onClick={() => setMainView("predictions")}>Все</button>
+            </div>
+            {quickPredictions.length === 0 ? (
+              <div className="miniEmptyState">
+                <strong>Активных прогнозов нет</strong>
+                <p>Открой популярный рынок и проверь интуицию.</p>
+              </div>
+            ) : (
+              <div className="quickPredictionStack">
+                {quickPredictions.map((prediction) => renderPredictionCard(prediction))}
+              </div>
+            )}
+          </div>
+
+          <div className="quickPanel quickPanelLeaderboard">
+            <div className="sectionHeader">
+              <h2>Лидеры</h2>
+              <button onClick={() => setMainView("profile")}>Профиль</button>
+            </div>
+            <div className="leaderboardList compactLeaderboardList">
+              {topLeaderboard.map((user, index) => (
+                <div className={`leaderboardItem ${user.id === activeUser?.id ? "activeLeaderboardItem" : ""}`} key={user.id}>
+                  <div className="place">#{index + 1}</div>
+                  <div><strong>{user.name}</strong><p>{user.balance.toLocaleString("ru-RU")} баллов</p></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="marketDashboardStrip redesignedDashboardStrip">
+          <div><span>Открыто</span><strong>{openMarketsCount}</strong></div>
+          <div><span>Ждут расчёта</span><strong>{closedMarketsCount}</strong></div>
+          <div><span>Событий</span><strong>{markets.length}</strong></div>
+          <div><span>Мои прогнозы</span><strong>{activeUserPredictions.length}</strong></div>
+          <button onClick={() => setMainView("suggest")}>Предложить рынок</button>
+        </section>
+
+        <section className="popularSection">
+          <div className="sectionHeader discoverySectionHeader">
+            <div>
+              <h2>Популярные сейчас</h2>
+              <p>Самые активные и свежие рынки — чтобы быстро войти в игру.</p>
+            </div>
+            <button onClick={() => setMainView("search")}>Расширенный поиск</button>
+          </div>
+          {visiblePopularMarkets.length === 0 ? (
+            <div className="empty">Открытых рынков пока нет.</div>
+          ) : (
+            <div className="featuredMarketRail">
+              {visiblePopularMarkets.map((market, index) => renderFeaturedMarketTile(market, index))}
+            </div>
+          )}
+        </section>
+
+        {recommendedMarkets.length > 0 && (
+          <section className="recommendedSection">
+            <div className="sectionHeader discoverySectionHeader">
+              <div>
+                <h2>Можно попробовать</h2>
+                <p>Открытые рынки, где у тебя ещё нет активного прогноза.</p>
+              </div>
+            </div>
+            <div className="miniMarketGrid">
+              {recommendedMarkets.map((market) => renderMarketMiniRow(market, "compact"))}
+            </div>
+          </section>
+        )}
+
+        <section className="categoryHubSection">
+          <div className="sectionHeader discoverySectionHeader">
+            <div>
+              <h2>Категории</h2>
+              <p>Открой нужную тему, не пролистывая весь список рынков.</p>
+            </div>
+          </div>
+          {categoryHubs.length === 0 ? (
+            <div className="empty">Категорий пока нет.</div>
+          ) : (
+            <div className="categoryHubGrid">
+              {categoryHubs.map((group, index) => renderCategoryHub(group, index))}
+            </div>
+          )}
         </section>
       </section>
     );
@@ -2754,116 +3069,7 @@ function App() {
       ) : mainView === "search" ? (
         renderSearchPage()
       ) : (
-        <>
-          {isAdmin ? (
-            <section className="adminPanel">
-              <div className="adminHeader">
-                <div>
-                  <h2>Управление рынками</h2>
-                  <p>Создавай события, задавай правила расчета и управляй результатами.</p>
-                </div>
-                <button onClick={() => setIsAdminOpen((current) => !current)}>{isAdminOpen ? "Закрыть админку" : "Открыть админку"}</button>
-              </div>
-
-              {isAdminOpen && (
-                <div className="adminForm">
-                  <label className="wideField">Вопрос рынка<input placeholder="Например: Поедем ли мы компанией в отпуск в августе?" value={newMarket.question} onChange={(event) => setNewMarket((current) => ({ ...current, question: event.target.value }))} /></label>
-                  <label>Категория<input placeholder="Друзья" value={newMarket.category} onChange={(event) => setNewMarket((current) => ({ ...current, category: event.target.value }))} /></label>
-                  <label>Дата закрытия<input type="date" value={newMarket.closesAt} onChange={(event) => setNewMarket((current) => ({ ...current, closesAt: event.target.value }))} /></label>
-                  <label className="wideField">Описание и правила расчета<textarea placeholder="Опиши, что должно произойти, чтобы рынок был рассчитан как «Да»." value={newMarket.description} onChange={(event) => setNewMarket((current) => ({ ...current, description: event.target.value }))} /></label>
-                  <label className="wideField">Источник расчета<input placeholder="Например: решение в общем чате / официальный сайт / публичная новость" value={newMarket.source} onChange={(event) => setNewMarket((current) => ({ ...current, source: event.target.value }))} /></label>
-                  <label>Начальная вероятность “Да”, %<input type="number" min="1" max="99" value={newMarket.yesProbability} onChange={(event) => setNewMarket((current) => ({ ...current, yesProbability: Number(event.target.value) }))} /></label>
-                  <button className="createMarketButton" onClick={createMarket}>Создать рынок</button>
-                </div>
-              )}
-            </section>
-          ) : (
-            <section className="adminOnlyNotice">
-              Вы вошли как обычный участник. Создание, редактирование, расчет и удаление рынков доступны только администраторам.
-            </section>
-          )}
-
-          <section className="marketDashboardStrip">
-            <div>
-              <span>Открыто рынков</span>
-              <strong>{openMarketsCount}</strong>
-            </div>
-            <div>
-              <span>Ждут расчёта</span>
-              <strong>{closedMarketsCount}</strong>
-            </div>
-            <div>
-              <span>Всего событий</span>
-              <strong>{markets.length}</strong>
-            </div>
-            <div>
-              <span>Мои прогнозы</span>
-              <strong>{activeUserPredictions.length}</strong>
-            </div>
-            <button onClick={() => setMainView("predictions")}>Мои прогнозы</button>
-          </section>
-
-          <section className="categoryTabs feedCategoryTabs">
-            {categories.map((category) => (
-              <button key={category} className={selectedCategory === category ? "activeTab" : ""} onClick={() => setSelectedCategory(category)}>{category}</button>
-            ))}
-          </section>
-
-          <section className="layout">
-            <div className="markets">
-              <div className="sectionHeader marketFeedHeader">
-                <div>
-                  <h2>Рынки прогнозов</h2>
-                  <p>Компактная лента событий — удобно скролить и быстро открывать детали.</p>
-                </div>
-                <span>{feedMarkets.length} событий</span>
-              </div>
-              {feedMarkets.length === 0 ? (
-                <div className="empty">В этой категории рынков пока нет.</div>
-              ) : (
-                renderMarketGroups(feedMarkets, "feed")
-              )}
-            </div>
-
-            <aside className="sideColumn">
-              <section className="leaderboardBox">
-                <div className="sectionHeader"><h2>Рейтинг</h2><span>{leaderboard.length}</span></div>
-                <div className="leaderboardList">
-                  {leaderboard.map((user, index) => (
-                    <div className={`leaderboardItem ${user.id === activeUser?.id ? "activeLeaderboardItem" : ""}`} key={user.id}>
-                      <div className="place">#{index + 1}</div>
-                      <div><strong>{user.name}</strong><p>{user.balance.toLocaleString("ru-RU")} баллов</p></div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-
-              <section className="portfolio">
-                <div className="sectionHeader"><h2>Мои прогнозы</h2><span>{activeUserPredictions.length}</span></div>
-                {activeUserPredictions.length === 0 ? (
-                  <div className="empty emptyActionState">
-                    <strong>Пока прогнозов нет</strong>
-                    <p>Открой рынок и сделай первый прогноз — здесь появится твой портфель.</p>
-                  </div>
-                ) : (
-                  <div className="myPredictionList compactMyPredictionList">
-                    {activeUserPredictions.slice(0, 4).map((prediction) => renderPredictionCard(prediction))}
-                    <button className="showAllPredictionsButton" onClick={() => setMainView("predictions")}>Смотреть все прогнозы</button>
-                  </div>
-                )}
-              </section>
-
-              <section className="activityFeedBox">
-                <div className="sectionHeader"><h2>Лента</h2><span>{activityItems.length}</span></div>
-                {activityItems.length === 0 ? <div className="empty">Пока действий нет.</div> : (
-                  <div className="activityList">
-                    {activityItems.map((item) => <div className="activityItem" key={item.id}><strong>{item.title}</strong><p>{item.description}</p><small>{item.date}</small></div>)}
-                  </div>
-                )}
-              </section>
-            </aside>
-          </section>
-        </>
+        renderHomePage()
       )}
     </main>
   );

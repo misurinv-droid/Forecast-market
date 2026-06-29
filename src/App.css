@@ -4698,3 +4698,1053 @@ body:not(.is-telegram-webapp) .marketAccordionList .scrollMarketCard:hover {
     width: 100%;
   }
 }
+
+/* === Forecast Market UX Redesign: discovery feed, category hubs, better web/mobile visuals === */
+:root {
+  --fm-ink: #0b1220;
+  --fm-muted: #667085;
+  --fm-soft: rgba(255, 255, 255, 0.78);
+  --fm-card: rgba(255, 255, 255, 0.92);
+  --fm-line: rgba(15, 23, 42, 0.08);
+  --fm-blue: #3157ff;
+  --fm-purple: #7c3aed;
+  --fm-cyan: #06b6d4;
+  --fm-green: #10b981;
+  --fm-red: #ef4444;
+  --fm-shadow: 0 24px 80px rgba(15, 23, 42, 0.12);
+}
+
+body {
+  background:
+    radial-gradient(circle at 7% 3%, rgba(49, 87, 255, 0.20), transparent 28%),
+    radial-gradient(circle at 92% 9%, rgba(6, 182, 212, 0.16), transparent 30%),
+    radial-gradient(circle at 58% 0%, rgba(124, 58, 237, 0.12), transparent 32%),
+    linear-gradient(180deg, #f8fbff 0%, #eef5ff 46%, #f9fafb 100%);
+  color: var(--fm-ink);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+
+.app {
+  width: min(1360px, calc(100% - 36px));
+  padding-top: 28px;
+}
+
+.hero {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  align-items: stretch;
+  margin-bottom: 14px;
+}
+
+.hero > div:first-child,
+.balanceCard,
+.productTopBar,
+.warning,
+.discoveryHeroCard,
+.quickPanel,
+.featuredMarketTile,
+.categoryHub,
+.marketMiniRow,
+.adminDrawer,
+.popularSection,
+.recommendedSection,
+.categoryHubSection {
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.hero > div:first-child {
+  padding: 30px;
+  border: 1px solid var(--fm-line);
+  border-radius: 32px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.58));
+  box-shadow: 0 20px 70px rgba(15, 23, 42, 0.08);
+}
+
+h1 {
+  letter-spacing: -0.06em;
+  background: linear-gradient(135deg, #0b1220 0%, #3157ff 54%, #00a0b8 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.subtitle {
+  max-width: 780px;
+  color: #53627a;
+}
+
+.balanceCard {
+  background:
+    linear-gradient(135deg, rgba(8, 15, 35, 0.96), rgba(35, 63, 190, 0.92)),
+    radial-gradient(circle at 90% 0%, rgba(34, 211, 238, 0.24), transparent 36%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 28px 90px rgba(49, 87, 255, 0.18);
+}
+
+.warning {
+  border: 1px solid rgba(49, 87, 255, 0.10);
+  background: rgba(255, 255, 255, 0.66);
+  color: #475467;
+}
+
+.productTopBar {
+  position: sticky;
+  top: 10px;
+  z-index: 30;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.10);
+}
+
+.productNav button {
+  border-radius: 999px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.productNav button:hover {
+  transform: translateY(-1px);
+}
+
+.productNav .activeProductNav,
+.activeProductNav {
+  background: linear-gradient(135deg, #0f1f6f, #3157ff 55%, #06b6d4) !important;
+  color: #fff !important;
+  box-shadow: 0 12px 28px rgba(49, 87, 255, 0.25);
+}
+
+.discoveryPage {
+  display: grid;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.discoveryHeroGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(260px, 0.85fr) minmax(240px, 0.75fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.discoveryHeroCard,
+.quickPanel,
+.popularSection,
+.recommendedSection,
+.categoryHubSection,
+.adminDrawer {
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 30px;
+  background: var(--fm-card);
+  box-shadow: var(--fm-shadow);
+}
+
+.discoveryHeroCard {
+  min-height: 260px;
+  padding: 30px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  position: relative;
+}
+
+.discoveryHeroCard::after {
+  content: "";
+  position: absolute;
+  width: 260px;
+  height: 260px;
+  right: -90px;
+  top: -90px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(49, 87, 255, 0.20), transparent 66%);
+  pointer-events: none;
+}
+
+.discoveryHeroCard h2 {
+  margin: 0;
+  max-width: 720px;
+  font-size: clamp(28px, 3vw, 48px);
+  line-height: 0.98;
+  letter-spacing: -0.055em;
+}
+
+.discoveryHeroCard p:not(.eyebrow) {
+  max-width: 640px;
+  margin: 16px 0 0;
+  color: #53627a;
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.discoveryHeroActions {
+  display: flex;
+  gap: 10px;
+  margin-top: 24px;
+  flex-wrap: wrap;
+}
+
+.discoveryHeroActions button,
+.featuredActions button,
+.discoverySectionHeader button,
+.quickPanel .sectionHeader button,
+.redesignedDashboardStrip button,
+.showCategoryButton {
+  border: 0;
+  border-radius: 999px;
+  padding: 11px 16px;
+  background: linear-gradient(135deg, #111b5d, #3157ff 55%, #06b6d4);
+  color: #fff;
+  font-weight: 800;
+  box-shadow: 0 12px 24px rgba(49, 87, 255, 0.18);
+}
+
+.discoveryHeroActions .secondaryButton,
+.featuredActions .secondaryButton,
+.discoverySectionHeader button,
+.quickPanel .sectionHeader button {
+  background: rgba(15, 23, 42, 0.06);
+  color: #172033;
+  box-shadow: none;
+}
+
+.quickPanel {
+  padding: 20px;
+  min-width: 0;
+}
+
+.quickPanel .sectionHeader {
+  margin-bottom: 12px;
+}
+
+.quickPanel .sectionHeader h2 {
+  font-size: 18px;
+}
+
+.quickPredictionStack {
+  display: grid;
+  gap: 10px;
+  max-height: 330px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.quickPredictionStack .predictionCard,
+.quickPredictionStack .myPredictionCard {
+  padding: 12px;
+  border-radius: 18px;
+}
+
+.miniEmptyState {
+  min-height: 170px;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  border: 1px dashed rgba(49, 87, 255, 0.24);
+  border-radius: 22px;
+  background: rgba(49, 87, 255, 0.04);
+  padding: 18px;
+}
+
+.miniEmptyState strong {
+  font-size: 16px;
+}
+
+.miniEmptyState p {
+  margin: 8px 0 0;
+  color: var(--fm-muted);
+}
+
+.compactLeaderboardList {
+  gap: 8px;
+}
+
+.compactLeaderboardList .leaderboardItem {
+  border-radius: 18px;
+  background: rgba(248, 250, 252, 0.85);
+}
+
+.redesignedDashboardStrip {
+  border: 1px solid rgba(255, 255, 255, 0.74);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 16px 55px rgba(15, 23, 42, 0.08);
+}
+
+.popularSection,
+.recommendedSection,
+.categoryHubSection {
+  padding: 22px;
+}
+
+.discoverySectionHeader {
+  margin-bottom: 16px;
+}
+
+.discoverySectionHeader h2 {
+  margin: 0;
+  font-size: 26px;
+  letter-spacing: -0.035em;
+}
+
+.discoverySectionHeader p {
+  margin: 4px 0 0;
+  color: var(--fm-muted);
+}
+
+.featuredMarketRail {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.featuredMarketTile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 250px;
+  padding: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 26px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.78)),
+    radial-gradient(circle at 20% 0%, rgba(49, 87, 255, 0.10), transparent 38%);
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+}
+
+.featuredMarketTile::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: linear-gradient(90deg, #10b981, #3157ff, #7c3aed);
+}
+
+.featuredTileHead,
+.featuredTileFoot,
+.marketMiniTop,
+.miniMetaLine,
+.featuredActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.tileNumber {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 12px;
+  background: #0b1220;
+  color: white;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.featuredQuestion {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  color: var(--fm-ink);
+  font-weight: 900;
+  font-size: 19px;
+  line-height: 1.18;
+  letter-spacing: -0.025em;
+}
+
+.featuredOddsRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: auto;
+}
+
+.featuredOddsRow div,
+.marketMiniOdds button {
+  border: 1px solid rgba(15, 23, 42, 0.07);
+  border-radius: 18px;
+  background: rgba(248, 250, 252, 0.88);
+  padding: 11px;
+  text-align: center;
+}
+
+.featuredOddsRow span,
+.marketMiniOdds span {
+  display: block;
+  color: var(--fm-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.featuredOddsRow strong,
+.marketMiniOdds b {
+  display: block;
+  margin-top: 2px;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.featuredOddsRow div:first-child strong,
+.marketMiniOdds button:first-child b {
+  color: #059669;
+}
+
+.featuredOddsRow div:nth-child(2) strong,
+.marketMiniOdds button:nth-child(2) b {
+  color: #dc2626;
+}
+
+.signalBar {
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(16, 185, 129, 0.16), rgba(239, 68, 68, 0.16));
+  overflow: hidden;
+}
+
+.signalBar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #10b981, #3157ff);
+}
+
+.featuredTileFoot {
+  color: var(--fm-muted);
+  font-size: 12px;
+  font-weight: 700;
+  justify-content: space-between;
+}
+
+.featuredMyPosition {
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(16, 185, 129, 0.10);
+  color: #047857;
+  font-weight: 900;
+  font-size: 13px;
+}
+
+.miniMarketGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.categoryHubGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.categoryHub {
+  overflow: hidden;
+}
+
+.categoryHubSummary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px;
+  cursor: pointer;
+}
+
+.categoryHubSummary::-webkit-details-marker {
+  display: none;
+}
+
+.categoryHubTitleBlock {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.categoryEmoji {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 44px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(49, 87, 255, 0.12), rgba(6, 182, 212, 0.10));
+  font-size: 21px;
+}
+
+.categoryHubTitleBlock strong {
+  display: block;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+
+.categoryHubTitleBlock p {
+  margin: 4px 0 0;
+  color: var(--fm-muted);
+  font-size: 13px;
+}
+
+.categoryHubChevron {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.06);
+  font-weight: 900;
+  transition: transform 0.2s ease;
+}
+
+.categoryHub[open] .categoryHubChevron {
+  transform: rotate(180deg);
+}
+
+.categoryHubBody {
+  display: grid;
+  gap: 10px;
+  padding: 0 14px 14px;
+}
+
+.marketMiniRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 172px;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.07);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+}
+
+.marketMiniMain {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.marketMiniMain strong {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 8px 0;
+  color: var(--fm-ink);
+  font-size: 15px;
+  line-height: 1.25;
+  letter-spacing: -0.018em;
+}
+
+.miniCategory,
+.miniSource,
+.miniStatus,
+.miniMine {
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.miniCategory {
+  background: rgba(49, 87, 255, 0.10);
+  color: #2441c2;
+}
+
+.miniSource {
+  background: rgba(16, 185, 129, 0.10);
+  color: #047857;
+}
+
+.miniStatus {
+  background: rgba(15, 23, 42, 0.06);
+  color: #475467;
+}
+
+.miniMine {
+  background: rgba(124, 58, 237, 0.10);
+  color: #6d28d9;
+}
+
+.miniMetaLine {
+  color: var(--fm-muted);
+  font-size: 11px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.marketMiniOdds {
+  display: grid;
+  grid-template-columns: 1fr 1fr 34px;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.marketMiniOdds button {
+  border: 1px solid rgba(15, 23, 42, 0.07);
+  cursor: pointer;
+}
+
+.marketMiniOdds .miniFavorite {
+  padding: 0;
+  border-radius: 14px;
+  font-size: 18px;
+  font-weight: 900;
+  color: #98a2b3;
+}
+
+.marketMiniOdds .miniFavorite.activeFavorite {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.showCategoryButton {
+  width: 100%;
+  justify-content: center;
+}
+
+.adminDrawer {
+  overflow: hidden;
+}
+
+.adminDrawer > summary {
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 20px;
+  cursor: pointer;
+}
+
+.adminDrawer > summary::-webkit-details-marker {
+  display: none;
+}
+
+.adminDrawer > summary strong,
+.adminDrawer > summary span {
+  display: block;
+}
+
+.adminDrawer > summary span {
+  margin-top: 3px;
+  color: var(--fm-muted);
+}
+
+.adminDrawerBody {
+  padding: 0 18px 18px;
+}
+
+.compactAdminHeader,
+.compactAdminForm {
+  box-shadow: none;
+}
+
+@media (max-width: 1180px) {
+  .discoveryHeroGrid,
+  .featuredMarketRail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .discoveryHeroCard {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 860px) {
+  .app {
+    width: min(100% - 20px, 720px);
+  }
+
+  .hero {
+    grid-template-columns: 1fr;
+  }
+
+  .discoveryHeroGrid,
+  .categoryHubGrid,
+  .miniMarketGrid,
+  .featuredMarketRail {
+    grid-template-columns: 1fr;
+  }
+
+  .featuredMarketRail {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding-bottom: 6px;
+    margin-inline: -4px;
+    padding-inline: 4px;
+  }
+
+  .featuredMarketTile {
+    min-width: min(88vw, 360px);
+    scroll-snap-align: start;
+  }
+
+  .marketMiniRow {
+    grid-template-columns: 1fr;
+  }
+
+  .marketMiniOdds {
+    grid-template-columns: 1fr 1fr 42px;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero > div:first-child {
+    padding: 18px;
+    border-radius: 24px;
+  }
+
+  h1 {
+    font-size: 36px;
+  }
+
+  .subtitle {
+    font-size: 14px;
+  }
+
+  .balanceCard {
+    min-height: 132px;
+    padding: 18px;
+    border-radius: 24px;
+  }
+
+  .balanceCard strong {
+    font-size: 23px;
+    margin: 8px 0;
+  }
+
+  .productTopBar {
+    top: 8px;
+    padding: 8px;
+    border-radius: 22px;
+  }
+
+  .productNav {
+    gap: 6px;
+  }
+
+  .productNav button {
+    padding: 9px 12px;
+    font-size: 12px;
+  }
+
+  .discoveryHeroCard,
+  .quickPanel,
+  .popularSection,
+  .recommendedSection,
+  .categoryHubSection {
+    border-radius: 24px;
+  }
+
+  .discoveryHeroCard {
+    min-height: auto;
+    padding: 20px;
+  }
+
+  .discoveryHeroCard h2 {
+    font-size: 28px;
+  }
+
+  .discoveryHeroCard p:not(.eyebrow) {
+    font-size: 14px;
+  }
+
+  .redesignedDashboardStrip {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .redesignedDashboardStrip button {
+    grid-column: 1 / -1;
+  }
+
+  .featuredMarketTile {
+    min-height: 222px;
+    padding: 15px;
+    border-radius: 22px;
+  }
+
+  .featuredQuestion {
+    font-size: 16px;
+  }
+
+  .featuredOddsRow strong,
+  .marketMiniOdds b {
+    font-size: 18px;
+  }
+
+  .categoryHubSummary {
+    padding: 14px;
+  }
+
+  .categoryEmoji {
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
+    border-radius: 15px;
+  }
+
+  .categoryHubTitleBlock strong {
+    font-size: 16px;
+  }
+
+  .categoryHubTitleBlock p,
+  .miniMetaLine,
+  .featuredTileFoot {
+    font-size: 11px;
+  }
+}
+
+body.is-telegram-webapp {
+  background:
+    radial-gradient(circle at 10% 0%, rgba(49, 87, 255, 0.18), transparent 26%),
+    radial-gradient(circle at 90% 0%, rgba(6, 182, 212, 0.13), transparent 28%),
+    linear-gradient(180deg, #f8fbff 0%, #eef5ff 100%);
+}
+
+.telegramApp {
+  width: 100%;
+  max-width: none;
+  padding-left: 10px;
+  padding-right: 10px;
+  padding-top: max(24px, calc(var(--tg-safe-top, 0px) + var(--tg-content-safe-top, 0px) + 24px));
+  padding-bottom: max(28px, calc(var(--tg-safe-bottom, 0px) + 18px));
+}
+
+.telegramApp .hero {
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.telegramApp .hero > div:first-child {
+  padding: 14px;
+  border-radius: 22px;
+}
+
+.telegramApp h1 {
+  font-size: 30px;
+}
+
+.telegramApp .eyebrow {
+  font-size: 10px;
+  margin-bottom: 5px;
+}
+
+.telegramApp .subtitle {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.telegramApp .balanceCard {
+  min-height: 112px;
+  padding: 14px;
+  border-radius: 22px;
+}
+
+.telegramApp .balanceCard strong {
+  font-size: 21px;
+}
+
+.telegramApp .warning {
+  margin: 8px 0;
+  padding: 9px 11px;
+  border-radius: 16px;
+  font-size: 11px;
+}
+
+.telegramApp .productTopBar {
+  top: max(8px, calc(var(--tg-safe-top, 0px) + 8px));
+  margin-bottom: 10px;
+  border-radius: 21px;
+}
+
+.telegramApp .connectionPill {
+  display: none;
+}
+
+.telegramApp .discoveryPage {
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.telegramApp .discoveryHeroGrid {
+  gap: 10px;
+}
+
+.telegramApp .discoveryHeroCard,
+.telegramApp .quickPanel,
+.telegramApp .popularSection,
+.telegramApp .recommendedSection,
+.telegramApp .categoryHubSection,
+.telegramApp .adminDrawer {
+  border-radius: 22px;
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.08);
+}
+
+.telegramApp .discoveryHeroCard {
+  padding: 16px;
+}
+
+.telegramApp .discoveryHeroCard h2 {
+  font-size: 24px;
+  line-height: 1.02;
+}
+
+.telegramApp .discoveryHeroCard p:not(.eyebrow) {
+  font-size: 12px;
+  line-height: 1.38;
+  margin-top: 8px;
+}
+
+.telegramApp .discoveryHeroActions {
+  margin-top: 12px;
+}
+
+.telegramApp .quickPanel {
+  padding: 14px;
+}
+
+.telegramApp .quickPanelLeaderboard {
+  order: -1;
+}
+
+.telegramApp .quickPanelPredictions {
+  order: -2;
+}
+
+.telegramApp .quickPredictionStack {
+  max-height: 210px;
+}
+
+.telegramApp .popularSection,
+.telegramApp .recommendedSection,
+.telegramApp .categoryHubSection {
+  padding: 14px;
+}
+
+.telegramApp .discoverySectionHeader {
+  margin-bottom: 10px;
+}
+
+.telegramApp .discoverySectionHeader h2,
+.telegramApp .quickPanel .sectionHeader h2 {
+  font-size: 17px;
+}
+
+.telegramApp .discoverySectionHeader p {
+  display: none;
+}
+
+.telegramApp .featuredMarketRail {
+  gap: 10px;
+}
+
+.telegramApp .featuredMarketTile {
+  min-width: 82vw;
+  min-height: 208px;
+  padding: 14px;
+}
+
+.telegramApp .featuredQuestion {
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.telegramApp .featuredOddsRow {
+  gap: 8px;
+}
+
+.telegramApp .featuredOddsRow div,
+.telegramApp .marketMiniOdds button {
+  padding: 8px;
+  border-radius: 15px;
+}
+
+.telegramApp .featuredOddsRow strong,
+.telegramApp .marketMiniOdds b {
+  font-size: 17px;
+}
+
+.telegramApp .categoryHubGrid {
+  gap: 10px;
+}
+
+.telegramApp .categoryHubSummary {
+  padding: 13px;
+}
+
+.telegramApp .categoryHubBody {
+  padding: 0 10px 10px;
+}
+
+.telegramApp .marketMiniRow {
+  padding: 10px;
+  border-radius: 18px;
+  gap: 8px;
+}
+
+.telegramApp .marketMiniMain strong {
+  font-size: 13px;
+  margin: 6px 0;
+  -webkit-line-clamp: 2;
+}
+
+.telegramApp .marketMiniTop {
+  gap: 5px;
+}
+
+.telegramApp .miniCategory,
+.telegramApp .miniSource,
+.telegramApp .miniStatus,
+.telegramApp .miniMine {
+  padding: 3px 7px;
+  font-size: 10px;
+}
+
+.telegramApp .miniMetaLine {
+  gap: 5px;
+  margin-bottom: 6px;
+}
+
+.telegramApp .signalBar {
+  height: 6px;
+}
+
+.telegramApp .marketMiniOdds {
+  grid-template-columns: 1fr 1fr 36px;
+  gap: 6px;
+}
+
+.telegramApp .redesignedDashboardStrip {
+  padding: 10px;
+  border-radius: 18px;
+}
+
+.telegramApp .redesignedDashboardStrip div {
+  padding: 9px;
+  border-radius: 15px;
+}
+
+.telegramApp .redesignedDashboardStrip span {
+  font-size: 10px;
+}
+
+.telegramApp .redesignedDashboardStrip strong {
+  font-size: 18px;
+}
+
+.telegramApp .adminDrawer > summary {
+  padding: 13px 14px;
+}
