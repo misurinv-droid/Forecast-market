@@ -5748,3 +5748,570 @@ body.is-telegram-webapp {
 .telegramApp .adminDrawer > summary {
   padding: 13px 14px;
 }
+
+
+/* === Telegram layout repair + desktop polish ===
+   Fixes the UX redesign in Telegram fullscreen: no horizontal rail overflow,
+   no half-visible cards, visible leader text, compact prediction cards. */
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100%;
+}
+
+body,
+#root {
+  overflow-x: hidden;
+}
+
+body.is-telegram-webapp {
+  overflow-x: hidden;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(49, 87, 255, 0.14), transparent 28%),
+    radial-gradient(circle at 88% 2%, rgba(16, 185, 129, 0.12), transparent 30%),
+    linear-gradient(180deg, #f8fbff 0%, #edf5ff 52%, #f8fafc 100%);
+}
+
+.telegramApp,
+.telegramApp * {
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.telegramApp {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  padding-left: 12px;
+  padding-right: 12px;
+  /* Telegram fullscreen has its own Close/More overlay. Keep the UI safely below it. */
+  padding-top: max(88px, calc(var(--tg-safe-top, 0px) + var(--tg-content-safe-top, 0px) + 76px));
+  padding-bottom: max(36px, calc(var(--tg-safe-bottom, 0px) + 24px));
+}
+
+.telegramApp .productTopBar {
+  top: max(54px, calc(var(--tg-safe-top, 0px) + var(--tg-content-safe-top, 0px) + 42px));
+  width: 100%;
+  max-width: calc(100vw - 24px);
+  margin-left: auto;
+  margin-right: auto;
+  z-index: 60;
+  overflow: hidden;
+}
+
+.telegramApp .productNav {
+  display: flex;
+  gap: 5px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.telegramApp .productNav::-webkit-scrollbar {
+  display: none;
+}
+
+.telegramApp .productNav button {
+  flex: 0 0 auto;
+  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.telegramApp .hero {
+  display: none;
+}
+
+.telegramApp .discoveryPage {
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.telegramApp .adminDrawer {
+  display: none;
+}
+
+.telegramApp .discoveryHeroGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* In Telegram the marketing hero wastes space and makes the feed feel broken. */
+.telegramApp .discoveryHeroCard {
+  display: none;
+}
+
+.telegramApp .quickPanel {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 12px;
+  border-radius: 22px;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
+}
+
+.telegramApp .quickPanelPredictions {
+  order: 1;
+}
+
+.telegramApp .quickPanelLeaderboard {
+  order: 2;
+}
+
+.telegramApp .quickPanel .sectionHeader {
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 9px;
+}
+
+.telegramApp .quickPanel .sectionHeader h2 {
+  font-size: 16px;
+  letter-spacing: -0.02em;
+}
+
+.telegramApp .quickPanel .sectionHeader button {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  font-size: 11px;
+}
+
+.telegramApp .quickPredictionStack {
+  max-height: none;
+  overflow: visible;
+  display: grid;
+  gap: 8px;
+  padding-right: 0;
+}
+
+.telegramApp .quickPredictionStack .myPredictionCard:nth-child(n+3) {
+  display: none;
+}
+
+.telegramApp .myPredictionCard {
+  width: 100%;
+  max-width: 100%;
+  grid-template-columns: 42px minmax(0, 1fr);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.telegramApp .myPredictionSide {
+  min-height: auto;
+  padding: 8px 0;
+}
+
+.telegramApp .myPredictionSide span {
+  writing-mode: horizontal-tb;
+  transform: none;
+  font-size: 12px;
+}
+
+.telegramApp .myPredictionBody {
+  padding: 8px 9px;
+}
+
+.telegramApp .myPredictionTopLine {
+  gap: 6px;
+  font-size: 10px;
+  margin-bottom: 4px;
+}
+
+.telegramApp .myPredictionCard h4 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.22;
+  margin: 0 0 6px;
+}
+
+.telegramApp .myPredictionMetaGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.telegramApp .myPredictionMetaGrid div {
+  padding: 5px;
+}
+
+.telegramApp .myPredictionMetaGrid span {
+  font-size: 9px;
+}
+
+.telegramApp .myPredictionMetaGrid strong {
+  font-size: 10px;
+}
+
+.telegramApp .leaderboardList,
+.telegramApp .compactLeaderboardList {
+  display: grid;
+  gap: 7px;
+}
+
+.telegramApp .leaderboardItem,
+.telegramApp .compactLeaderboardList .leaderboardItem {
+  display: grid !important;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 58px;
+  padding: 8px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #0f172a;
+}
+
+.telegramApp .leaderboardItem .place {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  font-size: 14px;
+  transform: none;
+}
+
+.telegramApp .leaderboardItem > div:not(.place) {
+  display: block !important;
+  min-width: 0;
+  overflow: hidden;
+  color: #0f172a;
+}
+
+.telegramApp .leaderboardItem strong {
+  display: block !important;
+  color: #0f172a;
+  font-size: 13px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.telegramApp .leaderboardItem p {
+  display: block !important;
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.telegramApp .marketDashboardStrip,
+.telegramApp .redesignedDashboardStrip {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  padding: 9px;
+  border-radius: 19px;
+}
+
+.telegramApp .redesignedDashboardStrip div {
+  padding: 8px;
+}
+
+.telegramApp .redesignedDashboardStrip button {
+  grid-column: 1 / -1;
+  padding: 9px 12px;
+  font-size: 12px;
+}
+
+.telegramApp .popularSection,
+.telegramApp .recommendedSection,
+.telegramApp .categoryHubSection {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 13px;
+  border-radius: 22px;
+}
+
+.telegramApp .discoverySectionHeader {
+  margin-bottom: 9px;
+}
+
+.telegramApp .discoverySectionHeader h2 {
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.telegramApp .discoverySectionHeader button {
+  padding: 7px 10px;
+  font-size: 11px;
+}
+
+/* The old mobile rail showed half-cards and made the feed look broken. Use a vertical feed. */
+.telegramApp .featuredMarketRail {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 9px;
+  overflow: visible !important;
+  padding: 0;
+  margin: 0;
+  scroll-snap-type: none;
+}
+
+.telegramApp .featuredMarketTile {
+  width: 100%;
+  min-width: 0 !important;
+  max-width: 100%;
+  min-height: auto;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 19px;
+  scroll-snap-align: none;
+}
+
+.telegramApp .featuredMarketTile:nth-child(n+5) {
+  display: none;
+}
+
+.telegramApp .featuredTileHead {
+  gap: 5px;
+}
+
+.telegramApp .tileNumber {
+  width: 28px;
+  height: 28px;
+  border-radius: 11px;
+  font-size: 11px;
+}
+
+.telegramApp .featuredQuestion {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  width: 100%;
+  font-size: 14px;
+  line-height: 1.22;
+}
+
+.telegramApp .featuredOddsRow {
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.telegramApp .featuredOddsRow div {
+  min-height: 48px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  padding: 7px;
+  border-radius: 14px;
+}
+
+.telegramApp .featuredOddsRow span {
+  font-size: 10px;
+}
+
+.telegramApp .featuredOddsRow strong {
+  font-size: 16px;
+}
+
+.telegramApp .featuredTileFoot {
+  gap: 6px;
+  justify-content: flex-start;
+  font-size: 10px;
+}
+
+.telegramApp .featuredActions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px;
+}
+
+.telegramApp .featuredActions button {
+  padding: 8px 10px;
+  font-size: 11px;
+}
+
+.telegramApp .miniMarketGrid,
+.telegramApp .categoryHubGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 9px;
+}
+
+.telegramApp .recommendedSection .marketMiniRow:nth-child(n+4) {
+  display: none;
+}
+
+.telegramApp .categoryHub {
+  width: 100%;
+  max-width: 100%;
+  border-radius: 19px;
+}
+
+.telegramApp .categoryHubSummary {
+  padding: 12px;
+}
+
+.telegramApp .categoryHubTitleBlock {
+  gap: 9px;
+}
+
+.telegramApp .categoryEmoji {
+  width: 36px;
+  height: 36px;
+  flex-basis: 36px;
+  border-radius: 14px;
+  font-size: 18px;
+}
+
+.telegramApp .categoryHubTitleBlock strong {
+  font-size: 14px;
+  line-height: 1.15;
+}
+
+.telegramApp .categoryHubTitleBlock p {
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.telegramApp .categoryHubChevron {
+  width: 32px;
+  height: 32px;
+}
+
+.telegramApp .categoryHubBody {
+  padding: 0 9px 9px;
+  gap: 8px;
+}
+
+.telegramApp .marketMiniRow {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  width: 100%;
+  max-width: 100%;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 17px;
+}
+
+.telegramApp .marketMiniMain {
+  width: 100%;
+  max-width: 100%;
+}
+
+.telegramApp .marketMiniTop {
+  gap: 4px;
+}
+
+.telegramApp .miniCategory,
+.telegramApp .miniSource,
+.telegramApp .miniStatus,
+.telegramApp .miniMine {
+  max-width: 100%;
+  padding: 3px 6px;
+  font-size: 9.5px;
+}
+
+.telegramApp .marketMiniMain strong {
+  font-size: 13px;
+  line-height: 1.22;
+  margin: 6px 0;
+}
+
+.telegramApp .miniMetaLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  font-size: 10px;
+  line-height: 1.2;
+  margin-bottom: 7px;
+}
+
+.telegramApp .signalBar {
+  height: 6px;
+}
+
+.telegramApp .marketMiniOdds {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr 38px;
+  gap: 6px;
+  width: 100%;
+  max-width: 100%;
+}
+
+.telegramApp .marketMiniOdds button {
+  min-height: 46px;
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #0f172a;
+  opacity: 1;
+  overflow: hidden;
+}
+
+.telegramApp .marketMiniOdds span,
+.telegramApp .marketMiniOdds b {
+  display: block !important;
+  opacity: 1;
+  line-height: 1.1;
+}
+
+.telegramApp .marketMiniOdds span {
+  font-size: 10px;
+  color: #64748b;
+}
+
+.telegramApp .marketMiniOdds b {
+  margin-top: 2px;
+  font-size: 15px;
+}
+
+.telegramApp .marketMiniOdds .miniFavorite {
+  font-size: 17px;
+  min-height: 46px;
+}
+
+.telegramApp .showCategoryButton {
+  padding: 9px 12px;
+  font-size: 12px;
+}
+
+/* Desktop/browser polish: keep cards aligned and prevent awkward tall rows. */
+body:not(.is-telegram-webapp) .app {
+  width: min(1280px, calc(100% - 48px));
+}
+
+body:not(.is-telegram-webapp) .featuredMarketRail {
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+}
+
+body:not(.is-telegram-webapp) .featuredMarketTile {
+  min-height: 230px;
+}
+
+body:not(.is-telegram-webapp) .marketMiniRow {
+  min-height: 116px;
+}
+
+body:not(.is-telegram-webapp) .discoveryHeroGrid {
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.9fr) minmax(260px, 0.8fr);
+}
+
+@media (max-width: 860px) {
+  body:not(.is-telegram-webapp) .featuredMarketRail {
+    display: grid;
+    grid-template-columns: 1fr;
+    overflow: visible;
+    margin: 0;
+    padding: 0;
+  }
+
+  body:not(.is-telegram-webapp) .featuredMarketTile {
+    min-width: 0;
+  }
+}
