@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { MouseEvent, TouchEvent } from "react";
 import "./App.css";
 
 type Outcome = "yes" | "no";
@@ -7,6 +8,9 @@ type SuggestionStatus = "pending" | "approved" | "rejected";
 type SortMode = "newest" | "probability" | "trades" | "comments";
 type DetailsTab = "overview" | "trades" | "participants" | "chat";
 type MainView = "markets" | "imported" | "search" | "predictions" | "tournament" | "suggest" | "admin" | "moderation" | "settlement" | "profile";
+type AppRouteSnapshot = { mainView: MainView; selectedMarketId: string | null };
+type SwipeRailMode = "pending" | "horizontal" | "vertical";
+type SwipeRailState = { rail: HTMLElement; startX: number; startY: number; scrollLeft: number; mode: SwipeRailMode; moved: boolean };
 type MyPredictionTab = "active" | "settled" | "won" | "lost" | "all";
 type ProfileTab = "overview" | "achievements" | "predictions" | "social" | "history";
 type AdminPanelTab = "overview" | "users" | "markets" | "create" | "suggestions" | "settlement" | "polymarket" | "points" | "security";
@@ -834,6 +838,11 @@ function App() {
 
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
   const [detailsTab, setDetailsTab] = useState<DetailsTab>("overview");
+  const [routeHistory, setRouteHistory] = useState<AppRouteSnapshot[]>([]);
+  const lastRouteRef = useRef<AppRouteSnapshot | null>(null);
+  const isRestoringRouteRef = useRef(false);
+  const swipeRailRef = useRef<SwipeRailState | null>(null);
+  const suppressSwipeClickUntilRef = useRef(0);
 
   const [editingMarketId, setEditingMarketId] = useState<string | null>(null);
   const [editMarket, setEditMarket] = useState<EditMarketForm>(emptyEditMarketForm);
@@ -1364,6 +1373,84 @@ function App() {
     }
   }
 
+  function goBackRoute() {
+    const previousRoute = routeHistory[routeHistory.length - 1];
+
+    sendHaptic("light");
+
+    if (previousRoute) {
+      isRestoringRouteRef.current = true;
+      setRouteHistory((currentHistory) => currentHistory.slice(0, -1));
+      setSelectedMarketId(previousRoute.selectedMarketId);
+      setMainView(previousRoute.mainView);
+      window.setTimeout(() => scrollAppToTop("auto"), 0);
+      return;
+    }
+
+    if (selectedMarketId) {
+      setSelectedMarketId(null);
+      window.setTimeout(() => scrollAppToTop("auto"), 0);
+      return;
+    }
+
+    if (mainView !== "markets") {
+      setMainView("markets");
+      window.setTimeout(() => scrollAppToTop("auto"), 0);
+    }
+  }
+
+  function handleSwipeRailTouchStart(event: TouchEvent<HTMLElement>) {
+    const touch = event.touches[0];
+    if (!touch) return;
+
+    swipeRailRef.current = {
+      rail: event.currentTarget,
+      startX: touch.clientX,
+      startY: touch.clientY,
+      scrollLeft: event.currentTarget.scrollLeft,
+      mode: "pending",
+      moved: false,
+    };
+  }
+
+  function handleSwipeRailTouchMove(event: TouchEvent<HTMLElement>) {
+    const state = swipeRailRef.current;
+    const touch = event.touches[0];
+
+    if (!state || !touch) return;
+
+    const deltaX = touch.clientX - state.startX;
+    const deltaY = touch.clientY - state.startY;
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
+
+    if (state.mode === "pending" && Math.max(absX, absY) > 6) {
+      state.mode = absX > absY ? "horizontal" : "vertical";
+    }
+
+    if (state.mode !== "horizontal") return;
+
+    state.moved = true;
+    state.rail.scrollLeft = state.scrollLeft - deltaX;
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  function handleSwipeRailTouchEnd() {
+    if (swipeRailRef.current?.moved && swipeRailRef.current.mode === "horizontal") {
+      suppressSwipeClickUntilRef.current = Date.now() + 260;
+    }
+
+    swipeRailRef.current = null;
+  }
+
+  function handleSwipeRailClickCapture(event: MouseEvent<HTMLElement>) {
+    if (Date.now() <= suppressSwipeClickUntilRef.current) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }
+
   function closeOnboarding() {
     markOnboardingSeen();
     setIsOnboardingOpen(false);
@@ -1430,6 +1517,65 @@ function App() {
       // localStorage может быть недоступен во встроенном WebView — это не критично.
     }
   }, [selectedInterestCategories]);
+
+  useEffect(() => {
+    const nextRoute: AppRouteSnapshot = { mainView, selectedMarketId };
+    const previousRoute = lastRouteRef.current;
+
+    if (!previousRoute) {
+      lastRouteRef.current = nextRoute;
+      return;
+    }
+
+    if (previousRoute.mainView === nextRoute.mainView && previousRoute.selectedMarketId === nextRoute.selectedMarketId) {
+      return;
+    }
+
+    if (isRestoringRouteRef.current) {
+      isRestoringRouteRef.current = false;
+      lastRouteRef.current = nextRoute;
+      return;
+    }
+
+    setRouteHistory((currentHistory) => {
+      const lastSavedRoute = currentHistory[currentHistory.length - 1];
+      const alreadySaved =
+        lastSavedRoute?.mainView === previousRoute.mainView &&
+        lastSavedRoute?.selectedMarketId === previousRoute.selectedMarketId;
+
+      return alreadySaved ? currentHistory : [...currentHistory, previousRoute].slice(-24);
+    });
+
+    lastRouteRef.current = nextRoute;
+  }, [mainView, selectedMarketId]);
+
+  useEffect(() => {
+    const telegramWebApp = getRealTelegramWebApp();
+    const canGoBack = mainView !== "markets" || Boolean(selectedMarketId);
+
+    if (!telegramWebApp?.BackButton) return;
+
+    const handleTelegramBack = () => goBackRoute();
+
+    try {
+      if (canGoBack) {
+        telegramWebApp.BackButton.show();
+        telegramWebApp.BackButton.onClick(handleTelegramBack);
+      } else {
+        telegramWebApp.BackButton.hide();
+      }
+    } catch {
+      // На старых клиентах Telegram BackButton может быть недоступен.
+    }
+
+    return () => {
+      try {
+        telegramWebApp.BackButton?.offClick(handleTelegramBack);
+      } catch {
+        // Игнорируем старые клиенты Telegram.
+      }
+    };
+  }, [mainView, selectedMarketId, routeHistory]);
 
   async function initializeApp() {
     setIsLoading(true);
@@ -2694,7 +2840,15 @@ function App() {
           )}
         </div>
 
-        <div className="interestChipGrid">
+        <div
+          className="interestChipGrid"
+          data-swipe-rail="true"
+          onTouchStartCapture={handleSwipeRailTouchStart}
+          onTouchMoveCapture={handleSwipeRailTouchMove}
+          onTouchEndCapture={handleSwipeRailTouchEnd}
+          onTouchCancelCapture={handleSwipeRailTouchEnd}
+          onClickCapture={handleSwipeRailClickCapture}
+        >
           {interestCategories.map((category, index) => {
             const isActive = selectedInterestCategories.includes(category);
             const openCount = markets.filter((market) => market.status === "open" && market.category === category).length;
@@ -2735,7 +2889,15 @@ function App() {
           </div>
           <button onClick={onAction}>{actionLabel}</button>
         </div>
-        <div className="gameShelfList">
+        <div
+          className="gameShelfList"
+          data-swipe-rail="true"
+          onTouchStartCapture={handleSwipeRailTouchStart}
+          onTouchMoveCapture={handleSwipeRailTouchMove}
+          onTouchEndCapture={handleSwipeRailTouchEnd}
+          onTouchCancelCapture={handleSwipeRailTouchEnd}
+          onClickCapture={handleSwipeRailClickCapture}
+        >
           {marketsToRender.map((market) => renderMarketMiniRow(market, "compact"))}
         </div>
       </section>
@@ -4260,6 +4422,7 @@ function App() {
   }
 
   const appClassName = `app ${isTelegram ? "telegramApp" : ""}`;
+  const canShowBackButton = mainView !== "markets" || Boolean(selectedMarketId);
 
   if (isLoading) {
     return (
@@ -4305,6 +4468,12 @@ function App() {
   return (
     <main className={appClassName}>
       {toastMessage && <div className="appToast" role="status">{toastMessage}</div>}
+
+      {canShowBackButton && (
+        <button className="floatingBackButton" onClick={goBackRoute} aria-label="Вернуться назад">
+          ← Назад
+        </button>
+      )}
 
       {!activeUser && !isLoading && (
         <section className="authWarningCard securityModeCard">

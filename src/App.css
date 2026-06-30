@@ -10805,3 +10805,84 @@ body,
   padding-left: 2px !important;
   padding-right: 24px !important;
 }
+
+
+/* Strong carousel drag restore + back navigation */
+.telegramApp .gameShelf .gameShelfList,
+.telegramApp .interestChipGrid,
+.gameShelf .gameShelfList,
+.interestChipGrid {
+  cursor: grab;
+  touch-action: auto !important;
+  user-select: none;
+}
+
+.telegramApp .gameShelf .gameShelfList:active,
+.telegramApp .interestChipGrid:active,
+.gameShelf .gameShelfList:active,
+.interestChipGrid:active {
+  cursor: grabbing;
+}
+
+.telegramApp .gameShelf .gameShelfList *,
+.telegramApp .interestChipGrid *,
+.gameShelf .gameShelfList *,
+.interestChipGrid * {
+  touch-action: auto !important;
+}
+
+.telegramApp .bottomTabBar,
+.telegramApp .bottomTabBar *,
+.telegramApp .mobileAdminFab,
+.telegramApp .floatingBackButton {
+  touch-action: manipulation !important;
+}
+
+.floatingBackButton {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  left: 14px;
+  z-index: 9600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  border: 0;
+  border-radius: 999px;
+  padding: 9px 13px;
+  color: #0f172a;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(238, 249, 255, 0.92));
+  border: 1px solid rgba(226, 232, 240, 0.94);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.14);
+  backdrop-filter: blur(16px);
+  font-size: 0.82rem;
+  font-weight: 950;
+}
+
+.telegramApp .floatingBackButton {
+  top: calc(env(safe-area-inset-top, 0px) + 54px);
+  left: 12px;
+  min-height: 34px;
+  padding: 8px 11px;
+  font-size: 0.76rem;
+}
+
+.telegramApp .brandHeader {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 50px) !important;
+}
+
+.telegramApp .floatingBackButton + .authWarningCard,
+.telegramApp .floatingBackButton + .brandHeader {
+  margin-top: 0;
+}
+
+@media (max-width: 760px) {
+  main:not(.telegramApp) .floatingBackButton {
+    top: calc(env(safe-area-inset-top, 0px) + 10px);
+    left: 10px;
+    min-height: 34px;
+    padding: 8px 11px;
+    font-size: 0.76rem;
+  }
+}
