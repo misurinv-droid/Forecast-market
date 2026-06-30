@@ -2612,15 +2612,9 @@ function App() {
             <div><b>2</b><span>Выбери Да или Нет</span></div>
             <div><b>3</b><span>Дождись расчёта</span></div>
           </div>
-          <div className="brandHero">
-  <div className="brandHeroInner">
-    <img
-      src="/forecast-market-logo.png"
-      alt="Forecast Market"
-      className="brandHeroLogo"
-    />
-  </div>
-</div>
+          <div className="onboardingDisclaimer">
+            Игровые баллы не являются деньгами, не покупаются, не продаются, не передаются и не выводятся.
+          </div>
           <div className="onboardingActions">
             <button className="secondaryButton" onClick={() => setIsRulesOpen(true)}>Правила</button>
             <button onClick={closeOnboarding}>Понятно, начать</button>
@@ -3882,27 +3876,25 @@ function App() {
         </section>
       )}
 
-      <section className="hero">
-        <div>
-          <p className="eyebrow">Социальная биржа прогнозов</p>
-          <h1>Forecast Market</h1>
-          <p className="subtitle">
-            Прогнозируй события, следи за вероятностями, обсуждай рынки и поднимайся в рейтинге. Без реальных денег — только игровые баллы.
-          </p>
+      <section className="brandHeader" aria-label="Forecast Market">
+        <div className="brandHeaderLogoCard">
+          <img
+            src="/forecast-market-logo.png"
+            alt="Forecast Market"
+            className="brandHeaderLogo"
+          />
         </div>
-        <div className="balanceCard">
+        <div className="brandHeaderProfileCard">
           <div>
-            <span>{activeUser?.name || "Профиль"}</span>
+            <span>{activeUser?.name || "Режим просмотра"}</span>
             <strong>{(activeUser?.balance || 0).toLocaleString("ru-RU")} баллов</strong>
-            <p>{isAdmin ? "Администратор" : "Участник"} · {activeUserStats.predictionsCount} прогнозов · Winrate {activeUserStats.winRate}%</p>
+            <p>{activeUser ? `${isAdmin ? "Администратор" : "Участник"} · ${activeUserStats.predictionsCount} прогнозов · Winrate ${activeUserStats.winRate}%` : "Открой через Telegram, чтобы делать прогнозы"}</p>
           </div>
-          <button onClick={() => setMainView("profile")}>Открыть профиль</button>
-          <button className="secondaryButton" onClick={() => setIsRulesOpen(true)}>Правила</button>
+          <div className="brandHeaderActions">
+            <button onClick={() => setMainView("profile")}>Профиль</button>
+            <button className="secondaryButton" onClick={() => setIsRulesOpen(true)}>Правила</button>
+          </div>
         </div>
-      </section>
-
-      <section className="warning">
-        Игровые баллы не являются деньгами, не имеют имущественной ценности, не покупаются, не продаются, не передаются и не выводятся.
       </section>
 
       <section className="productTopBar">
