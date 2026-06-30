@@ -14,7 +14,26 @@ type SwipeRailState = { rail: HTMLElement; startX: number; startY: number; scrol
 type MarketBadge = { label: string; emoji: string; tone: "hot" | "soon" | "new" | "interest" | "poly" | "mine" | "closed" };
 type ActivityTone = "bonus" | "prediction" | "win" | "loss" | "market" | "social" | "admin" | "calm";
 type ActivityItem = { id: string; emoji: string; title: string; text: string; tone: ActivityTone; actionLabel: string; action: () => void };
-type DailyMission = { id: string; icon: string; title: string; text: string; reward: string; completed: boolean; actionLabel: string; action: () => void };
+type DailyMission = {
+  id: string;
+  icon: string;
+  title: string;
+  text: string;
+  reward: string;
+  rewardAmount: number;
+  completed: boolean;
+  claimed: boolean;
+  actionLabel: string;
+  action: () => void;
+};
+type DailyMissionClaim = {
+  id: string;
+  userId: string;
+  missionId: string;
+  missionDate: string;
+  rewardAmount: number;
+  createdAt: string;
+};
 type MyPredictionTab = "active" | "waiting" | "settled" | "won" | "lost" | "all";
 type ProfileTab = "overview" | "achievements" | "predictions" | "social" | "history";
 type AdminPanelTab = "overview" | "users" | "markets" | "create" | "suggestions" | "settlement" | "polymarket" | "points" | "security";
@@ -165,6 +184,7 @@ type BootstrapData = {
   transactions?: BalanceTransaction[];
   marketSuggestions?: MarketSuggestion[];
   referrals?: Referral[];
+  dailyMissionClaims?: DailyMissionClaim[];
   favoriteMarketIdsByUser: Record<string, string[]>;
   adminUserIds?: string[];
 };
@@ -495,6 +515,13 @@ function parseAppDate(value: string | undefined) {
   const [, day, month, year, hour = "0", minute = "0", second = "0"] = match;
   const parsed = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
   return Number.isFinite(parsed.getTime()) ? parsed : null;
+}
+
+function getLocalDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function getWeekStart(date = new Date()) {
@@ -838,6 +865,7 @@ function App() {
   const [transactions, setTransactions] = useState<BalanceTransaction[]>([]);
   const [marketSuggestions, setMarketSuggestions] = useState<MarketSuggestion[]>([]);
   const [referrals, setReferrals] = useState<Referral[]>([]);
+  const [dailyMissionClaims, setDailyMissionClaims] = useState<DailyMissionClaim[]>([]);
   const [favoriteMarketIdsByUser, setFavoriteMarketIdsByUser] = useState<Record<string, string[]>>({});
   const [adminUserIds, setAdminUserIds] = useState<string[]>([]);
 
@@ -910,6 +938,7 @@ function App() {
     }
   });
   const [isDailyBonusClaiming, setIsDailyBonusClaiming] = useState(false);
+  const [claimingDailyMissionId, setClaimingDailyMissionId] = useState<string | null>(null);
   const [isTestingTelegramNotification, setIsTestingTelegramNotification] = useState(false);
   const [isSavingTelegramNotificationPrefs, setIsSavingTelegramNotificationPrefs] = useState(false);
   const [isRulesOpen, setIsRulesOpen] = useState(false);
@@ -1276,6 +1305,7 @@ function App() {
 
   const dailyMissions = useMemo<DailyMission[]>(() => {
     const now = new Date();
+    const todayKey = getLocalDateKey(now);
     const dayStart = new Date(now);
     dayStart.setHours(0, 0, 0, 0);
     const dayEnd = new Date(dayStart);
@@ -1286,13 +1316,21 @@ function App() {
       return Boolean(date && date >= dayStart && date < dayEnd);
     };
 
+    const isClaimed = (missionId: string) => {
+      return dailyMissionClaims.some((claim) => (
+        claim.userId === activeUser?.id &&
+        claim.missionId === missionId &&
+        claim.missionDate === todayKey
+      ));
+    };
+
     const todaysUserPredictions = activeUserPredictions.filter((prediction) => isToday(prediction.createdAt));
     const todaysUserComments = activeUser
       ? comments.filter((comment) => comment.userId === activeUser.id && isToday(comment.createdAt))
       : [];
     const hotMarketIds = new Set(popularMarkets.map((market) => market.id));
     const hasHotPredictionToday = todaysUserPredictions.some((prediction) => hotMarketIds.has(prediction.marketId));
-    const hasReferral = activeUserReferrals.length > 0;
+    const hasReferralToday = activeUserReferrals.some((referral) => isToday(referral.createdAt) || isToday(referral.qualifiedAt));
     const bonusClaimedToday = Boolean(activeUser?.lastDailyBonusAt && isToday(activeUser.lastDailyBonusAt));
 
     return [
@@ -1302,7 +1340,9 @@ function App() {
         title: "Забери ежедневный бонус",
         text: bonusClaimedToday ? "Бонус дня уже забран. Завтра серия продолжится." : `Сегодня можно получить до ${activeDailyBonusAmount.toLocaleString("ru-RU")} баллов.`,
         reward: `+${activeDailyBonusAmount.toLocaleString("ru-RU")} б.`,
+        rewardAmount: 0,
         completed: bonusClaimedToday,
+        claimed: bonusClaimedToday,
         actionLabel: bonusClaimedToday ? "Профиль" : "Забрать",
         action: () => {
           if (dailyBonusInfo.canClaim) void claimDailyBonus();
@@ -1313,40 +1353,48 @@ function App() {
         id: "first-prediction",
         icon: todaysUserPredictions.length > 0 ? "✅" : "🎯",
         title: "Сделай 1 прогноз",
-        text: todaysUserPredictions.length > 0 ? `Сегодня уже сделано: ${todaysUserPredictions.length}.` : "Открой рынок из ленты и выбери Да или Нет.",
-        reward: "+100 XP",
+        text: todaysUserPredictions.length > 0 ? `Сегодня уже сделано: ${todaysUserPredictions.length}. Забери награду.` : "Открой рынок из ленты и выбери Да или Нет.",
+        reward: "+100 б.",
+        rewardAmount: 100,
         completed: todaysUserPredictions.length > 0,
-        actionLabel: todaysUserPredictions.length > 0 ? "Мои" : "К рынкам",
+        claimed: isClaimed("first-prediction"),
+        actionLabel: todaysUserPredictions.length > 0 ? "Забрать" : "К рынкам",
         action: () => setMainView(todaysUserPredictions.length > 0 ? "predictions" : "markets"),
       },
       {
         id: "comment",
         icon: todaysUserComments.length > 0 ? "✅" : "💬",
         title: "Оставь комментарий",
-        text: todaysUserComments.length > 0 ? "Ты уже участвовал в обсуждении сегодня." : "Напиши мнение в чате любого рынка.",
-        reward: "+100 XP",
+        text: todaysUserComments.length > 0 ? "Ты уже участвовал в обсуждении сегодня. Награда готова." : "Напиши мнение в чате любого рынка.",
+        reward: "+100 б.",
+        rewardAmount: 100,
         completed: todaysUserComments.length > 0,
-        actionLabel: todaysUserComments.length > 0 ? "Профиль" : "Найти рынок",
+        claimed: isClaimed("comment"),
+        actionLabel: todaysUserComments.length > 0 ? "Забрать" : "Найти рынок",
         action: () => setMainView(todaysUserComments.length > 0 ? "profile" : "search"),
       },
       {
         id: "hot-market",
         icon: hasHotPredictionToday ? "✅" : "🔥",
         title: "Прогноз в горячем рынке",
-        text: hasHotPredictionToday ? "Горячий рынок сегодня уже сыгран." : "Выбери событие из блока «Горячие рынки».",
-        reward: "+150 XP",
+        text: hasHotPredictionToday ? "Горячий рынок сегодня уже сыгран. Забери награду." : "Выбери событие из блока «Горячие рынки».",
+        reward: "+150 б.",
+        rewardAmount: 150,
         completed: hasHotPredictionToday,
-        actionLabel: hasHotPredictionToday ? "Мои" : "Горячие",
+        claimed: isClaimed("hot-market"),
+        actionLabel: hasHotPredictionToday ? "Забрать" : "Горячие",
         action: () => setMainView(hasHotPredictionToday ? "predictions" : "markets"),
       },
       {
         id: "referral",
-        icon: hasReferral ? "✅" : "🤝",
+        icon: hasReferralToday ? "✅" : "🤝",
         title: "Пригласи друга",
-        text: hasReferral ? "У тебя уже есть приглашённые друзья." : "Поделись ссылкой и получи бонус за активного друга.",
+        text: hasReferralToday ? "Сегодня есть новый приглашённый друг. Награда готова." : "Поделись ссылкой: награда доступна, когда друг зайдёт в приложение.",
         reward: "+1 000 б.",
-        completed: hasReferral,
-        actionLabel: "Поделиться",
+        rewardAmount: 1000,
+        completed: hasReferralToday,
+        claimed: isClaimed("referral"),
+        actionLabel: hasReferralToday ? "Забрать" : "Поделиться",
         action: () => void shareReferral(),
       },
     ];
@@ -1358,9 +1406,11 @@ function App() {
     dailyBonusInfo.canClaim,
     comments,
     popularMarkets,
+    dailyMissionClaims,
   ]);
 
   const completedDailyMissionsCount = dailyMissions.filter((mission) => mission.completed).length;
+  const claimedDailyMissionsCount = dailyMissions.filter((mission) => mission.claimed).length;
 
   const openMarketsCount = useMemo(() => markets.filter((market) => market.status === "open").length, [markets]);
   const closedMarketsCount = useMemo(() => markets.filter((market) => market.status === "closed").length, [markets]);
@@ -1623,6 +1673,7 @@ function App() {
     setTransactions(data.transactions || []);
     setMarketSuggestions(data.marketSuggestions || []);
     setReferrals(data.referrals || []);
+    setDailyMissionClaims(data.dailyMissionClaims || []);
     setFavoriteMarketIdsByUser(data.favoriteMarketIdsByUser || {});
     setAdminUserIds(data.adminUserIds || []);
 
@@ -1899,6 +1950,34 @@ function App() {
       alert(getErrorMessage(error));
     } finally {
       setIsDailyBonusClaiming(false);
+    }
+  }
+
+  async function claimDailyMissionReward(missionId: string) {
+    if (!requireSafeSession() || !activeUser) return;
+
+    try {
+      setClaimingDailyMissionId(missionId);
+      const result = await apiRequest<{ user: DemoUser; claim: DailyMissionClaim; transaction: BalanceTransaction; rewardAmount: number }>(
+        `/users/${activeUser.id}/daily-missions/${missionId}/claim`,
+        {
+          method: "POST",
+          headers: authHeaders(),
+        },
+      );
+
+      setUsers((currentUsers) => currentUsers.map((user) => user.id === result.user.id ? result.user : user));
+      setDailyMissionClaims((currentClaims) => (
+        currentClaims.some((claim) => claim.id === result.claim.id) ? currentClaims : [result.claim, ...currentClaims]
+      ));
+      setTransactions((currentTransactions) => [result.transaction, ...currentTransactions].slice(0, 500));
+      sendSuccess();
+      showToast(`Награда получена: +${result.rewardAmount.toLocaleString("ru-RU")} баллов`);
+    } catch (error) {
+      sendError();
+      alert(getErrorMessage(error));
+    } finally {
+      setClaimingDailyMissionId(null);
     }
   }
 
@@ -3832,8 +3911,8 @@ function App() {
         <div className="dailyMissionsHeader">
           <div>
             <p className="eyebrow">Задания дня</p>
-            <h2>Выполни миссии и возвращайся завтра</h2>
-            <span>{completedDailyMissionsCount} из {dailyMissions.length} выполнено</span>
+            <h2>Выполни миссии и забери награды</h2>
+            <span>{completedDailyMissionsCount} из {dailyMissions.length} выполнено · {claimedDailyMissionsCount} наград получено</span>
           </div>
           <strong>{progress}%</strong>
         </div>
@@ -3843,19 +3922,36 @@ function App() {
         </div>
 
         <div className="dailyMissionList">
-          {(compact ? dailyMissions.slice(0, 5) : dailyMissions).map((mission) => (
-            <article className={`dailyMissionItem ${mission.completed ? "completedDailyMission" : ""}`} key={mission.id}>
-              <div className="dailyMissionIcon">{mission.icon}</div>
-              <div>
-                <strong>{mission.title}</strong>
-                <p>{mission.text}</p>
-                <small>{mission.reward}</small>
-              </div>
-              <button onClick={mission.action}>
-                {mission.completed ? "Открыть" : mission.actionLabel}
-              </button>
-            </article>
-          ))}
+          {(compact ? dailyMissions.slice(0, 5) : dailyMissions).map((mission) => {
+            const canClaimReward = mission.completed && !mission.claimed && mission.rewardAmount > 0;
+            const isClaimingMission = claimingDailyMissionId === mission.id;
+            const buttonLabel = mission.claimed
+              ? "Получено"
+              : canClaimReward
+                ? isClaimingMission ? "Начисляем..." : "Забрать"
+                : mission.completed ? "Открыть" : mission.actionLabel;
+
+            return (
+              <article className={`dailyMissionItem ${mission.completed ? "completedDailyMission" : ""} ${mission.claimed ? "claimedDailyMission" : ""}`} key={mission.id}>
+                <div className="dailyMissionIcon">{mission.claimed ? "🏅" : mission.icon}</div>
+                <div>
+                  <strong>{mission.title}</strong>
+                  <p>{mission.text}</p>
+                  <small>{mission.claimed ? "Награда получена" : mission.reward}</small>
+                </div>
+                <button
+                  className={canClaimReward ? "claimMissionButton" : ""}
+                  disabled={mission.claimed || isClaimingMission}
+                  onClick={() => {
+                    if (canClaimReward) void claimDailyMissionReward(mission.id);
+                    else mission.action();
+                  }}
+                >
+                  {buttonLabel}
+                </button>
+              </article>
+            );
+          })}
         </div>
       </section>
     );

@@ -107,6 +107,15 @@ type MarketSuggestion = {
   reviewedAt?: string;
 };
 
+type DailyMissionClaim = {
+  id: string;
+  userId: string;
+  missionId: string;
+  missionDate: string;
+  rewardAmount: number;
+  createdAt: string;
+};
+
 type DatabaseSnapshot = {
   users: DemoUser[];
   markets: Market[];
@@ -115,6 +124,7 @@ type DatabaseSnapshot = {
   transactions: BalanceTransaction[];
   marketSuggestions: MarketSuggestion[];
   referrals: Referral[];
+  dailyMissionClaims: DailyMissionClaim[];
   favoriteMarketIdsByUser: Record<string, string[]>;
   adminUserIds: string[];
   polymarketImport?: {
@@ -156,6 +166,24 @@ const ADMIN_TELEGRAM_IDS = (process.env.ADMIN_TELEGRAM_IDS || "")
   .filter(Boolean);
 
 const ADMIN_USER_IDS = ADMIN_TELEGRAM_IDS.flatMap((id) => [id, `telegram-${id}`]);
+
+const DAILY_MISSION_REWARDS: Record<string, number> = {
+  "first-prediction": 100,
+  comment: 100,
+  "hot-market": 150,
+  referral: 1000,
+};
+
+function getTodayDateKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getRuDatePrefix(date = new Date()) {
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = String(date.getFullYear());
+  return `${day}.${month}.${year}`;
+}
 
 const POLYMARKET_GAMMA_BASE_URL = "https://gamma-api.polymarket.com";
 const POLYMARKET_AUTO_IMPORT_ENABLED =
@@ -689,6 +717,21 @@ function toReferral(row: any): Referral {
   };
 }
 
+function toDailyMissionClaim(row: any): DailyMissionClaim {
+  const missionDate = row.mission_date instanceof Date
+    ? row.mission_date.toISOString().slice(0, 10)
+    : String(row.mission_date).slice(0, 10);
+
+  return {
+    id: row.id,
+    userId: row.user_id,
+    missionId: row.mission_id,
+    missionDate,
+    rewardAmount: Number(row.reward_amount || 0),
+    createdAt: formatDbDateTime(row.created_at),
+  };
+}
+
 type QueryRunner = {
   query: (text: string, params?: unknown[]) => Promise<{ rows: any[] }>;
 };
@@ -723,6 +766,66 @@ async function addBalanceTransaction(
   );
 
   return transaction;
+}
+
+
+async function isDailyMissionCompleted(queryRunner: QueryRunner, userId: string, missionId: string) {
+  const todayKey = getTodayDateKey();
+  const ruPrefix = getRuDatePrefix();
+
+  if (missionId === "first-prediction") {
+    const result = await queryRunner.query(
+      `SELECT id FROM predictions WHERE user_id = $1 AND (created_at LIKE $2 OR created_at LIKE $3) LIMIT 1`,
+      [userId, `${todayKey}%`, `${ruPrefix}%`]
+    );
+    return Boolean(result.rows[0]);
+  }
+
+  if (missionId === "comment") {
+    const result = await queryRunner.query(
+      `SELECT id FROM comments WHERE user_id = $1 AND (created_at LIKE $2 OR created_at LIKE $3) LIMIT 1`,
+      [userId, `${todayKey}%`, `${ruPrefix}%`]
+    );
+    return Boolean(result.rows[0]);
+  }
+
+  if (missionId === "hot-market") {
+    const result = await queryRunner.query(
+      `
+        SELECT p.id
+        FROM predictions p
+        WHERE p.user_id = $1
+          AND (p.created_at LIKE $2 OR p.created_at LIKE $3)
+          AND (
+            SELECT COUNT(*)::int
+            FROM predictions all_predictions
+            WHERE all_predictions.market_id = p.market_id
+          ) >= 3
+        LIMIT 1
+      `,
+      [userId, `${todayKey}%`, `${ruPrefix}%`]
+    );
+    return Boolean(result.rows[0]);
+  }
+
+  if (missionId === "referral") {
+    const result = await queryRunner.query(
+      `
+        SELECT id
+        FROM referrals
+        WHERE referrer_user_id = $1
+          AND (
+            created_at::date = CURRENT_DATE
+            OR qualified_at::date = CURRENT_DATE
+          )
+        LIMIT 1
+      `,
+      [userId]
+    );
+    return Boolean(result.rows[0]);
+  }
+
+  return false;
 }
 
 
@@ -1867,6 +1970,16 @@ async function migrate() {
       expires_at TIMESTAMPTZ NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS daily_mission_claims (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      mission_id TEXT NOT NULL,
+      mission_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      reward_amount INTEGER NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (user_id, mission_id, mission_date)
+    );
+
     CREATE INDEX IF NOT EXISTS predictions_market_id_idx ON predictions(market_id);
     CREATE INDEX IF NOT EXISTS predictions_user_id_idx ON predictions(user_id);
     CREATE INDEX IF NOT EXISTS comments_market_id_idx ON comments(market_id);
@@ -1878,6 +1991,8 @@ async function migrate() {
     CREATE INDEX IF NOT EXISTS referrals_referred_user_id_idx ON referrals(referred_user_id);
     CREATE INDEX IF NOT EXISTS referrals_status_idx ON referrals(status);
     CREATE INDEX IF NOT EXISTS favorites_user_id_idx ON favorites(user_id);
+    CREATE INDEX IF NOT EXISTS daily_mission_claims_user_id_idx ON daily_mission_claims(user_id);
+    CREATE INDEX IF NOT EXISTS daily_mission_claims_date_idx ON daily_mission_claims(mission_date);
     ALTER TABLE notification_events ADD COLUMN IF NOT EXISTS notification_key TEXT NOT NULL DEFAULT '';
     UPDATE notification_events SET notification_key = COALESCE(NULLIF(notification_key, ''), COALESCE(market_id, ''));
     CREATE INDEX IF NOT EXISTS notification_events_user_id_idx ON notification_events(user_id);
@@ -1978,7 +2093,7 @@ async function closeExpiredMarkets(db: Pool | PoolClient = pool) {
 async function getSnapshot(): Promise<DatabaseSnapshot> {
   await closeExpiredMarkets();
 
-  const [usersResult, marketsResult, predictionsResult, commentsResult, transactionsResult, suggestionsResult, referralsResult, favoritesResult] =
+  const [usersResult, marketsResult, predictionsResult, commentsResult, transactionsResult, suggestionsResult, referralsResult, dailyMissionClaimsResult, favoritesResult] =
     await Promise.all([
       pool.query("SELECT * FROM users ORDER BY name ASC"),
       pool.query("SELECT * FROM markets ORDER BY created_at DESC"),
@@ -1987,6 +2102,7 @@ async function getSnapshot(): Promise<DatabaseSnapshot> {
       pool.query("SELECT * FROM transactions ORDER BY created_at DESC LIMIT 500"),
       pool.query("SELECT * FROM market_suggestions ORDER BY created_at DESC LIMIT 500"),
       pool.query("SELECT * FROM referrals ORDER BY created_at DESC LIMIT 500"),
+      pool.query("SELECT * FROM daily_mission_claims ORDER BY created_at DESC LIMIT 1000"),
       pool.query("SELECT * FROM favorites ORDER BY user_id ASC, market_id ASC"),
     ]);
 
@@ -2014,6 +2130,7 @@ async function getSnapshot(): Promise<DatabaseSnapshot> {
     transactions: transactionsResult.rows.map(toTransaction),
     marketSuggestions: suggestionsResult.rows.map(toSuggestion),
     referrals: referralsResult.rows.map(toReferral),
+    dailyMissionClaims: dailyMissionClaimsResult.rows.map(toDailyMissionClaim),
     favoriteMarketIdsByUser,
     adminUserIds: ADMIN_USER_IDS,
     polymarketImport: {
@@ -2339,6 +2456,96 @@ app.post("/api/users/:userId/daily-bonus", async (request, response) => {
   } catch (error) {
     console.error("daily bonus failed", error);
     response.status(500).json({ error: "Не удалось начислить ежедневный бонус" });
+  }
+});
+
+
+app.post("/api/users/:userId/daily-missions/:missionId/claim", async (request, response) => {
+  const userId = String(request.params.userId || "").trim();
+  const missionId = String(request.params.missionId || "").trim();
+
+  if (!userId || !missionId) {
+    response.status(400).json({ error: "Не указан пользователь или задание" });
+    return;
+  }
+
+  if (!(await assertRequestMatchesUser(request, response, userId))) return;
+
+  const rewardAmount = DAILY_MISSION_REWARDS[missionId];
+
+  if (!rewardAmount) {
+    response.status(400).json({ error: "У этого задания нет отдельной награды или оно неизвестно" });
+    return;
+  }
+
+  try {
+    const result = await withTransaction(async (client) => {
+      const userResult = await client.query("SELECT * FROM users WHERE id = $1 FOR UPDATE", [userId]);
+      const userRow = userResult.rows[0];
+
+      if (!userRow) {
+        return { error: "Пользователь не найден" } as const;
+      }
+
+      const completed = await isDailyMissionCompleted(client, userId, missionId);
+
+      if (!completed) {
+        return { error: "Задание ещё не выполнено" } as const;
+      }
+
+      const claimResult = await client.query(
+        `
+          INSERT INTO daily_mission_claims (id, user_id, mission_id, mission_date, reward_amount, created_at)
+          VALUES ($1, $2, $3, CURRENT_DATE, $4, NOW())
+          ON CONFLICT (user_id, mission_id, mission_date) DO NOTHING
+          RETURNING *
+        `,
+        [createId(), userId, missionId, rewardAmount]
+      );
+
+      const claimRow = claimResult.rows[0];
+
+      if (!claimRow) {
+        return { error: "Награда за это задание сегодня уже получена" } as const;
+      }
+
+      const updatedUserResult = await client.query(
+        "UPDATE users SET balance = balance + $2 WHERE id = $1 RETURNING *",
+        [userId, rewardAmount]
+      );
+
+      const missionTitleById: Record<string, string> = {
+        "first-prediction": "Сделать 1 прогноз",
+        comment: "Оставить комментарий",
+        "hot-market": "Прогноз в горячем рынке",
+        referral: "Пригласить друга",
+      };
+
+      const transaction = await addBalanceTransaction(client, {
+        userId,
+        type: "system",
+        title: "Награда за задание дня",
+        description: missionTitleById[missionId] || missionId,
+        amount: rewardAmount,
+      });
+
+      return {
+        user: toUser(updatedUserResult.rows[0]),
+        claim: toDailyMissionClaim(claimRow),
+        transaction,
+        rewardAmount,
+      };
+    });
+
+    if (!result || "error" in result) {
+      response.status(400).json({ error: result?.error || "Не удалось получить награду" });
+      return;
+    }
+
+    response.json(result);
+  } catch (error) {
+    console.error("daily mission claim failed", error);
+    response.status(500).json({ error: "Не удалось получить награду за задание дня" });
   }
 });
 

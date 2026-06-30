@@ -12432,3 +12432,33 @@ body,
     width: 100%;
   }
 }
+
+
+/* Daily mission reward claiming */
+.dailyMissionItem.claimedDailyMission {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(34, 197, 94, 0.10), transparent 38%),
+    rgba(240, 253, 244, 0.84);
+  border-color: rgba(134, 239, 172, 0.7);
+}
+
+.dailyMissionItem .claimMissionButton {
+  background: linear-gradient(135deg, #059669, #14b8a6);
+  box-shadow: 0 10px 22px rgba(20, 184, 166, 0.16);
+}
+
+.dailyMissionItem button:disabled {
+  cursor: default;
+  color: #64748b;
+  background: rgba(226, 232, 240, 0.92);
+  box-shadow: none;
+}
+
+.claimedDailyMission small {
+  color: #047857;
+  background: rgba(209, 250, 229, 0.96);
+}
+
+.claimedDailyMission .dailyMissionIcon {
+  background: rgba(209, 250, 229, 0.96);
+}
