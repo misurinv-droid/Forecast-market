@@ -2765,6 +2765,51 @@ function App() {
     const hotMarkets = popularMarkets.length > 0 ? popularMarkets.slice(0, 4) : feedMarkets.filter((market) => market.status === "open").slice(0, 4);
     const playNowMarkets = forYouMarkets.length > 0 ? forYouMarkets : recommendedMarkets;
     const heroMarket = hotMarkets[0];
+    const waitingMyPredictionsCount = activeUserPredictions.filter((prediction) => {
+      const market = markets.find((item) => item.id === prediction.marketId);
+      return !prediction.settledAt && market?.status === "closed";
+    }).length;
+    const todayGameSummary = [
+      {
+        icon: "🔥",
+        label: "Горячие",
+        value: hotMarkets.length,
+        text: "рынков в игре",
+        action: () => setMainView("search"),
+        tone: "hot",
+      },
+      {
+        icon: "⏳",
+        label: "Скоро закроются",
+        value: soonClosingMarkets.length,
+        text: "успей выбрать исход",
+        action: () => {
+          setStatusFilter("open");
+          setSortMode("newest");
+          setMainView("search");
+        },
+        tone: "soon",
+      },
+      {
+        icon: "🎯",
+        label: "Ждут результата",
+        value: waitingMyPredictionsCount,
+        text: "твоих прогнозов",
+        action: () => setMainView("predictions"),
+        tone: "target",
+      },
+      {
+        icon: dailyBonusInfo.canClaim ? "🎁" : "⏱️",
+        label: "Бонус",
+        value: dailyBonusInfo.canClaim ? `+${activeDailyBonusAmount.toLocaleString("ru-RU")}` : "24ч",
+        text: dailyBonusInfo.canClaim ? "можно забрать" : `через ${formatBonusCountdown(dailyBonusInfo.remainingMs)}`,
+        action: () => {
+          if (dailyBonusInfo.canClaim) void claimDailyBonus();
+          else setMainView("profile");
+        },
+        tone: dailyBonusInfo.canClaim ? "bonus" : "calm",
+      },
+    ];
 
     return (
       <section className="discoveryPage gameHomePage">
@@ -2805,6 +2850,28 @@ function App() {
           ) : (
             renderDailyBonusCard("home")
           )}
+        </section>
+
+        <section className="todayInGameCard">
+          <div className="todayInGameHeader">
+            <div>
+              <span className="todayEyebrow">Сегодня в игре</span>
+              <h2>Быстрый обзор перед прогнозом</h2>
+              <p>Самое важное: где движуха, что скоро закроется и что уже ждёт результата.</p>
+            </div>
+            <button onClick={() => setMainView("search")}>Открыть все рынки</button>
+          </div>
+
+          <div className="todayInGameGrid">
+            {todayGameSummary.map((item) => (
+              <button className={`todayInGameItem todayInGameItem-${item.tone}`} key={item.label} onClick={item.action}>
+                <span className="todayIcon">{item.icon}</span>
+                <span className="todayLabel">{item.label}</span>
+                <strong>{item.value}</strong>
+                <small>{item.text}</small>
+              </button>
+            ))}
+          </div>
         </section>
 
         <section className="gameQuickGrid">

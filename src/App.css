@@ -9867,3 +9867,247 @@ button:disabled,
     font-size: 0.58rem;
   }
 }
+
+
+/* Today in game summary */
+.todayInGameCard {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  background:
+    radial-gradient(circle at 7% 5%, rgba(37, 99, 235, 0.12), transparent 34%),
+    radial-gradient(circle at 94% 12%, rgba(20, 184, 166, 0.16), transparent 38%),
+    rgba(255, 255, 255, 0.80);
+  box-shadow: 0 18px 54px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(16px);
+}
+
+.todayInGameHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.todayEyebrow {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(219, 234, 254, 0.92);
+  color: #1d4ed8;
+  font-size: 0.72rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.todayInGameHeader h2 {
+  margin: 9px 0 4px;
+  color: #0f172a;
+  font-size: 1.28rem;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+}
+
+.todayInGameHeader p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.9rem;
+  line-height: 1.42;
+}
+
+.todayInGameHeader > button {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 16px;
+  padding: 11px 14px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #162bdc, #07a9cf);
+  font-weight: 950;
+  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.18);
+}
+
+.todayInGameGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.todayInGameItem {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  min-height: 116px;
+  padding: 13px;
+  border: 1px solid rgba(226, 232, 240, 0.86);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #0f172a;
+  text-align: left;
+  overflow: hidden;
+}
+
+.todayInGameItem::after {
+  content: "";
+  position: absolute;
+  inset: auto -24px -34px auto;
+  width: 88px;
+  height: 88px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.10);
+}
+
+.todayIcon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 14px;
+  background: rgba(248, 250, 252, 0.94);
+  font-size: 1.05rem;
+}
+
+.todayLabel {
+  color: #64748b;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.todayInGameItem strong {
+  color: #0f172a;
+  font-size: 1.55rem;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.todayInGameItem small {
+  color: #64748b;
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1.18;
+}
+
+.todayInGameItem-hot {
+  background:
+    radial-gradient(circle at 100% 100%, rgba(249, 115, 22, 0.13), transparent 44%),
+    rgba(255, 255, 255, 0.84);
+}
+
+.todayInGameItem-hot .todayIcon {
+  background: rgba(255, 237, 213, 0.95);
+}
+
+.todayInGameItem-soon {
+  background:
+    radial-gradient(circle at 100% 100%, rgba(245, 158, 11, 0.14), transparent 44%),
+    rgba(255, 255, 255, 0.84);
+}
+
+.todayInGameItem-soon .todayIcon {
+  background: rgba(254, 243, 199, 0.95);
+}
+
+.todayInGameItem-target {
+  background:
+    radial-gradient(circle at 100% 100%, rgba(37, 99, 235, 0.13), transparent 44%),
+    rgba(255, 255, 255, 0.84);
+}
+
+.todayInGameItem-target .todayIcon {
+  background: rgba(219, 234, 254, 0.95);
+}
+
+.todayInGameItem-bonus {
+  background:
+    radial-gradient(circle at 100% 100%, rgba(20, 184, 166, 0.17), transparent 44%),
+    rgba(240, 253, 250, 0.90);
+  border-color: rgba(45, 212, 191, 0.35);
+}
+
+.todayInGameItem-bonus .todayIcon {
+  background: rgba(204, 251, 241, 0.96);
+}
+
+.todayInGameItem-calm .todayIcon {
+  background: rgba(241, 245, 249, 0.95);
+}
+
+.telegramApp .todayInGameCard {
+  gap: 11px;
+  padding: 14px;
+  border-radius: 24px;
+}
+
+.telegramApp .todayInGameHeader {
+  align-items: flex-start;
+}
+
+.telegramApp .todayInGameHeader h2 {
+  font-size: 1.08rem;
+  margin-top: 7px;
+}
+
+.telegramApp .todayInGameHeader p {
+  font-size: 0.78rem;
+}
+
+.telegramApp .todayInGameHeader > button {
+  padding: 9px 10px;
+  border-radius: 14px;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.telegramApp .todayInGameGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.telegramApp .todayInGameItem {
+  min-height: 98px;
+  padding: 11px;
+  border-radius: 18px;
+}
+
+.telegramApp .todayIcon {
+  width: 31px;
+  height: 31px;
+  border-radius: 12px;
+  font-size: 0.96rem;
+}
+
+.telegramApp .todayLabel {
+  font-size: 0.69rem;
+}
+
+.telegramApp .todayInGameItem strong {
+  font-size: 1.32rem;
+}
+
+.telegramApp .todayInGameItem small {
+  font-size: 0.68rem;
+}
+
+@media (max-width: 780px) {
+  .todayInGameHeader {
+    align-items: flex-start;
+  }
+
+  .todayInGameGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .todayInGameHeader {
+    display: grid;
+  }
+
+  .todayInGameHeader > button {
+    width: 100%;
+  }
+}
