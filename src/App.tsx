@@ -12,6 +12,8 @@ type AppRouteSnapshot = { mainView: MainView; selectedMarketId: string | null };
 type SwipeRailMode = "pending" | "horizontal" | "vertical";
 type SwipeRailState = { rail: HTMLElement; startX: number; startY: number; scrollLeft: number; mode: SwipeRailMode; moved: boolean; nextLeft: number; rafId: number | null };
 type MarketBadge = { label: string; emoji: string; tone: "hot" | "soon" | "new" | "interest" | "poly" | "mine" | "closed" };
+type ActivityTone = "bonus" | "prediction" | "win" | "loss" | "market" | "social" | "admin" | "calm";
+type ActivityItem = { id: string; emoji: string; title: string; text: string; tone: ActivityTone; actionLabel: string; action: () => void };
 type MyPredictionTab = "active" | "waiting" | "settled" | "won" | "lost" | "all";
 type ProfileTab = "overview" | "achievements" | "predictions" | "social" | "history";
 type AdminPanelTab = "overview" | "users" | "markets" | "create" | "suggestions" | "settlement" | "polymarket" | "points" | "security";
@@ -809,6 +811,7 @@ function App() {
   const [amountByMarket, setAmountByMarket] = useState<Record<string, string>>({});
   const [buyingPredictionKey, setBuyingPredictionKey] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState("");
+  const [isActivityOpen, setIsActivityOpen] = useState(false);
 
   const [isAdminOpen, setIsAdminOpen] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState("Все");
@@ -1226,6 +1229,177 @@ function App() {
 
   const openMarketsCount = useMemo(() => markets.filter((market) => market.status === "open").length, [markets]);
   const closedMarketsCount = useMemo(() => markets.filter((market) => market.status === "closed").length, [markets]);
+
+  const activityItems = useMemo<ActivityItem[]>(() => {
+    const items: ActivityItem[] = [];
+
+    if (!activeUser) {
+      items.push({
+        id: "open-telegram",
+        emoji: "🔐",
+        title: "Открой через Telegram",
+        text: "Так прогнозы, бонусы, профиль и комментарии будут работать под твоим Telegram ID.",
+        tone: "calm",
+        actionLabel: "Открыть",
+        action: openTelegramMiniApp,
+      });
+      return items;
+    }
+
+    if (dailyBonusInfo.canClaim) {
+      items.push({
+        id: "daily-bonus-ready",
+        emoji: "🎁",
+        title: "Ежедневный бонус готов",
+        text: `Можно забрать +${activeDailyBonusAmount.toLocaleString("ru-RU")} игровых баллов прямо сейчас.`,
+        tone: "bonus",
+        actionLabel: "Забрать",
+        action: () => void claimDailyBonus(),
+      });
+    }
+
+    const waitingPredictions = activeUserOpenPredictions.filter((prediction) => {
+      const market = markets.find((item) => item.id === prediction.marketId);
+      return market?.status === "closed";
+    });
+
+    if (waitingPredictions.length > 0) {
+      items.push({
+        id: "waiting-predictions",
+        emoji: "🧮",
+        title: `${waitingPredictions.length} прогнозов ждут расчёта`,
+        text: "Рынки уже закрыты. Осталось дождаться расчёта результата.",
+        tone: "prediction",
+        actionLabel: "Открыть",
+        action: () => {
+          setMyPredictionTab("waiting");
+          setMainView("predictions");
+        },
+      });
+    }
+
+    const recentSettled = [...activeUserSettledPredictions].slice(-3).reverse();
+    recentSettled.forEach((prediction) => {
+      const isWinner = prediction.outcome === prediction.resolvedOutcome;
+      items.push({
+        id: `settled-${prediction.id}`,
+        emoji: isWinner ? "🏆" : "📉",
+        title: isWinner ? "Прогноз сыграл" : "Прогноз не сыграл",
+        text: `${prediction.marketQuestion} · ${isWinner ? "+" : ""}${((prediction.payout || 0) - prediction.amount).toLocaleString("ru-RU")} баллов`,
+        tone: isWinner ? "win" : "loss",
+        actionLabel: "Посмотреть",
+        action: () => {
+          setSelectedMarketId(prediction.marketId);
+          setDetailsTab("overview");
+        },
+      });
+    });
+
+    const predictedMarketIds = new Set(activeUserPredictions.map((prediction) => prediction.marketId));
+    soonClosingMarkets
+      .filter((market) => !predictedMarketIds.has(market.id))
+      .slice(0, 2)
+      .forEach((market) => {
+        items.push({
+          id: `soon-${market.id}`,
+          emoji: "⏳",
+          title: "Рынок скоро закроется",
+          text: `${market.question} · ${getMarketCloseLabel(market)}`,
+          tone: "market",
+          actionLabel: "Сделать прогноз",
+          action: () => {
+            setSelectedMarketId(market.id);
+            setDetailsTab("overview");
+          },
+        });
+      });
+
+    const interestMarket = forYouMarkets.find((market) => !predictedMarketIds.has(market.id));
+    if (interestMarket) {
+      items.push({
+        id: `interest-${interestMarket.id}`,
+        emoji: "💚",
+        title: "Есть рынок по твоим интересам",
+        text: interestMarket.question,
+        tone: "market",
+        actionLabel: "Открыть",
+        action: () => {
+          setSelectedMarketId(interestMarket.id);
+          setDetailsTab("overview");
+        },
+      });
+    }
+
+    const pendingSuggestion = activeUserSuggestions.find((suggestion) => suggestion.status === "pending");
+    if (pendingSuggestion) {
+      items.push({
+        id: `suggestion-${pendingSuggestion.id}`,
+        emoji: "📝",
+        title: "Заявка на рынок в модерации",
+        text: pendingSuggestion.question,
+        tone: "social",
+        actionLabel: "Профиль",
+        action: () => {
+          setProfileTab("social");
+          setMainView("profile");
+        },
+      });
+    }
+
+    if (activeUserOpenPredictions.length === 0) {
+      items.push({
+        id: "first-active-prediction",
+        emoji: "🎯",
+        title: "Нет активных прогнозов",
+        text: "Выбери рынок из главной ленты и вернись в игровой цикл.",
+        tone: "prediction",
+        actionLabel: "К рынкам",
+        action: () => setMainView("markets"),
+      });
+    }
+
+    if (isAdmin && (pendingSuggestions.length > 0 || closedMarketsCount > 0)) {
+      items.unshift({
+        id: "admin-tasks",
+        emoji: "⚙️",
+        title: "Есть задачи админа",
+        text: `${pendingSuggestions.length} заявок · ${closedMarketsCount} рынков ждут расчёта.`,
+        tone: "admin",
+        actionLabel: "Админка",
+        action: () => setMainView(closedMarketsCount > 0 ? "settlement" : "moderation"),
+      });
+    }
+
+    if (items.length === 0) {
+      items.push({
+        id: "all-calm",
+        emoji: "✅",
+        title: "Всё спокойно",
+        text: "Новых действий нет. Можно открыть главную и выбрать новый рынок.",
+        tone: "calm",
+        actionLabel: "Главная",
+        action: () => setMainView("markets"),
+      });
+    }
+
+    return items.slice(0, 8);
+  }, [
+    activeUser,
+    dailyBonusInfo.canClaim,
+    activeDailyBonusAmount,
+    activeUserOpenPredictions,
+    activeUserSettledPredictions,
+    activeUserPredictions,
+    activeUserSuggestions,
+    markets,
+    soonClosingMarkets,
+    forYouMarkets,
+    isAdmin,
+    pendingSuggestions.length,
+    closedMarketsCount,
+  ]);
+
+  const activityBadgeCount = Math.min(activityItems.filter((item) => item.tone !== "calm").length, 9);
 
   const settlementQueueMarkets = useMemo(() => {
     return markets
@@ -3255,6 +3429,62 @@ function App() {
     );
   }
 
+  function renderActivityCenter() {
+    if (!isActivityOpen) return null;
+
+    return (
+      <div className="activityOverlay" role="dialog" aria-modal="true" aria-label="Центр событий">
+        <button className="activityOverlayBackdrop" aria-label="Закрыть центр событий" onClick={() => setIsActivityOpen(false)} />
+        <section className="activityPanel">
+          <div className="activityPanelHeader">
+            <div>
+              <p className="eyebrow">Центр событий</p>
+              <h2>Что требует внимания</h2>
+              <span>{activityBadgeCount > 0 ? `${activityBadgeCount} важных событий` : "Новых задач нет"}</span>
+            </div>
+            <button onClick={() => setIsActivityOpen(false)}>×</button>
+          </div>
+
+          <div className="activityList">
+            {activityItems.map((item) => (
+              <article className={`activityItem activityItem-${item.tone}`} key={item.id}>
+                <div className="activityIcon">{item.emoji}</div>
+                <div>
+                  <strong>{item.title}</strong>
+                  <p>{item.text}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setIsActivityOpen(false);
+                    sendHaptic("light");
+                    item.action();
+                  }}
+                >
+                  {item.actionLabel}
+                </button>
+              </article>
+            ))}
+          </div>
+
+          <div className="activityPanelFooter">
+            <button onClick={() => {
+              setIsActivityOpen(false);
+              setMainView("predictions");
+            }}>
+              Мои прогнозы
+            </button>
+            <button className="secondaryButton" onClick={() => {
+              setIsActivityOpen(false);
+              setMainView("markets");
+            }}>
+              Главная
+            </button>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
   function renderHomePage() {
     const topLeaderboard = leaderboard.slice(0, isTelegram ? 3 : 5);
     const quickPredictions = activeUserOpenPredictions.slice(0, 3);
@@ -4674,6 +4904,12 @@ function App() {
   return (
     <main className={appClassName}>
       {toastMessage && <div className="appToast" role="status">{toastMessage}</div>}
+      {renderActivityCenter()}
+
+      <button className="activityFloatingButton" onClick={() => setIsActivityOpen(true)} aria-label="Открыть центр событий">
+        🔔
+        {activityBadgeCount > 0 && <span>{activityBadgeCount}</span>}
+      </button>
 
       {canShowBackButton && (
         <button className="floatingBackButton" onClick={goBackRoute} aria-label="Вернуться назад">
@@ -4714,6 +4950,9 @@ function App() {
             <p>{activeUser ? `${isAdmin ? "Администратор" : "Участник"} · ${activeUserStats.predictionsCount} прогнозов · Winrate ${activeUserStats.winRate}%` : "Открой через Telegram, чтобы делать прогнозы"}</p>
           </div>
           <div className="brandHeaderActions">
+            <button className="activityHeaderButton" onClick={() => setIsActivityOpen(true)}>
+              События {activityBadgeCount > 0 && <span>{activityBadgeCount}</span>}
+            </button>
             <button onClick={() => setMainView("profile")}>Профиль</button>
             <button className="secondaryButton" onClick={() => setIsRulesOpen(true)}>Правила</button>
           </div>

@@ -11412,3 +11412,281 @@ body,
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Activity center / smart in-app notifications */
+.activityHeaderButton,
+.activityFloatingButton {
+  position: relative;
+}
+
+.activityHeaderButton span,
+.activityFloatingButton span {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  color: #ffffff;
+  background: #ef4444;
+  font-size: 0.64rem;
+  font-weight: 950;
+}
+
+.activityHeaderButton span {
+  margin-left: 5px;
+}
+
+.activityFloatingButton {
+  position: fixed;
+  right: 14px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 96px);
+  z-index: 9600;
+  display: none;
+  width: 46px;
+  height: 46px;
+  border: 0;
+  border-radius: 18px;
+  color: #0f172a;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.88), transparent 38%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(219, 234, 254, 0.94));
+  border: 1px solid rgba(226, 232, 240, 0.94);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.16);
+  backdrop-filter: blur(16px);
+  font-size: 1.18rem;
+}
+
+.activityFloatingButton span {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+}
+
+.activityOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9900;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+
+.activityOverlayBackdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(15, 23, 42, 0.44);
+  backdrop-filter: blur(8px);
+}
+
+.activityPanel {
+  position: relative;
+  z-index: 1;
+  width: min(720px, 100%);
+  max-height: min(720px, calc(100dvh - 34px));
+  overflow: auto;
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(37, 99, 235, 0.16), transparent 34%),
+    radial-gradient(circle at 92% 8%, rgba(20, 184, 166, 0.16), transparent 38%),
+    rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.86);
+  box-shadow: 0 26px 90px rgba(15, 23, 42, 0.28);
+}
+
+.activityPanelHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.activityPanelHeader h2 {
+  margin: 4px 0;
+  color: #0f172a;
+  font-size: 1.38rem;
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+}
+
+.activityPanelHeader span {
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.activityPanelHeader > button {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 14px;
+  color: #0f172a;
+  background: rgba(241, 245, 249, 0.92);
+  font-size: 1.25rem;
+  font-weight: 950;
+}
+
+.activityList {
+  display: grid;
+  gap: 9px;
+}
+
+.activityItem {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 11px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(226, 232, 240, 0.88);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+}
+
+.activityIcon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 16px;
+  background: rgba(241, 245, 249, 0.96);
+  font-size: 1.15rem;
+}
+
+.activityItem strong {
+  display: block;
+  color: #0f172a;
+  font-size: 0.92rem;
+  line-height: 1.2;
+}
+
+.activityItem p {
+  margin: 3px 0 0;
+  color: #64748b;
+  font-size: 0.78rem;
+  line-height: 1.32;
+}
+
+.activityItem > button {
+  border: 0;
+  border-radius: 14px;
+  padding: 9px 11px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #162bdc, #07a9cf);
+  font-size: 0.74rem;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.activityItem-bonus .activityIcon {
+  background: rgba(204, 251, 241, 0.96);
+}
+
+.activityItem-prediction .activityIcon,
+.activityItem-market .activityIcon {
+  background: rgba(219, 234, 254, 0.96);
+}
+
+.activityItem-win .activityIcon {
+  background: rgba(209, 250, 229, 0.96);
+}
+
+.activityItem-loss .activityIcon {
+  background: rgba(254, 226, 226, 0.96);
+}
+
+.activityItem-social .activityIcon {
+  background: rgba(243, 232, 255, 0.96);
+}
+
+.activityItem-admin .activityIcon {
+  background: rgba(254, 243, 199, 0.96);
+}
+
+.activityPanelFooter {
+  display: flex;
+  gap: 9px;
+  justify-content: flex-end;
+  padding-top: 3px;
+}
+
+.activityPanelFooter button {
+  border: 0;
+  border-radius: 15px;
+  padding: 10px 13px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #162bdc, #07a9cf);
+  font-weight: 950;
+}
+
+.activityPanelFooter .secondaryButton {
+  color: #0f172a;
+  background: rgba(241, 245, 249, 0.92);
+}
+
+.telegramApp .activityFloatingButton {
+  display: inline-grid;
+  place-items: center;
+  right: 12px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 88px);
+}
+
+.telegramApp .activityPanel {
+  width: 100%;
+  max-height: calc(100dvh - 22px);
+  padding: 14px;
+  border-radius: 25px;
+}
+
+.telegramApp .activityPanelHeader h2 {
+  font-size: 1.14rem;
+}
+
+.telegramApp .activityItem {
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 9px;
+  padding: 10px;
+  border-radius: 18px;
+}
+
+.telegramApp .activityIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 14px;
+  font-size: 1rem;
+}
+
+.telegramApp .activityItem strong {
+  font-size: 0.82rem;
+}
+
+.telegramApp .activityItem p {
+  font-size: 0.7rem;
+}
+
+.telegramApp .activityItem > button {
+  grid-column: 1 / -1;
+  width: 100%;
+  padding: 9px 10px;
+}
+
+@media (max-width: 760px) {
+  main:not(.telegramApp) .activityFloatingButton {
+    display: inline-grid;
+    place-items: center;
+  }
+
+  .activityItem {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .activityItem > button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}
