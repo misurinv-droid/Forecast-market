@@ -14,6 +14,9 @@ type DemoUser = {
   name: string;
   balance: number;
   lastDailyBonusAt?: string;
+  dailyBonusStreak?: number;
+  bestDailyBonusStreak?: number;
+  lastDailyBonusAmount?: number;
 };
 
 type TelegramAuthResponse = {
@@ -189,8 +192,11 @@ declare global {
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://forecast-market.onrender.com/api";
+const START_BALANCE = 10000;
 const DAILY_BONUS_AMOUNT = 500;
 const DAILY_BONUS_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const DAILY_BONUS_STREAK_AMOUNTS = [500, 600, 700, 800, 1000, 1200, 1500];
+const DAILY_BONUS_GRACE_MS = 48 * 60 * 60 * 1000;
 const ONBOARDING_STORAGE_KEY = "forecast-market-onboarding-seen";
 const TELEGRAM_MINI_APP_URL = String(import.meta.env.VITE_TELEGRAM_MINI_APP_URL || "").trim();
 const APP_PUBLIC_URL = String(import.meta.env.VITE_APP_PUBLIC_URL || window.location.origin).trim();
@@ -317,23 +323,99 @@ function getSuggestionStatusText(status: SuggestionStatus) {
   return "Отклонено";
 }
 
-function getUserLevel(stats: { predictionsCount: number; winRate: number }, rank: number) {
-  if (stats.predictionsCount >= 35 && stats.winRate >= 65) {
-    return { emoji: "👑", title: "Легенда рынка", description: "Твои прогнозы уже похожи на инсайды." };
-  }
-  if (stats.predictionsCount >= 20 && stats.winRate >= 55) {
-    return { emoji: "🔮", title: "Оракул", description: "Ты стабильно видишь вероятности раньше остальных." };
-  }
-  if (rank > 0 && rank <= 3 && stats.predictionsCount >= 5) {
-    return { emoji: "🏆", title: "Топ-игрок", description: "Ты держишься в верхушке рейтинга." };
-  }
-  if (stats.predictionsCount >= 10) {
-    return { emoji: "🧠", title: "Аналитик", description: "Ты уже набираешь историю решений и стиль игры." };
-  }
-  if (stats.predictionsCount >= 3) {
-    return { emoji: "📈", title: "Трейдер прогнозов", description: "Первые рынки пройдены — начинается настоящая игра." };
-  }
-  return { emoji: "🚀", title: "Новичок", description: "Сделай несколько прогнозов и открой следующий статус." };
+function getUserLevel(stats: { predictionsCount: number; wins: number; winRate: number; settledCount: number }, rank: number, user: DemoUser | null) {
+  const score =
+    stats.predictionsCount * 45 +
+    stats.wins * 90 +
+    Math.max(0, (user?.balance || 0) - START_BALANCE) / 12 +
+    (user?.bestDailyBonusStreak || 0) * 80 +
+    (rank > 0 && rank <= 3 ? 450 : 0);
+
+  const levels = [
+    { level: 1, emoji: "🚀", title: "Новичок", threshold: 0, next: 250 },
+    { level: 2, emoji: "👀", title: "Наблюдатель", threshold: 250, next: 750 },
+    { level: 3, emoji: "🎯", title: "Прогнозист", threshold: 750, next: 1600 },
+    { level: 4, emoji: "🧠", title: "Аналитик", threshold: 1600, next: 3200 },
+    { level: 5, emoji: "🔮", title: "Оракул", threshold: 3200, next: 5600 },
+    { level: 6, emoji: "👑", title: "Легенда рынка", threshold: 5600, next: 5600 },
+  ];
+
+  const current = [...levels].reverse().find((item) => score >= item.threshold) || levels[0];
+  const next = levels.find((item) => item.level === current.level + 1) || null;
+  const progress = next
+    ? Math.max(6, Math.min(100, Math.round(((score - current.threshold) / (next.threshold - current.threshold)) * 100)))
+    : 100;
+
+  const description = next
+    ? `До уровня «${next.title}» осталось ${Math.max(0, Math.ceil(next.threshold - score))} XP.`
+    : "Максимальный уровень открыт. Теперь ты играешь за статус легенды.";
+
+  return {
+    ...current,
+    score: Math.round(score),
+    progress,
+    nextTitle: next?.title || "Максимум",
+    description,
+  };
+}
+
+type Achievement = {
+  id: string;
+  emoji: string;
+  title: string;
+  description: string;
+  unlocked: boolean;
+  progress: number;
+};
+
+function makeAchievement(id: string, emoji: string, title: string, description: string, progress: number): Achievement {
+  return {
+    id,
+    emoji,
+    title,
+    description,
+    unlocked: progress >= 100,
+    progress: Math.max(0, Math.min(100, Math.round(progress))),
+  };
+}
+
+function getUserAchievements(params: {
+  user: DemoUser | null;
+  stats: { predictionsCount: number; wins: number; winRate: number; settledCount: number };
+  rank: number;
+  suggestionsCount: number;
+}) {
+  const { user, stats, rank, suggestionsCount } = params;
+  const balance = user?.balance || 0;
+  const streak = user?.dailyBonusStreak || 0;
+  const bestStreak = user?.bestDailyBonusStreak || 0;
+
+  return [
+    makeAchievement("first_prediction", "🎯", "Первый прогноз", "Сделай первый прогноз на рынке.", stats.predictionsCount >= 1 ? 100 : 0),
+    makeAchievement("five_predictions", "🧠", "Разогрев аналитика", "Сделай 5 прогнозов.", (stats.predictionsCount / 5) * 100),
+    makeAchievement("ten_predictions", "📈", "Серийный прогнозист", "Сделай 10 прогнозов.", (stats.predictionsCount / 10) * 100),
+    makeAchievement("five_wins", "💎", "Пять попаданий", "Выиграй 5 рассчитанных прогнозов.", (stats.wins / 5) * 100),
+    makeAchievement("three_day_streak", "🔥", "3 дня подряд", "Забери ежедневный бонус 3 дня подряд.", (streak / 3) * 100),
+    makeAchievement("week_streak", "⚡", "Неделя в игре", "Держи серию бонусов 7 дней подряд.", (bestStreak / 7) * 100),
+    makeAchievement("balance_15000", "🚀", "Баланс 15 000+", "Подними баланс выше 15 000 баллов.", (balance / 15000) * 100),
+    makeAchievement("top_three", "🏆", "Верхушка рейтинга", "Попади в топ-3 рейтинга.", rank > 0 && rank <= 3 ? 100 : 0),
+    makeAchievement("suggest_market", "🗣", "Идея для рынка", "Предложи хотя бы один рынок.", suggestionsCount >= 1 ? 100 : 0),
+  ];
+}
+
+function getNextDailyBonusAmount(user: DemoUser | null) {
+  if (!user) return DAILY_BONUS_AMOUNT;
+  const lastClaimedAt = user.lastDailyBonusAt ? new Date(user.lastDailyBonusAt).getTime() : 0;
+  const currentStreak = user.dailyBonusStreak || 0;
+  const nextStreak = lastClaimedAt && Date.now() - lastClaimedAt <= DAILY_BONUS_GRACE_MS ? currentStreak + 1 : 1;
+  const amountIndex = Math.min(DAILY_BONUS_STREAK_AMOUNTS.length - 1, Math.max(0, nextStreak - 1));
+  return DAILY_BONUS_STREAK_AMOUNTS[amountIndex] || DAILY_BONUS_AMOUNT;
+}
+
+function getDailyStreakLabel(user: DemoUser | null) {
+  const streak = user?.dailyBonusStreak || 0;
+  if (streak <= 0) return "Серия ещё не началась";
+  return `${streak} ${streak === 1 ? "день" : streak >= 2 && streak <= 4 ? "дня" : "дней"} подряд`;
 }
 
 function estimatePredictionPayout(market: Market | undefined, prediction: Prediction) {
@@ -686,8 +768,20 @@ function App() {
   }, [users, activeUser]);
 
   const activeUserLevel = useMemo(() => {
-    return getUserLevel(activeUserStats, activeUserRank);
-  }, [activeUserStats, activeUserRank]);
+    return getUserLevel(activeUserStats, activeUserRank, activeUser);
+  }, [activeUserStats, activeUserRank, activeUser]);
+
+  const activeUserAchievements = useMemo(() => {
+    return getUserAchievements({
+      user: activeUser,
+      stats: activeUserStats,
+      rank: activeUserRank,
+      suggestionsCount: activeUserSuggestions.length,
+    });
+  }, [activeUser, activeUserStats, activeUserRank, activeUserSuggestions.length]);
+
+  const unlockedAchievementsCount = activeUserAchievements.filter((achievement) => achievement.unlocked).length;
+  const activeDailyBonusAmount = getNextDailyBonusAmount(activeUser);
 
   const myPredictionsByTab = useMemo(() => {
     if (myPredictionTab === "active") return activeUserOpenPredictions;
@@ -2084,10 +2178,14 @@ function App() {
           <span className="dailyBonusIcon">🎁</span>
           <div>
             <p className="eyebrow">Ежедневный бонус</p>
-            <h2>+{DAILY_BONUS_AMOUNT.toLocaleString("ru-RU")} баллов</h2>
+            <h2>+{activeDailyBonusAmount.toLocaleString("ru-RU")} баллов</h2>
           </div>
         </div>
-        <p>Забирай бонус раз в 24 часа и возвращайся проверить новые рынки.</p>
+        <p>Забирай бонус раз в 24 часа. Чем длиннее серия, тем больше ежедневная награда.</p>
+        <div className="dailyStreakRow">
+          <span>🔥 {getDailyStreakLabel(activeUser)}</span>
+          <strong>Рекорд: {activeUser?.bestDailyBonusStreak || 0}</strong>
+        </div>
         <div className="dailyBonusProgress" aria-label="Прогресс до следующего бонуса">
           <span style={{ width: `${dailyBonusInfo.progress}%` }} />
         </div>
@@ -2941,10 +3039,17 @@ function App() {
           <div className="profileMainInfo">
             <div className="profileRoleRow">
               <span className="profileRole">{roleTitle}</span>
-              <span className="profileLevelBadge">{level.emoji} {level.title}</span>
+              <span className="profileLevelBadge">{level.emoji} Уровень {level.level} · {level.title}</span>
             </div>
             <h2>{activeUser.name}</h2>
             <p>{level.description}</p>
+            <div className="levelProgressBlock">
+              <div className="levelProgressTop">
+                <span>{level.score.toLocaleString("ru-RU")} XP</span>
+                <span>Следующий: {level.nextTitle}</span>
+              </div>
+              <div className="levelProgressBar"><span style={{ width: `${level.progress}%` }} /></div>
+            </div>
           </div>
           <div className="profileBalanceBox">
             <span>Баланс</span>
@@ -2971,6 +3076,14 @@ function App() {
             <strong>{activeUserStats.winRate}%</strong>
           </div>
           <div>
+            <span>Достижения</span>
+            <strong>{unlockedAchievementsCount}/{activeUserAchievements.length}</strong>
+          </div>
+          <div>
+            <span>Серия бонуса</span>
+            <strong>{activeUser?.dailyBonusStreak || 0}</strong>
+          </div>
+          <div>
             <span>Вложено</span>
             <strong>{activeUserStats.invested.toLocaleString("ru-RU")}</strong>
           </div>
@@ -2982,6 +3095,26 @@ function App() {
 
         <section className="profileContentGrid">
           {renderDailyBonusCard("profile")}
+
+          <div className="profileCard achievementsCard profileWideCard">
+            <div className="sectionHeader">
+              <h2>Достижения</h2>
+              <span>{unlockedAchievementsCount}/{activeUserAchievements.length}</span>
+            </div>
+            <div className="achievementGrid">
+              {activeUserAchievements.map((achievement) => (
+                <article className={`achievementItem ${achievement.unlocked ? "achievementUnlocked" : ""}`} key={achievement.id}>
+                  <div className="achievementIcon">{achievement.emoji}</div>
+                  <div className="achievementText">
+                    <strong>{achievement.title}</strong>
+                    <p>{achievement.description}</p>
+                    <div className="achievementProgress"><span style={{ width: `${achievement.progress}%` }} /></div>
+                  </div>
+                  <span className="achievementState">{achievement.unlocked ? "Открыто" : `${achievement.progress}%`}</span>
+                </article>
+              ))}
+            </div>
+          </div>
 
           <div className="profileCard profileRulesCard">
             <div className="sectionHeader">

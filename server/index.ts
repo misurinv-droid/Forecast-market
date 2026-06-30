@@ -16,6 +16,9 @@ type DemoUser = {
   name: string;
   balance: number;
   lastDailyBonusAt?: string;
+  dailyBonusStreak?: number;
+  bestDailyBonusStreak?: number;
+  lastDailyBonusAmount?: number;
 };
 
 type Market = {
@@ -111,6 +114,8 @@ const PORT = Number(process.env.PORT || 4000);
 const START_BALANCE = 10000;
 const DAILY_BONUS_AMOUNT = 500;
 const DAILY_BONUS_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const DAILY_BONUS_GRACE_MS = 48 * 60 * 60 * 1000;
+const DAILY_BONUS_STREAK_AMOUNTS = [500, 600, 700, 800, 1000, 1200, 1500];
 const DATABASE_URL = process.env.DATABASE_URL;
 const BOT_TOKEN = process.env.BOT_TOKEN || "";
 const APP_PUBLIC_URL = (process.env.APP_PUBLIC_URL || process.env.FRONTEND_URL || "").trim();
@@ -505,6 +510,21 @@ function getNextDailyBonusAt(lastDailyBonusAt: unknown) {
   return new Date(last + DAILY_BONUS_INTERVAL_MS);
 }
 
+function getDailyBonusStreakState(lastDailyBonusAt: unknown, currentStreakValue: unknown) {
+  const currentStreak = Math.max(0, Number(currentStreakValue || 0));
+  if (!lastDailyBonusAt) return { nextStreak: 1, amount: DAILY_BONUS_STREAK_AMOUNTS[0] || DAILY_BONUS_AMOUNT };
+
+  const last = lastDailyBonusAt instanceof Date ? lastDailyBonusAt.getTime() : new Date(String(lastDailyBonusAt)).getTime();
+  const isContinuing = Number.isFinite(last) && Date.now() - last <= DAILY_BONUS_GRACE_MS;
+  const nextStreak = isContinuing ? currentStreak + 1 : 1;
+  const amountIndex = Math.min(DAILY_BONUS_STREAK_AMOUNTS.length - 1, Math.max(0, nextStreak - 1));
+
+  return {
+    nextStreak,
+    amount: DAILY_BONUS_STREAK_AMOUNTS[amountIndex] || DAILY_BONUS_AMOUNT,
+  };
+}
+
 async function withTransaction<T>(callback: (client: PoolClient) => Promise<T>) {
   const client = await pool.connect();
 
@@ -531,6 +551,9 @@ function toUser(row: any): DemoUser {
           ? row.last_daily_bonus_at.toISOString()
           : new Date(String(row.last_daily_bonus_at)).toISOString())
       : undefined,
+    dailyBonusStreak: Number(row.daily_bonus_streak || 0),
+    bestDailyBonusStreak: Number(row.best_daily_bonus_streak || 0),
+    lastDailyBonusAmount: row.last_daily_bonus_amount ? Number(row.last_daily_bonus_amount) : undefined,
   };
 }
 
@@ -1297,7 +1320,10 @@ async function migrate() {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       balance INTEGER NOT NULL DEFAULT 10000,
-      last_daily_bonus_at TIMESTAMPTZ
+      last_daily_bonus_at TIMESTAMPTZ,
+      daily_bonus_streak INTEGER NOT NULL DEFAULT 0,
+      best_daily_bonus_streak INTEGER NOT NULL DEFAULT 0,
+      last_daily_bonus_amount INTEGER
     );
 
     CREATE TABLE IF NOT EXISTS markets (
@@ -1411,6 +1437,9 @@ async function migrate() {
     CREATE INDEX IF NOT EXISTS auth_sessions_expires_at_idx ON auth_sessions(expires_at);
 
     ALTER TABLE users ADD COLUMN IF NOT EXISTS last_daily_bonus_at TIMESTAMPTZ;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_bonus_streak INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS best_daily_bonus_streak INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS last_daily_bonus_amount INTEGER;
   `);
 }
 
@@ -1607,6 +1636,7 @@ app.get("/api/health", async (_request, response) => {
     telegramAuthMaxAgeSeconds: TELEGRAM_AUTH_MAX_AGE_SECONDS,
     appPublicUrlConfigured: Boolean(APP_PUBLIC_URL),
     dailyBonusAmount: DAILY_BONUS_AMOUNT,
+    dailyBonusStreakAmounts: DAILY_BONUS_STREAK_AMOUNTS,
     strictTelegramUserActions: true,
     publicUserCreationDisabled: true,
     polymarketAutoImportEnabled: POLYMARKET_AUTO_IMPORT_ENABLED,
@@ -1719,23 +1749,29 @@ app.post("/api/users/:userId/daily-bonus", async (request, response) => {
         return null;
       }
 
+      const streakState = getDailyBonusStreakState(userRow.last_daily_bonus_at, userRow.daily_bonus_streak);
+
       const updatedUserResult = await client.query(
         `UPDATE users
-         SET balance = balance + $2, last_daily_bonus_at = NOW()
+         SET balance = balance + $2,
+             last_daily_bonus_at = NOW(),
+             daily_bonus_streak = $3,
+             best_daily_bonus_streak = GREATEST(COALESCE(best_daily_bonus_streak, 0), $3),
+             last_daily_bonus_amount = $2
          WHERE id = $1
          RETURNING *`,
-        [userId, DAILY_BONUS_AMOUNT]
+        [userId, streakState.amount, streakState.nextStreak]
       );
 
       const transaction = await addBalanceTransaction(client, {
         userId,
         type: "daily_bonus",
-        title: "Ежедневный бонус",
-        description: "Бонус за возвращение в Forecast Market",
-        amount: DAILY_BONUS_AMOUNT,
+        title: `Ежедневный бонус · день ${streakState.nextStreak}`,
+        description: `Бонус за серию входов. Сегодня начислено ${streakState.amount} баллов.`,
+        amount: streakState.amount,
       });
 
-      return { user: toUser(updatedUserResult.rows[0]), transaction };
+      return { user: toUser(updatedUserResult.rows[0]), transaction, dailyBonusAmount: streakState.amount, dailyBonusStreak: streakState.nextStreak };
     });
 
     if (!result) return;
