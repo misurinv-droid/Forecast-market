@@ -2427,6 +2427,61 @@ app.post("/api/admin/users/:userId/points", async (request, response) => {
   }
 });
 
+app.post("/api/admin/users/points/bulk", async (request, response) => {
+  if (!(await requireAdmin(request, response))) return;
+
+  const rawAmount = Number(request.body?.amount);
+  const amount = Math.trunc(rawAmount);
+  const description = String(request.body?.description || "Массовая тестовая корректировка баланса").trim().slice(0, 300);
+
+  if (!Number.isFinite(amount) || amount === 0) {
+    response.status(400).json({ error: "Введите корректную сумму для всех игроков. Например: 1000 или -500." });
+    return;
+  }
+
+  try {
+    const result = await withTransaction(async (client) => {
+      const usersResult = await client.query("SELECT * FROM users ORDER BY name ASC FOR UPDATE");
+      let affectedUsers = 0;
+      let totalAmount = 0;
+
+      for (const row of usersResult.rows) {
+        const userId = String(row.id);
+        const currentBalance = Number(row.balance || 0);
+        const actualAmount = amount < 0 ? -Math.min(currentBalance, Math.abs(amount)) : amount;
+
+        if (actualAmount === 0) continue;
+
+        await client.query("UPDATE users SET balance = balance + $2 WHERE id = $1", [userId, actualAmount]);
+
+        await addBalanceTransaction(client, {
+          userId,
+          type: "system",
+          title: actualAmount > 0 ? "Массовое начисление баллов" : "Массовое списание баллов",
+          description: description || "Массовая тестовая корректировка баланса администратором",
+          amount: actualAmount,
+        });
+
+        affectedUsers += 1;
+        totalAmount += actualAmount;
+      }
+
+      const updatedUsers = await client.query("SELECT * FROM users ORDER BY name ASC");
+      return {
+        affectedUsers,
+        totalUsers: usersResult.rows.length,
+        totalAmount,
+        users: updatedUsers.rows.map(toUser),
+      };
+    });
+
+    response.json(result);
+  } catch (error) {
+    console.error("bulk points failed", error);
+    response.status(500).json({ error: "Не удалось массово изменить балансы игроков" });
+  }
+});
+
 app.post("/api/polymarket/import", async (request, response) => {
   if (!(await requireAdmin(request, response))) return;
 

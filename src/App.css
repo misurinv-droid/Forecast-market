@@ -12210,3 +12210,225 @@ body,
 .telegramApp .notificationToggleItem input:checked + i::after {
   transform: translateX(18px);
 }
+
+
+/* Daily missions */
+.dailyMissionsCard {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  gap: 13px;
+  padding: 18px;
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(37, 99, 235, 0.15), transparent 34%),
+    radial-gradient(circle at 94% 8%, rgba(20, 184, 166, 0.16), transparent 38%),
+    rgba(255, 255, 255, 0.84);
+  border: 1px solid rgba(226, 232, 240, 0.88);
+  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.08);
+}
+
+.dailyMissionsCard-profile {
+  min-height: 100%;
+}
+
+.dailyMissionsHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.dailyMissionsHeader h2 {
+  margin: 4px 0 6px;
+  color: #0f172a;
+  font-size: clamp(1.12rem, 2vw, 1.45rem);
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+}
+
+.dailyMissionsHeader span {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.dailyMissionsHeader > strong {
+  display: grid;
+  place-items: center;
+  min-width: 58px;
+  height: 58px;
+  border-radius: 20px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #162bdc, #07a9cf);
+  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.18);
+  font-size: 1.05rem;
+}
+
+.dailyMissionProgress {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(226, 232, 240, 0.92);
+}
+
+.dailyMissionProgress span {
+  display: block;
+  height: 100%;
+  min-width: 4px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2563eb, #14b8a6, #22c55e);
+  transition: width 220ms ease;
+}
+
+.dailyMissionList {
+  display: grid;
+  gap: 8px;
+}
+
+.dailyMissionItem {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 11px;
+  border-radius: 20px;
+  background: rgba(248, 250, 252, 0.86);
+  border: 1px solid rgba(226, 232, 240, 0.86);
+}
+
+.dailyMissionIcon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 16px;
+  background: rgba(219, 234, 254, 0.9);
+  font-size: 1.08rem;
+}
+
+.completedDailyMission .dailyMissionIcon {
+  background: rgba(209, 250, 229, 0.94);
+}
+
+.dailyMissionItem strong {
+  display: block;
+  color: #0f172a;
+  font-size: 0.9rem;
+  line-height: 1.18;
+}
+
+.dailyMissionItem p {
+  margin: 3px 0 0;
+  color: #64748b;
+  font-size: 0.73rem;
+  line-height: 1.28;
+  font-weight: 760;
+}
+
+.dailyMissionItem small {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 6px;
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: #047857;
+  background: rgba(209, 250, 229, 0.82);
+  font-size: 0.66rem;
+  font-weight: 950;
+}
+
+.dailyMissionItem button {
+  border: 0;
+  border-radius: 14px;
+  padding: 9px 11px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #162bdc, #07a9cf);
+  font-size: 0.72rem;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.completedDailyMission button {
+  color: #0f172a;
+  background: rgba(226, 232, 240, 0.92);
+}
+
+/* Admin bulk points */
+.adminBulkPointsCard {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(245, 158, 11, 0.12), transparent 34%),
+    rgba(255, 255, 255, 0.88);
+}
+
+.bulkPointsActions {
+  display: grid;
+  gap: 8px;
+}
+
+.bulkPointsActions small {
+  color: #64748b;
+  font-size: 0.74rem;
+  line-height: 1.35;
+  font-weight: 760;
+}
+
+.bulkPointsActions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
+.telegramApp .dailyMissionsCard {
+  gap: 10px;
+  padding: 14px;
+  border-radius: 24px;
+}
+
+.telegramApp .dailyMissionsHeader > strong {
+  min-width: 48px;
+  height: 48px;
+  border-radius: 17px;
+  font-size: 0.88rem;
+}
+
+.telegramApp .dailyMissionItem {
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  padding: 9px;
+  border-radius: 17px;
+}
+
+.telegramApp .dailyMissionItem button {
+  grid-column: 1 / -1;
+  width: 100%;
+  padding: 9px;
+}
+
+.telegramApp .dailyMissionIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 14px;
+}
+
+.telegramApp .dailyMissionItem strong {
+  font-size: 0.78rem;
+}
+
+.telegramApp .dailyMissionItem p {
+  font-size: 0.66rem;
+}
+
+.telegramApp .dailyMissionItem small {
+  font-size: 0.6rem;
+}
+
+@media (max-width: 720px) {
+  .dailyMissionItem {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .dailyMissionItem button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}

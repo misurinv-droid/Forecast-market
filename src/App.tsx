@@ -14,6 +14,7 @@ type SwipeRailState = { rail: HTMLElement; startX: number; startY: number; scrol
 type MarketBadge = { label: string; emoji: string; tone: "hot" | "soon" | "new" | "interest" | "poly" | "mine" | "closed" };
 type ActivityTone = "bonus" | "prediction" | "win" | "loss" | "market" | "social" | "admin" | "calm";
 type ActivityItem = { id: string; emoji: string; title: string; text: string; tone: ActivityTone; actionLabel: string; action: () => void };
+type DailyMission = { id: string; icon: string; title: string; text: string; reward: string; completed: boolean; actionLabel: string; action: () => void };
 type MyPredictionTab = "active" | "waiting" | "settled" | "won" | "lost" | "all";
 type ProfileTab = "overview" | "achievements" | "predictions" | "social" | "history";
 type AdminPanelTab = "overview" | "users" | "markets" | "create" | "suggestions" | "settlement" | "polymarket" | "points" | "security";
@@ -874,6 +875,8 @@ function App() {
   });
   const [isPolymarketImporting, setIsPolymarketImporting] = useState(false);
   const [adminAwardForm, setAdminAwardForm] = useState({ userId: "", amount: "1000", description: "Тестовое начисление баллов" });
+  const [adminBulkPointsForm, setAdminBulkPointsForm] = useState({ amount: "1000", description: "Массовая тестовая корректировка баланса" });
+  const [isApplyingBulkPoints, setIsApplyingBulkPoints] = useState(false);
   const [adminTab, setAdminTab] = useState<AdminPanelTab>("overview");
   const [adminUserSearch, setAdminUserSearch] = useState("");
   const [adminMarketSearch, setAdminMarketSearch] = useState("");
@@ -1270,6 +1273,94 @@ function App() {
       .filter((group) => group.markets.length > 0)
       .sort((a, b) => b.openCount - a.openCount || b.markets.length - a.markets.length);
   }, [markets, predictions]);
+
+  const dailyMissions = useMemo<DailyMission[]>(() => {
+    const now = new Date();
+    const dayStart = new Date(now);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+
+    const isToday = (value?: string) => {
+      const date = parseAppDate(value);
+      return Boolean(date && date >= dayStart && date < dayEnd);
+    };
+
+    const todaysUserPredictions = activeUserPredictions.filter((prediction) => isToday(prediction.createdAt));
+    const todaysUserComments = activeUser
+      ? comments.filter((comment) => comment.userId === activeUser.id && isToday(comment.createdAt))
+      : [];
+    const hotMarketIds = new Set(popularMarkets.map((market) => market.id));
+    const hasHotPredictionToday = todaysUserPredictions.some((prediction) => hotMarketIds.has(prediction.marketId));
+    const hasReferral = activeUserReferrals.length > 0;
+    const bonusClaimedToday = Boolean(activeUser?.lastDailyBonusAt && isToday(activeUser.lastDailyBonusAt));
+
+    return [
+      {
+        id: "daily-bonus",
+        icon: bonusClaimedToday ? "✅" : "🎁",
+        title: "Забери ежедневный бонус",
+        text: bonusClaimedToday ? "Бонус дня уже забран. Завтра серия продолжится." : `Сегодня можно получить до ${activeDailyBonusAmount.toLocaleString("ru-RU")} баллов.`,
+        reward: `+${activeDailyBonusAmount.toLocaleString("ru-RU")} б.`,
+        completed: bonusClaimedToday,
+        actionLabel: bonusClaimedToday ? "Профиль" : "Забрать",
+        action: () => {
+          if (dailyBonusInfo.canClaim) void claimDailyBonus();
+          else setMainView("profile");
+        },
+      },
+      {
+        id: "first-prediction",
+        icon: todaysUserPredictions.length > 0 ? "✅" : "🎯",
+        title: "Сделай 1 прогноз",
+        text: todaysUserPredictions.length > 0 ? `Сегодня уже сделано: ${todaysUserPredictions.length}.` : "Открой рынок из ленты и выбери Да или Нет.",
+        reward: "+100 XP",
+        completed: todaysUserPredictions.length > 0,
+        actionLabel: todaysUserPredictions.length > 0 ? "Мои" : "К рынкам",
+        action: () => setMainView(todaysUserPredictions.length > 0 ? "predictions" : "markets"),
+      },
+      {
+        id: "comment",
+        icon: todaysUserComments.length > 0 ? "✅" : "💬",
+        title: "Оставь комментарий",
+        text: todaysUserComments.length > 0 ? "Ты уже участвовал в обсуждении сегодня." : "Напиши мнение в чате любого рынка.",
+        reward: "+100 XP",
+        completed: todaysUserComments.length > 0,
+        actionLabel: todaysUserComments.length > 0 ? "Профиль" : "Найти рынок",
+        action: () => setMainView(todaysUserComments.length > 0 ? "profile" : "search"),
+      },
+      {
+        id: "hot-market",
+        icon: hasHotPredictionToday ? "✅" : "🔥",
+        title: "Прогноз в горячем рынке",
+        text: hasHotPredictionToday ? "Горячий рынок сегодня уже сыгран." : "Выбери событие из блока «Горячие рынки».",
+        reward: "+150 XP",
+        completed: hasHotPredictionToday,
+        actionLabel: hasHotPredictionToday ? "Мои" : "Горячие",
+        action: () => setMainView(hasHotPredictionToday ? "predictions" : "markets"),
+      },
+      {
+        id: "referral",
+        icon: hasReferral ? "✅" : "🤝",
+        title: "Пригласи друга",
+        text: hasReferral ? "У тебя уже есть приглашённые друзья." : "Поделись ссылкой и получи бонус за активного друга.",
+        reward: "+1 000 б.",
+        completed: hasReferral,
+        actionLabel: "Поделиться",
+        action: () => void shareReferral(),
+      },
+    ];
+  }, [
+    activeUser,
+    activeUserPredictions,
+    activeUserReferrals,
+    activeDailyBonusAmount,
+    dailyBonusInfo.canClaim,
+    comments,
+    popularMarkets,
+  ]);
+
+  const completedDailyMissionsCount = dailyMissions.filter((mission) => mission.completed).length;
 
   const openMarketsCount = useMemo(() => markets.filter((market) => market.status === "open").length, [markets]);
   const closedMarketsCount = useMemo(() => markets.filter((market) => market.status === "closed").length, [markets]);
@@ -2187,6 +2278,42 @@ function App() {
     } catch (error) {
       sendError();
       alert(getErrorMessage(error));
+    }
+  }
+
+  async function awardAllUsersPoints() {
+    if (!requireClientAdmin()) return;
+
+    const amount = Number(adminBulkPointsForm.amount);
+
+    if (!Number.isFinite(amount) || amount === 0) {
+      alert("Введите сумму для всех игроков. Например: 1000 или -500.");
+      return;
+    }
+
+    const actionText = amount > 0 ? "начислить" : "списать";
+    const confirmed = window.confirm(`Подтвердить: ${actionText} ${Math.abs(amount).toLocaleString("ru-RU")} баллов всем игрокам?`);
+
+    if (!confirmed) return;
+
+    try {
+      setIsApplyingBulkPoints(true);
+      const result = await apiRequest<{ affectedUsers: number; totalAmount: number }>("/admin/users/points/bulk", {
+        method: "POST",
+        headers: adminHeaders(),
+        body: JSON.stringify({
+          amount,
+          description: adminBulkPointsForm.description || "Массовая тестовая корректировка баланса",
+        }),
+      });
+      await refreshData(activeUser?.id);
+      sendSuccess();
+      showToast(`Готово: ${result.affectedUsers} игроков · ${result.totalAmount >= 0 ? "+" : ""}${result.totalAmount.toLocaleString("ru-RU")} б.`);
+    } catch (error) {
+      sendError();
+      alert(getErrorMessage(error));
+    } finally {
+      setIsApplyingBulkPoints(false);
     }
   }
 
@@ -3696,6 +3823,44 @@ function App() {
     );
   }
 
+  function renderDailyMissionsCard(context: "home" | "profile" = "home") {
+    const progress = dailyMissions.length > 0 ? Math.round((completedDailyMissionsCount / dailyMissions.length) * 100) : 0;
+    const compact = context === "home";
+
+    return (
+      <section className={`dailyMissionsCard dailyMissionsCard-${context}`}>
+        <div className="dailyMissionsHeader">
+          <div>
+            <p className="eyebrow">Задания дня</p>
+            <h2>Выполни миссии и возвращайся завтра</h2>
+            <span>{completedDailyMissionsCount} из {dailyMissions.length} выполнено</span>
+          </div>
+          <strong>{progress}%</strong>
+        </div>
+
+        <div className="dailyMissionProgress">
+          <span style={{ width: `${progress}%` }} />
+        </div>
+
+        <div className="dailyMissionList">
+          {(compact ? dailyMissions.slice(0, 5) : dailyMissions).map((mission) => (
+            <article className={`dailyMissionItem ${mission.completed ? "completedDailyMission" : ""}`} key={mission.id}>
+              <div className="dailyMissionIcon">{mission.icon}</div>
+              <div>
+                <strong>{mission.title}</strong>
+                <p>{mission.text}</p>
+                <small>{mission.reward}</small>
+              </div>
+              <button onClick={mission.action}>
+                {mission.completed ? "Открыть" : mission.actionLabel}
+              </button>
+            </article>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
   function renderHomePage() {
     const topLeaderboard = leaderboard.slice(0, isTelegram ? 3 : 5);
     const quickPredictions = activeUserOpenPredictions.slice(0, 3);
@@ -3810,6 +3975,8 @@ function App() {
             ))}
           </div>
         </section>
+
+        {renderDailyMissionsCard("home")}
 
         {renderInterestPicker("home")}
 
@@ -4702,6 +4869,36 @@ function App() {
               {selectedAwardUser ? <p className="adminHint">Выбран: {selectedAwardUser.name} · баланс {selectedAwardUser.balance.toLocaleString("ru-RU")} б.</p> : null}
             </article>
 
+            <article className="adminFormCard adminBulkPointsCard">
+              <div className="sectionHeader">
+                <div>
+                  <h2>Массовая корректировка</h2>
+                  <p>Для тестирования: начислить или списать баллы всем игрокам сразу.</p>
+                </div>
+              </div>
+              <div className="adminForm compactAdminForm manualPointsForm">
+                <label>
+                  Сумма для всех
+                  <input inputMode="numeric" placeholder="Например 1000 или -500" value={adminBulkPointsForm.amount} onChange={(event) => setAdminBulkPointsForm((current) => ({ ...current, amount: event.target.value.replace(/(?!^-)[^0-9]/g, "") }))} />
+                </label>
+                <label className="wideField">
+                  Комментарий
+                  <input placeholder="Например: тестовое начисление всем" value={adminBulkPointsForm.description} onChange={(event) => setAdminBulkPointsForm((current) => ({ ...current, description: event.target.value }))} />
+                </label>
+                <div className="quickAmountRow wideField">
+                  {[100, 500, 1000, 5000].map((amount) => <button key={amount} onClick={() => setAdminBulkPointsForm((current) => ({ ...current, amount: String(amount), description: "Массовое тестовое начисление баллов" }))}>+{amount}</button>)}
+                  <button className="secondaryButton" onClick={() => setAdminBulkPointsForm((current) => ({ ...current, amount: "-100", description: "Массовое тестовое списание баллов" }))}>−100</button>
+                  <button className="secondaryButton" onClick={() => setAdminBulkPointsForm((current) => ({ ...current, amount: "-500", description: "Массовое тестовое списание баллов" }))}>−500</button>
+                </div>
+                <div className="bulkPointsActions wideField">
+                  <button className="createMarketButton" onClick={awardAllUsersPoints} disabled={isApplyingBulkPoints}>
+                    {isApplyingBulkPoints ? "Применяем..." : Number(adminBulkPointsForm.amount) >= 0 ? "Начислить всем" : "Списать у всех"}
+                  </button>
+                  <small>При списании баланс игроков не уйдёт ниже нуля: если у кого-то меньше баллов, спишется только доступный остаток.</small>
+                </div>
+              </div>
+            </article>
+
             <article className="adminFormCard">
               <div className="sectionHeader"><h2>Журнал баланса</h2></div>
               <div className="adminLogList">
@@ -5033,6 +5230,7 @@ function App() {
         {profileTab === "overview" && (
           <section className="profileContentGrid profileOverviewGrid">
             {renderDailyBonusCard("profile")}
+            {renderDailyMissionsCard("profile")}
             {renderTelegramNotificationCard()}
             {renderInterestPicker("profile")}
             {renderReferralCard()}
