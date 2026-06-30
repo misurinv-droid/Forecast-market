@@ -10886,3 +10886,44 @@ body,
     font-size: 0.76rem;
   }
 }
+
+
+/* Smooth carousel drag tuning */
+.gameShelf .gameShelfList,
+.interestChipGrid,
+.telegramApp .gameShelf .gameShelfList,
+.telegramApp .interestChipGrid {
+  scroll-behavior: smooth;
+  will-change: scroll-position;
+  scroll-padding-left: 2px;
+  contain: paint;
+}
+
+.gameShelf .gameShelfList.isSwipeDragging,
+.interestChipGrid.isSwipeDragging,
+.telegramApp .gameShelf .gameShelfList.isSwipeDragging,
+.telegramApp .interestChipGrid.isSwipeDragging {
+  scroll-snap-type: none !important;
+  scroll-behavior: auto !important;
+  cursor: grabbing;
+}
+
+.gameShelf .gameShelfList.isSwipeDragging > *,
+.interestChipGrid.isSwipeDragging > *,
+.telegramApp .gameShelf .gameShelfList.isSwipeDragging > *,
+.telegramApp .interestChipGrid.isSwipeDragging > * {
+  scroll-snap-align: none !important;
+}
+
+.gameShelf .gameShelfList:not(.isSwipeDragging),
+.interestChipGrid:not(.isSwipeDragging),
+.telegramApp .gameShelf .gameShelfList:not(.isSwipeDragging),
+.telegramApp .interestChipGrid:not(.isSwipeDragging) {
+  scroll-snap-type: x proximity !important;
+}
+
+.telegramApp .gameShelf .gameShelfList,
+.telegramApp .interestChipGrid {
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: auto;
+}

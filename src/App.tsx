@@ -10,7 +10,7 @@ type DetailsTab = "overview" | "trades" | "participants" | "chat";
 type MainView = "markets" | "imported" | "search" | "predictions" | "tournament" | "suggest" | "admin" | "moderation" | "settlement" | "profile";
 type AppRouteSnapshot = { mainView: MainView; selectedMarketId: string | null };
 type SwipeRailMode = "pending" | "horizontal" | "vertical";
-type SwipeRailState = { rail: HTMLElement; startX: number; startY: number; scrollLeft: number; mode: SwipeRailMode; moved: boolean };
+type SwipeRailState = { rail: HTMLElement; startX: number; startY: number; scrollLeft: number; mode: SwipeRailMode; moved: boolean; nextLeft: number; rafId: number | null };
 type MyPredictionTab = "active" | "settled" | "won" | "lost" | "all";
 type ProfileTab = "overview" | "achievements" | "predictions" | "social" | "history";
 type AdminPanelTab = "overview" | "users" | "markets" | "create" | "suggestions" | "settlement" | "polymarket" | "points" | "security";
@@ -1399,9 +1399,38 @@ function App() {
     }
   }
 
+  function settleSwipeRail(rail: HTMLElement) {
+    const items = Array.from(rail.children).filter((item): item is HTMLElement => item instanceof HTMLElement);
+    if (items.length === 0) return;
+
+    const railRect = rail.getBoundingClientRect();
+    const currentLeft = rail.scrollLeft;
+    let closestLeft = currentLeft;
+    let closestDistance = Number.POSITIVE_INFINITY;
+
+    items.forEach((item) => {
+      const itemRect = item.getBoundingClientRect();
+      const targetLeft = currentLeft + itemRect.left - railRect.left - 2;
+      const distance = Math.abs(targetLeft - currentLeft);
+
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestLeft = targetLeft;
+      }
+    });
+
+    rail.scrollTo({ left: Math.max(0, closestLeft), behavior: "smooth" });
+  }
+
   function handleSwipeRailTouchStart(event: TouchEvent<HTMLElement>) {
     const touch = event.touches[0];
     if (!touch) return;
+
+    if (swipeRailRef.current?.rafId) {
+      window.cancelAnimationFrame(swipeRailRef.current.rafId);
+    }
+
+    event.currentTarget.classList.add("isSwipeDragging");
 
     swipeRailRef.current = {
       rail: event.currentTarget,
@@ -1410,6 +1439,8 @@ function App() {
       scrollLeft: event.currentTarget.scrollLeft,
       mode: "pending",
       moved: false,
+      nextLeft: event.currentTarget.scrollLeft,
+      rafId: null,
     };
   }
 
@@ -1424,21 +1455,44 @@ function App() {
     const absX = Math.abs(deltaX);
     const absY = Math.abs(deltaY);
 
-    if (state.mode === "pending" && Math.max(absX, absY) > 6) {
-      state.mode = absX > absY ? "horizontal" : "vertical";
+    if (state.mode === "pending" && Math.max(absX, absY) > 7) {
+      state.mode = absX > absY * 1.08 ? "horizontal" : "vertical";
     }
 
     if (state.mode !== "horizontal") return;
 
     state.moved = true;
-    state.rail.scrollLeft = state.scrollLeft - deltaX;
+    state.nextLeft = state.scrollLeft - deltaX;
+
+    if (!state.rafId) {
+      state.rafId = window.requestAnimationFrame(() => {
+        const currentState = swipeRailRef.current;
+        if (!currentState) return;
+
+        currentState.rail.scrollLeft = currentState.nextLeft;
+        currentState.rafId = null;
+      });
+    }
+
     event.preventDefault();
     event.stopPropagation();
   }
 
   function handleSwipeRailTouchEnd() {
-    if (swipeRailRef.current?.moved && swipeRailRef.current.mode === "horizontal") {
+    const state = swipeRailRef.current;
+
+    if (!state) return;
+
+    if (state.rafId) {
+      window.cancelAnimationFrame(state.rafId);
+      state.rail.scrollLeft = state.nextLeft;
+    }
+
+    state.rail.classList.remove("isSwipeDragging");
+
+    if (state.moved && state.mode === "horizontal") {
       suppressSwipeClickUntilRef.current = Date.now() + 260;
+      window.setTimeout(() => settleSwipeRail(state.rail), 24);
     }
 
     swipeRailRef.current = null;
