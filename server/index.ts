@@ -114,6 +114,7 @@ const DAILY_BONUS_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const DATABASE_URL = process.env.DATABASE_URL;
 const BOT_TOKEN = process.env.BOT_TOKEN || "";
 const APP_PUBLIC_URL = (process.env.APP_PUBLIC_URL || process.env.FRONTEND_URL || "").trim();
+const TELEGRAM_MINI_APP_URL = (process.env.TELEGRAM_MINI_APP_URL || "").trim();
 const TELEGRAM_AUTH_MAX_AGE_SECONDS = Number(process.env.TELEGRAM_AUTH_MAX_AGE_SECONDS || 2 * 60);
 const SESSION_MAX_AGE_DAYS = Number(process.env.SESSION_MAX_AGE_DAYS || 30);
 const ADMIN_TELEGRAM_IDS = (process.env.ADMIN_TELEGRAM_IDS || "")
@@ -673,11 +674,41 @@ function getTelegramChatIdFromUserId(userId: string) {
   return match?.[1] || null;
 }
 
+function removePrivateTelegramParams(url: URL) {
+  [
+    "tgWebAppData",
+    "tgWebAppVersion",
+    "tgWebAppPlatform",
+    "tgWebAppThemeParams",
+    "tgWebAppStartParam",
+  ].forEach((key) => url.searchParams.delete(key));
+  url.hash = "";
+}
+
+function getTelegramMiniAppUrl(marketId?: string) {
+  if (!TELEGRAM_MINI_APP_URL) return "";
+
+  try {
+    const url = new URL(TELEGRAM_MINI_APP_URL);
+    removePrivateTelegramParams(url);
+    if (marketId) url.searchParams.set("startapp", `market_${marketId}`);
+    return url.toString();
+  } catch {
+    const cleanBase = TELEGRAM_MINI_APP_URL.split("#")[0].split("?tgWebAppData=")[0];
+    const separator = cleanBase.includes("?") ? "&" : "?";
+    return marketId ? `${cleanBase}${separator}startapp=market_${encodeURIComponent(marketId)}` : cleanBase;
+  }
+}
+
 function getMarketAppUrl(marketId?: string) {
+  const telegramMiniAppUrl = getTelegramMiniAppUrl(marketId);
+  if (telegramMiniAppUrl) return telegramMiniAppUrl;
+
   if (!APP_PUBLIC_URL) return "";
 
   try {
     const url = new URL(APP_PUBLIC_URL);
+    removePrivateTelegramParams(url);
 
     if (marketId) {
       url.searchParams.set("market", marketId);
@@ -685,8 +716,9 @@ function getMarketAppUrl(marketId?: string) {
 
     return url.toString();
   } catch {
-    const separator = APP_PUBLIC_URL.includes("?") ? "&" : "?";
-    return marketId ? `${APP_PUBLIC_URL}${separator}market=${encodeURIComponent(marketId)}` : APP_PUBLIC_URL;
+    const cleanBase = APP_PUBLIC_URL.split("#")[0].split("?tgWebAppData=")[0];
+    const separator = cleanBase.includes("?") ? "&" : "?";
+    return marketId ? `${cleanBase}${separator}market=${encodeURIComponent(marketId)}` : cleanBase;
   }
 }
 
@@ -1597,6 +1629,7 @@ app.get("/api/health", async (_request, response) => {
     secureSessionAuthEnabled: true,
     telegramAuthMaxAgeSeconds: TELEGRAM_AUTH_MAX_AGE_SECONDS,
     appPublicUrlConfigured: Boolean(APP_PUBLIC_URL),
+    telegramMiniAppUrlConfigured: Boolean(TELEGRAM_MINI_APP_URL),
     dailyBonusAmount: DAILY_BONUS_AMOUNT,
     strictTelegramUserActions: true,
     publicUserCreationDisabled: true,

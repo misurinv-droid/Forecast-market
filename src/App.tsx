@@ -516,6 +516,31 @@ function removeTelegramPrivateParams(url: URL) {
   url.hash = "";
 }
 
+function getTelegramMiniAppHomeUrl() {
+  if (!TELEGRAM_MINI_APP_URL) return "";
+
+  try {
+    const miniAppUrl = new URL(TELEGRAM_MINI_APP_URL);
+    removeTelegramPrivateParams(miniAppUrl);
+    return miniAppUrl.toString();
+  } catch {
+    return TELEGRAM_MINI_APP_URL.split("#")[0].split("?tgWebAppData=")[0];
+  }
+}
+
+function openTelegramMiniApp() {
+  const url = getTelegramMiniAppHomeUrl();
+  if (!url) return;
+
+  const telegramWebApp = window.Telegram?.WebApp;
+  if (telegramWebApp?.openTelegramLink) {
+    telegramWebApp.openTelegramLink(url);
+    return;
+  }
+
+  window.location.href = url;
+}
+
 function getMarketShareUrl(marketId: string) {
   if (TELEGRAM_MINI_APP_URL) {
     try {
@@ -1101,6 +1126,7 @@ function App() {
     try {
       const result = await apiRequest<{ favoriteMarketIds: string[] }>(`/users/${activeUser.id}/favorites/${marketId}`, {
         method: "POST",
+        headers: adminHeaders(),
       });
       setFavoriteMarketIdsByUser((current) => ({ ...current, [activeUser.id]: result.favoriteMarketIds }));
       sendHaptic();
@@ -1123,6 +1149,7 @@ function App() {
     try {
       await apiRequest<Prediction>(`/markets/${market.id}/predictions`, {
         method: "POST",
+        headers: adminHeaders(),
         body: JSON.stringify({ userId: activeUser.id, outcome, amount: amountByMarket[market.id] || 500 }),
       });
       await refreshData(activeUser.id);
@@ -1175,6 +1202,7 @@ function App() {
     try {
       await apiRequest<MarketSuggestion>("/market-suggestions", {
         method: "POST",
+        headers: adminHeaders(),
         body: JSON.stringify({ ...suggestionForm, userId: activeUser.id }),
       });
       setSuggestionForm(emptySuggestionForm);
@@ -1433,6 +1461,7 @@ function App() {
     try {
       await apiRequest<MarketComment>(`/markets/${marketId}/comments`, {
         method: "POST",
+        headers: adminHeaders(),
         body: JSON.stringify({ userId: activeUser.id, text, mediaDataUrl: draft.mediaDataUrl, mediaName: draft.mediaName }),
       });
       setCommentDrafts((currentDrafts) => ({ ...currentDrafts, [marketId]: emptyCommentDraft }));
@@ -2971,6 +3000,11 @@ function App() {
             <strong>Открыто без Telegram-авторизации</strong>
             <p>Можно смотреть рынки, но прогнозы, бонусы и админ-действия доступны только при запуске через Telegram Mini App.</p>
           </div>
+          {TELEGRAM_MINI_APP_URL ? (
+            <button onClick={openTelegramMiniApp}>Открыть через Telegram</button>
+          ) : (
+            <p className="authWarningNote">Ссылка Telegram Mini App пока не настроена в переменных Vercel.</p>
+          )}
         </section>
       )}
 
