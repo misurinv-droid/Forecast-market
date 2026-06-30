@@ -11,6 +11,7 @@ type MainView = "markets" | "imported" | "search" | "predictions" | "tournament"
 type AppRouteSnapshot = { mainView: MainView; selectedMarketId: string | null };
 type SwipeRailMode = "pending" | "horizontal" | "vertical";
 type SwipeRailState = { rail: HTMLElement; startX: number; startY: number; scrollLeft: number; mode: SwipeRailMode; moved: boolean; nextLeft: number; rafId: number | null };
+type MarketBadge = { label: string; emoji: string; tone: "hot" | "soon" | "new" | "interest" | "poly" | "mine" | "closed" };
 type MyPredictionTab = "active" | "settled" | "won" | "lost" | "all";
 type ProfileTab = "overview" | "achievements" | "predictions" | "social" | "history";
 type AdminPanelTab = "overview" | "users" | "markets" | "create" | "suggestions" | "settlement" | "polymarket" | "points" | "security";
@@ -2714,6 +2715,56 @@ function App() {
   }
 
 
+  function getMarketBadges(market: Market, predictionCount: number, hasActivePrediction: boolean): MarketBadge[] {
+    const badges: MarketBadge[] = [];
+    const createdAt = market.createdAt ? new Date(market.createdAt).getTime() : 0;
+    const closesAt = market.closesAt ? new Date(market.closesAt).getTime() : 0;
+    const now = Date.now();
+    const hoursToClose = closesAt > now ? (closesAt - now) / 36e5 : Number.POSITIVE_INFINITY;
+    const daysSinceCreated = createdAt > 0 ? (now - createdAt) / 864e5 : Number.POSITIVE_INFINITY;
+    const isInterest = selectedInterestCategories.includes(market.category || "Без категории");
+
+    if (hasActivePrediction) {
+      badges.push({ label: "Мой прогноз", emoji: "🎯", tone: "mine" });
+    }
+
+    if (market.status === "closed") {
+      badges.push({ label: "Ждёт расчёта", emoji: "🧮", tone: "closed" });
+    }
+
+    if (market.status === "open" && predictionCount >= 3) {
+      badges.push({ label: "Горячий", emoji: "🔥", tone: "hot" });
+    }
+
+    if (market.status === "open" && hoursToClose <= 48) {
+      badges.push({ label: "Скоро", emoji: "⏳", tone: "soon" });
+    }
+
+    if (market.status === "open" && daysSinceCreated <= 3) {
+      badges.push({ label: "Новый", emoji: "✨", tone: "new" });
+    }
+
+    if (isInterest) {
+      badges.push({ label: "Твой интерес", emoji: "💚", tone: "interest" });
+    }
+
+    if (isPolymarketSource(market.source)) {
+      badges.push({ label: "Polymarket", emoji: "🌍", tone: "poly" });
+    }
+
+    return badges.slice(0, 3);
+  }
+
+  function getMarketActionHint(market: Market, yesProbability: number, predictionCount: number, hasActivePrediction: boolean) {
+    if (hasActivePrediction) return "Прогноз уже сделан — следи за результатом.";
+    if (market.status === "closed") return "Рынок закрыт и ждёт расчёта.";
+    if (market.status === "resolved") return "Рынок уже рассчитан.";
+    if (predictionCount === 0) return "Стань первым, кто сделает прогноз.";
+    if (yesProbability >= 65) return "Большинство выбирает «Да». Проверь, согласен ли ты.";
+    if (yesProbability <= 35) return "Большинство сомневается в «Да». Можно сыграть против толпы.";
+    return "Мнения разделились почти поровну — хороший момент для прогноза.";
+  }
+
   function renderMarketSignal(market: Market) {
     const yesProbability = getYesProbability(market);
     return (
@@ -2736,6 +2787,8 @@ function App() {
     const yesActionKey = `${market.id}:yes`;
     const noActionKey = `${market.id}:no`;
     const isBuyingThisMarket = buyingPredictionKey?.startsWith(`${market.id}:`) || false;
+    const marketBadges = getMarketBadges(market, marketPredictions.length, Boolean(activePrediction));
+    const actionHint = getMarketActionHint(market, yesProbability, marketPredictions.length, Boolean(activePrediction));
 
     return (
       <article className={`marketMiniRow quickTradeMarketRow ${context === "compact" ? "marketMiniRowCompact" : ""}`} key={market.id}>
@@ -2753,6 +2806,16 @@ function App() {
             {activePrediction && <span className="miniMine">Мой: {getOutcomeText(activePrediction.outcome)}</span>}
           </div>
           {renderMarketSignal(market)}
+          {marketBadges.length > 0 && (
+            <div className="marketBadgeRow">
+              {marketBadges.map((badge) => (
+                <span className={`marketMoodBadge marketMoodBadge-${badge.tone}`} key={`${market.id}-${badge.label}`}>
+                  {badge.emoji} {badge.label}
+                </span>
+              ))}
+            </div>
+          )}
+          <em className="marketActionHint">{actionHint}</em>
         </button>
 
         <div className="marketMiniOdds">
@@ -4751,6 +4814,17 @@ function App() {
           <div className="detailsLayout">
             <div className="detailsMain">
               <article className="detailsHeroCard">
+                <div className="detailsBadgeRow">
+                  {getMarketBadges(
+                    selectedMarket,
+                    selectedMarketPredictions.length,
+                    Boolean(activeUserPredictions.find((prediction) => prediction.marketId === selectedMarket.id && !prediction.settledAt)),
+                  ).map((badge) => (
+                    <span className={`marketMoodBadge marketMoodBadge-${badge.tone}`} key={`details-${badge.label}`}>
+                      {badge.emoji} {badge.label}
+                    </span>
+                  ))}
+                </div>
                 <div className="marketTop">
                   <span className="category">{selectedMarket.category}</span>
                   <div className="marketMeta">

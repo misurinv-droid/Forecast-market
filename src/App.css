@@ -10927,3 +10927,97 @@ body,
   overscroll-behavior-x: contain;
   overscroll-behavior-y: auto;
 }
+
+
+/* Market mood badges and clearer card hints */
+.marketBadgeRow,
+.detailsBadgeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.detailsBadgeRow {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+
+.marketMoodBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: #334155;
+  background: rgba(241, 245, 249, 0.92);
+  font-size: 0.68rem;
+  line-height: 1;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.marketMoodBadge-hot {
+  color: #c2410c;
+  background: rgba(255, 237, 213, 0.94);
+}
+
+.marketMoodBadge-soon {
+  color: #b45309;
+  background: rgba(254, 243, 199, 0.96);
+}
+
+.marketMoodBadge-new {
+  color: #7e22ce;
+  background: rgba(243, 232, 255, 0.94);
+}
+
+.marketMoodBadge-interest {
+  color: #0f766e;
+  background: rgba(204, 251, 241, 0.95);
+}
+
+.marketMoodBadge-poly {
+  color: #1d4ed8;
+  background: rgba(219, 234, 254, 0.94);
+}
+
+.marketMoodBadge-mine {
+  color: #047857;
+  background: rgba(209, 250, 229, 0.96);
+}
+
+.marketMoodBadge-closed {
+  color: #475569;
+  background: rgba(226, 232, 240, 0.94);
+}
+
+.marketActionHint {
+  display: block;
+  margin-top: 8px;
+  color: #64748b;
+  font-size: 0.75rem;
+  line-height: 1.28;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.telegramApp .marketBadgeRow {
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.telegramApp .marketMoodBadge {
+  padding: 4px 6px;
+  font-size: 0.6rem;
+}
+
+.telegramApp .marketActionHint {
+  margin-top: 6px;
+  font-size: 0.67rem;
+}
+
+.telegramApp .detailsBadgeRow {
+  margin-bottom: 9px;
+}
