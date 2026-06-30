@@ -8350,3 +8350,153 @@ button:disabled,
     flex: 1;
   }
 }
+
+
+/* Beautified compact logo header */
+.brandHeader {
+  width: min(100%, 1120px);
+  margin: 0 auto 12px;
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 0;
+  box-sizing: border-box;
+}
+
+.brandHeroShell {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 16px 18px;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 12% 18%, rgba(32, 210, 196, 0.14), transparent 34%),
+    radial-gradient(circle at 84% 12%, rgba(39, 92, 255, 0.16), transparent 32%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(239, 248, 255, 0.52));
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow: 0 16px 44px rgba(13, 31, 71, 0.08);
+  backdrop-filter: blur(10px);
+}
+
+.brandHeroLogo {
+  display: block;
+  width: min(100%, 260px);
+  height: auto;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+
+.brandHeroText {
+  min-width: 0;
+}
+
+.brandHeroText span {
+  display: block;
+  margin-bottom: 6px;
+  color: #64748b;
+  font-size: 0.77rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.brandHeroText strong {
+  display: block;
+  color: #0f172a;
+  font-size: 1.08rem;
+  line-height: 1.3;
+  font-weight: 800;
+}
+
+.brandHeaderProfileCard {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(226, 233, 247, 0.95);
+  box-shadow: 0 12px 34px rgba(15, 32, 70, 0.08);
+  backdrop-filter: blur(16px);
+}
+
+.telegramApp .brandHeader {
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) 12px 0;
+  margin-bottom: 10px;
+}
+
+.telegramApp .brandHeroShell {
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 22px;
+}
+
+.telegramApp .brandHeroLogo {
+  width: min(100%, 190px);
+}
+
+.telegramApp .brandHeroText span {
+  margin-bottom: 4px;
+  font-size: 0.66rem;
+}
+
+.telegramApp .brandHeroText strong {
+  font-size: 0.85rem;
+  line-height: 1.24;
+}
+
+.telegramApp .brandHeaderProfileCard {
+  padding: 11px 12px;
+  border-radius: 20px;
+  gap: 10px;
+}
+
+.telegramApp .brandHeaderProfileCard strong {
+  font-size: 0.98rem;
+}
+
+.telegramApp .brandHeaderProfileCard p {
+  font-size: 0.76rem;
+}
+
+.telegramApp .brandHeaderActions button {
+  padding: 9px 10px;
+  border-radius: 12px;
+  font-size: 0.78rem;
+}
+
+@media (max-width: 700px) {
+  .brandHeader {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .brandHeroShell {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 14px;
+  }
+
+  .brandHeroLogo {
+    width: min(100%, 220px);
+  }
+
+  .brandHeroText {
+    width: 100%;
+  }
+}
+
+@media (max-width: 560px) {
+  .brandHeaderProfileCard {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 12px;
+  }
+
+  .brandHeaderActions {
+    width: 100%;
+  }
+
+  .brandHeaderActions button {
+    flex: 1;
+  }
+}

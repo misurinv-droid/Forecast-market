@@ -3877,12 +3877,16 @@ function App() {
       )}
 
       <section className="brandHeader" aria-label="Forecast Market">
-        <div className="brandHeaderLogoCard">
+        <div className="brandHeroShell">
           <img
-            src="/forecast-market-logo.png"
+            src="/forecast-market-logo-cropped.png"
             alt="Forecast Market"
-            className="brandHeaderLogo"
+            className="brandHeroLogo"
           />
+          <div className="brandHeroText">
+            <span>Социальная биржа прогнозов</span>
+            <strong>Следи за вероятностями, делай прогнозы и соревнуйся с друзьями</strong>
+          </div>
         </div>
         <div className="brandHeaderProfileCard">
           <div>
