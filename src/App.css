@@ -8809,3 +8809,50 @@ button:disabled,
     font-size: 0.58rem !important;
   }
 }
+
+
+/* Bright header fix: prevent the slogan badge from overflowing on Telegram */
+.telegramApp .brandHeroText {
+  max-width: 45% !important;
+  overflow: hidden !important;
+}
+
+.telegramApp .brandHeroText span {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  white-space: normal !important;
+  overflow: hidden !important;
+  text-overflow: clip !important;
+  text-align: center !important;
+  line-height: 1.08 !important;
+  padding: 4px 6px !important;
+  font-size: 0.48rem !important;
+  letter-spacing: 0.045em !important;
+}
+
+.telegramApp .brandHeroText strong {
+  font-size: 0.62rem !important;
+  line-height: 1.12 !important;
+}
+
+@media (max-width: 390px) {
+  .telegramApp .brandHeroLogo {
+    width: 144px !important;
+    max-width: 49% !important;
+  }
+
+  .telegramApp .brandHeroText {
+    max-width: 47% !important;
+  }
+
+  .telegramApp .brandHeroText span {
+    font-size: 0.44rem !important;
+    padding: 3px 5px !important;
+  }
+
+  .telegramApp .brandHeroText strong {
+    font-size: 0.56rem !important;
+  }
+}
