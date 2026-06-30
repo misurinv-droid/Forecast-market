@@ -6769,3 +6769,29 @@ body.is-telegram-webapp .authWarningCard {
   border-radius: 18px;
   padding: 12px 14px;
 }
+
+
+/* Final security hardening */
+.securityModeCard {
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  background:
+    radial-gradient(circle at 10% 10%, rgba(59, 130, 246, 0.14), transparent 28%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(239, 246, 255, 0.88));
+}
+
+.securityModeCard strong::before {
+  content: "🔐 ";
+}
+
+body:not(.is-telegram-webapp) .adminDrawer,
+body:not(.is-telegram-webapp) .adminOnly,
+body:not(.is-telegram-webapp) .adminOnlyNotice {
+  display: none !important;
+}
+
+button:disabled,
+.disabledActionButton {
+  cursor: not-allowed;
+  opacity: 0.58;
+  filter: grayscale(0.15);
+}

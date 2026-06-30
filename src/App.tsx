@@ -916,14 +916,33 @@ function App() {
     setActiveUserId(nextActiveUserId && hasActiveUser ? nextActiveUserId : "");
   }
 
+  const hasSafeSession = Boolean(isTelegram && activeUser && authSessionToken);
+
+  function authHeaders() {
+    return authSessionToken ? { Authorization: `Bearer ${authSessionToken}` } : {};
+  }
+
   function adminHeaders() {
-    return {
-      ...(activeUser ? { "x-user-id": activeUser.id } : {}),
-      ...(authSessionToken ? { Authorization: `Bearer ${authSessionToken}` } : {}),
-    };
+    // Название оставлено для совместимости с существующими вызовами,
+    // но теперь клиент больше не передаёт x-user-id и не просит backend верить фронтенду.
+    // Все права backend определяет только по Bearer sessionToken.
+    return authHeaders();
+  }
+
+  function requireSafeSession() {
+    if (!hasSafeSession) {
+      alert("Чтобы выполнить действие, открой приложение через Telegram Mini App. Так мы безопасно определим твой Telegram ID.");
+      return false;
+    }
+    return true;
   }
 
   function requireClientAdmin() {
+    if (!hasSafeSession) {
+      alert("Требуется безопасная Telegram-сессия. Открой приложение через Telegram Mini App.");
+      return false;
+    }
+
     if (!isAdmin) {
       alert("Это действие доступно только администратору.");
       return false;
@@ -949,10 +968,7 @@ function App() {
   }
 
   async function claimDailyBonus() {
-    if (!activeUser) {
-      alert("Профиль пока не загружен");
-      return;
-    }
+    if (!requireSafeSession() || !activeUser) return;
 
     const bonusInfo = getDailyBonusInfo(activeUser);
 
@@ -1118,10 +1134,7 @@ function App() {
   }
 
   async function toggleFavoriteMarket(marketId: string) {
-    if (!activeUser) {
-      alert("Сначала выберите участника");
-      return;
-    }
+    if (!requireSafeSession() || !activeUser) return;
 
     try {
       const result = await apiRequest<{ favoriteMarketIds: string[] }>(`/users/${activeUser.id}/favorites/${marketId}`, {
@@ -1141,10 +1154,7 @@ function App() {
   }
 
   async function buyPrediction(market: Market, outcome: Outcome) {
-    if (!activeUser) {
-      alert("Сначала выберите участника");
-      return;
-    }
+    if (!requireSafeSession() || !activeUser) return;
 
     try {
       await apiRequest<Prediction>(`/markets/${market.id}/predictions`, {
@@ -1184,10 +1194,7 @@ function App() {
 
 
   async function submitMarketSuggestion() {
-    if (!activeUser) {
-      alert("Профиль пока не загружен");
-      return;
-    }
+    if (!requireSafeSession() || !activeUser) return;
 
     if (suggestionForm.question.trim().length < 8) {
       alert("Сформулируй вопрос рынка чуть подробнее");
@@ -1446,10 +1453,7 @@ function App() {
   }
 
   async function addComment(marketId: string) {
-    if (!activeUser) {
-      alert("Сначала выберите участника");
-      return;
-    }
+    if (!requireSafeSession() || !activeUser) return;
 
     const draft = commentDrafts[marketId] || emptyCommentDraft;
     const text = draft.text.trim();
@@ -2995,10 +2999,10 @@ function App() {
   return (
     <main className={appClassName}>
       {!activeUser && !isLoading && (
-        <section className="authWarningCard">
+        <section className="authWarningCard securityModeCard">
           <div>
-            <strong>Открыто без Telegram-авторизации</strong>
-            <p>Можно смотреть рынки, но прогнозы, бонусы и админ-действия доступны только при запуске через Telegram Mini App.</p>
+            <strong>Режим просмотра</strong>
+            <p>Рынки можно смотреть без входа. Прогнозы, бонусы, комментарии и админ-действия доступны только при запуске через Telegram Mini App — так приложение входит именно под твоим Telegram ID.</p>
           </div>
           {TELEGRAM_MINI_APP_URL ? (
             <button onClick={openTelegramMiniApp}>Открыть через Telegram</button>
