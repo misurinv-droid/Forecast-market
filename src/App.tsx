@@ -215,6 +215,7 @@ const DAILY_BONUS_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const DAILY_BONUS_STREAK_AMOUNTS = [500, 600, 700, 800, 1000, 1200, 1500];
 const DAILY_BONUS_GRACE_MS = 48 * 60 * 60 * 1000;
 const ONBOARDING_STORAGE_KEY = "forecast-market-onboarding-seen";
+const INTERESTS_STORAGE_KEY = "forecast-market-user-interests";
 const TELEGRAM_MINI_APP_URL = String(import.meta.env.VITE_TELEGRAM_MINI_APP_URL || "").trim();
 const APP_PUBLIC_URL = String(import.meta.env.VITE_APP_PUBLIC_URL || window.location.origin).trim();
 const AUTH_SESSION_STORAGE_KEY = "forecast-market-auth-session";
@@ -338,6 +339,22 @@ function getSuggestionStatusText(status: SuggestionStatus) {
   if (status === "pending") return "На рассмотрении";
   if (status === "approved") return "Одобрено";
   return "Отклонено";
+}
+
+function getInterestCategoryEmoji(category: string, index = 0) {
+  const normalized = category.toLowerCase();
+
+  if (normalized.includes("спорт") || normalized.includes("футбол") || normalized.includes("хоккей")) return "⚽";
+  if (normalized.includes("крипт") || normalized.includes("bitcoin") || normalized.includes("битко")) return "₿";
+  if (normalized.includes("полит")) return "🏛️";
+  if (normalized.includes("эконом") || normalized.includes("рын") || normalized.includes("финанс")) return "📈";
+  if (normalized.includes("игр") || normalized.includes("game")) return "🎮";
+  if (normalized.includes("кино") || normalized.includes("сериал")) return "🎬";
+  if (normalized.includes("технолог") || normalized.includes("ai") || normalized.includes("ии")) return "🤖";
+  if (normalized.includes("друз")) return "🤝";
+  if (normalized.includes("мир") || normalized.includes("polymarket")) return "🌍";
+
+  return ["🔥", "🎯", "⚡", "✨", "🧠", "🚀"][index % 6];
 }
 
 function getUserLevel(stats: { predictionsCount: number; wins: number; winRate: number; settledCount: number }, rank: number, user: DemoUser | null) {
@@ -792,6 +809,15 @@ function App() {
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [importedCategory, setImportedCategory] = useState("Все");
   const [importedSearch, setImportedSearch] = useState("");
+  const [selectedInterestCategories, setSelectedInterestCategories] = useState<string[]>(() => {
+    try {
+      const rawInterests = window.localStorage.getItem(INTERESTS_STORAGE_KEY);
+      const parsedInterests = JSON.parse(rawInterests || "[]");
+      return Array.isArray(parsedInterests) ? parsedInterests.filter((item) => typeof item === "string") : [];
+    } catch {
+      return [];
+    }
+  });
   const [isPolymarketImporting, setIsPolymarketImporting] = useState(false);
   const [adminAwardForm, setAdminAwardForm] = useState({ userId: "", amount: "1000", description: "Тестовое начисление баллов" });
   const [adminTab, setAdminTab] = useState<AdminPanelTab>("overview");
@@ -1104,9 +1130,17 @@ function App() {
       return acc;
     }, {});
 
-    return [...markets]
-      .filter((market) => market.status === "open" && !predictedMarketIds.has(market.id))
+    const availableMarkets = [...markets].filter((market) => market.status === "open" && !predictedMarketIds.has(market.id));
+    const interestedMarkets = selectedInterestCategories.length > 0
+      ? availableMarkets.filter((market) => selectedInterestCategories.includes(market.category || "Без категории"))
+      : [];
+
+    return (interestedMarkets.length > 0 ? interestedMarkets : availableMarkets)
       .sort((a, b) => {
+        const aInterestScore = selectedInterestCategories.includes(a.category || "Без категории") ? 100 : 0;
+        const bInterestScore = selectedInterestCategories.includes(b.category || "Без категории") ? 100 : 0;
+        if (aInterestScore !== bInterestScore) return bInterestScore - aInterestScore;
+
         const aCategoryScore = playedCategoryScores[a.category || "Без категории"] || 0;
         const bCategoryScore = playedCategoryScores[b.category || "Без категории"] || 0;
         if (aCategoryScore !== bCategoryScore) return bCategoryScore - aCategoryScore;
@@ -1118,7 +1152,7 @@ function App() {
         return Math.abs(50 - getYesProbability(a)) - Math.abs(50 - getYesProbability(b));
       })
       .slice(0, 5);
-  }, [markets, predictions, activeUserPredictions, activeUserOpenPredictions]);
+  }, [markets, predictions, activeUserPredictions, activeUserOpenPredictions, selectedInterestCategories]);
 
   const soonClosingMarkets = useMemo(() => {
     const now = Date.now();
@@ -1362,6 +1396,14 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(INTERESTS_STORAGE_KEY, JSON.stringify(selectedInterestCategories));
+    } catch {
+      // localStorage может быть недоступен во встроенном WebView — это не критично.
+    }
+  }, [selectedInterestCategories]);
+
   async function initializeApp() {
     setIsLoading(true);
     setServerError("");
@@ -1497,6 +1539,20 @@ function App() {
 
   function updateStakeAmount(marketId: string, value: string) {
     setAmountByMarket((currentAmounts) => ({ ...currentAmounts, [marketId]: sanitizeStakeInput(value) }));
+  }
+
+  function toggleInterestCategory(category: string) {
+    setSelectedInterestCategories((currentCategories) => (
+      currentCategories.includes(category)
+        ? currentCategories.filter((item) => item !== category)
+        : [...currentCategories, category]
+    ));
+    sendHaptic();
+  }
+
+  function resetInterestCategories() {
+    setSelectedInterestCategories([]);
+    sendHaptic();
   }
 
   async function buyPrediction(market: Market, outcome: Outcome) {
@@ -2586,6 +2642,49 @@ function App() {
   }
 
 
+  function renderInterestPicker(mode: "home" | "profile" = "home") {
+    const interestCategories = categories.filter((category) => category !== "Все");
+    const selectedCount = selectedInterestCategories.length;
+
+    if (interestCategories.length === 0) return null;
+
+    return (
+      <section className={`interestPickerCard ${mode === "profile" ? "profileInterestPickerCard" : ""}`}>
+        <div className="interestPickerHeader">
+          <div>
+            <span className="interestEyebrow">Персональная лента</span>
+            <h2>Выбери интересы</h2>
+            <p>
+              {selectedCount > 0
+                ? `Выбрано ${selectedCount}. Блок «Для тебя» теперь сначала показывает эти темы.`
+                : "Отметь темы, которые тебе интересны — и подборка «Для тебя» станет точнее."}
+            </p>
+          </div>
+          {selectedCount > 0 ? (
+            <button onClick={resetInterestCategories}>Сбросить</button>
+          ) : (
+            <button onClick={() => setMainView("search")}>Смотреть все</button>
+          )}
+        </div>
+
+        <div className="interestChipGrid">
+          {interestCategories.map((category, index) => {
+            const isActive = selectedInterestCategories.includes(category);
+            const openCount = markets.filter((market) => market.status === "open" && market.category === category).length;
+
+            return (
+              <button className={`interestChip ${isActive ? "activeInterestChip" : ""}`} key={category} onClick={() => toggleInterestCategory(category)}>
+                <span>{getInterestCategoryEmoji(category, index)}</span>
+                <strong>{category}</strong>
+                <small>{openCount} открыто</small>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+    );
+  }
+
   function renderGameShelf(
     title: string,
     subtitle: string,
@@ -2876,6 +2975,8 @@ function App() {
           </div>
         </section>
 
+        {renderInterestPicker("home")}
+
         <section className="gameQuickGrid">
           {renderDailyBonusCard("home")}
 
@@ -2949,7 +3050,7 @@ function App() {
 
           {renderGameShelf(
             "Для тебя",
-            "События, где у тебя ещё нет прогноза",
+            selectedInterestCategories.length > 0 ? "События по твоим интересам, где ещё нет прогноза" : "События, где у тебя ещё нет прогноза",
             "🎯",
             playNowMarkets,
             "Подобрать ещё",
@@ -3985,6 +4086,7 @@ function App() {
         {profileTab === "overview" && (
           <section className="profileContentGrid profileOverviewGrid">
             {renderDailyBonusCard("profile")}
+            {renderInterestPicker("profile")}
             {renderReferralCard()}
 
             <div className="profileCard gameProfileTipCard">
