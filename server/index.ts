@@ -2113,6 +2113,31 @@ app.get("/api/telegram/webhook-info", async (_request, response) => {
   response.json(result);
 });
 
+app.post("/api/telegram/test-notification", async (request, response) => {
+  const session = await getRequestSession(request);
+
+  if (!session) {
+    response.status(401).json({
+      error: "Требуется безопасная Telegram-сессия. Открой приложение через Telegram Mini App.",
+    });
+    return;
+  }
+
+  const html =
+    `🔔 <b>Тестовое уведомление Forecast Market</b>\n\n` +
+    `Если ты видишь это сообщение, Telegram-уведомления работают корректно.\n\n` +
+    `Теперь бот сможет возвращать тебя в игру: сообщать о результатах прогнозов, бонусах и важных рынках.`;
+
+  const result = await sendTelegramMessageToUser(session.userId, html);
+
+  if (!result.ok) {
+    response.status(400).json({ ok: false, error: result.reason });
+    return;
+  }
+
+  response.json({ ok: true });
+});
+
 app.get("/api/bootstrap", async (_request, response) => {
   await maybeAutoImportPolymarket("bootstrap");
   response.json(await getSnapshot());

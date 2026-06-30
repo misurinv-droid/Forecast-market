@@ -11925,3 +11925,162 @@ body,
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Telegram notification settings card */
+.telegramNotificationCard {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  gap: 13px;
+  background:
+    radial-gradient(circle at 6% 0%, rgba(37, 99, 235, 0.14), transparent 34%),
+    radial-gradient(circle at 95% 8%, rgba(20, 184, 166, 0.16), transparent 38%),
+    rgba(255, 255, 255, 0.84);
+}
+
+.notificationCardGlow {
+  position: absolute;
+  inset: auto -56px -76px auto;
+  width: 170px;
+  height: 170px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.15), rgba(20, 184, 166, 0.18));
+  pointer-events: none;
+}
+
+.notificationCardHeader {
+  position: relative;
+}
+
+.notificationCardHeader .eyebrow {
+  margin-bottom: 5px;
+}
+
+.notificationCardHeader h2 {
+  margin: 0;
+  line-height: 1.12;
+}
+
+.telegramNotificationCard > p {
+  position: relative;
+  margin: 0;
+  color: #64748b;
+  line-height: 1.45;
+  font-weight: 760;
+}
+
+.notificationStatusReady,
+.notificationStatusPending {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 7px 9px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.notificationStatusReady {
+  color: #047857;
+  background: rgba(209, 250, 229, 0.96);
+}
+
+.notificationStatusPending {
+  color: #b45309;
+  background: rgba(254, 243, 199, 0.96);
+}
+
+.notificationFeatureGrid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.notificationFeatureGrid div {
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border-radius: 17px;
+  background: rgba(248, 250, 252, 0.82);
+  border: 1px solid rgba(226, 232, 240, 0.82);
+}
+
+.notificationFeatureGrid span {
+  font-size: 1rem;
+}
+
+.notificationFeatureGrid strong {
+  color: #0f172a;
+  font-size: 0.82rem;
+}
+
+.notificationFeatureGrid small {
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 850;
+}
+
+.notificationActionRow {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.notificationActionRow button {
+  border: 0;
+  border-radius: 15px;
+  padding: 11px 12px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #162bdc, #07a9cf);
+  font-weight: 950;
+}
+
+.notificationActionRow .secondaryButton {
+  color: #0f172a;
+  background: rgba(241, 245, 249, 0.92);
+  border: 1px solid rgba(226, 232, 240, 0.88);
+}
+
+.notificationActionRow button:disabled {
+  cursor: not-allowed;
+  color: #94a3b8;
+  background: rgba(226, 232, 240, 0.82);
+  box-shadow: none;
+}
+
+.notificationHint {
+  position: relative;
+  color: #94a3b8;
+  font-size: 0.72rem;
+  font-weight: 850;
+  line-height: 1.3;
+}
+
+.telegramApp .telegramNotificationCard {
+  gap: 10px;
+}
+
+.telegramApp .notificationFeatureGrid {
+  gap: 7px;
+}
+
+.telegramApp .notificationFeatureGrid div {
+  padding: 9px;
+  border-radius: 15px;
+}
+
+.telegramApp .notificationActionRow button {
+  padding: 10px 8px;
+  font-size: 0.74rem;
+}
+
+@media (max-width: 420px) {
+  .notificationActionRow {
+    grid-template-columns: 1fr;
+  }
+}

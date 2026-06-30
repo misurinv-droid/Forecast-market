@@ -736,6 +736,34 @@ function getTelegramMiniAppHomeUrl() {
   }
 }
 
+function getTelegramBotUrl() {
+  if (!TELEGRAM_MINI_APP_URL) return "";
+
+  try {
+    const miniAppUrl = new URL(TELEGRAM_MINI_APP_URL);
+    removeTelegramPrivateParams(miniAppUrl);
+    const botUsername = miniAppUrl.pathname.split("/").filter(Boolean)[0];
+    return botUsername ? `${miniAppUrl.origin}/${botUsername}` : "";
+  } catch {
+    const cleanBase = TELEGRAM_MINI_APP_URL.split("#")[0].split("?tgWebAppData=")[0];
+    const match = cleanBase.match(/^(https?:\/\/t\.me\/[^/?#]+)/i);
+    return match?.[1] || cleanBase;
+  }
+}
+
+function openTelegramBot() {
+  const url = getTelegramBotUrl() || getTelegramMiniAppHomeUrl();
+  if (!url) return;
+
+  const telegramWebApp = window.Telegram?.WebApp;
+  if (telegramWebApp?.openTelegramLink) {
+    telegramWebApp.openTelegramLink(url);
+    return;
+  }
+
+  window.location.href = url;
+}
+
 function openTelegramMiniApp() {
   const url = getTelegramMiniAppHomeUrl();
   if (!url) return;
@@ -875,6 +903,7 @@ function App() {
     }
   });
   const [isDailyBonusClaiming, setIsDailyBonusClaiming] = useState(false);
+  const [isTestingTelegramNotification, setIsTestingTelegramNotification] = useState(false);
   const [isRulesOpen, setIsRulesOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(() => {
     try {
@@ -1774,6 +1803,25 @@ function App() {
       alert(getErrorMessage(error));
     } finally {
       setIsDailyBonusClaiming(false);
+    }
+  }
+
+  async function sendTestTelegramNotification() {
+    if (!requireSafeSession()) return;
+
+    try {
+      setIsTestingTelegramNotification(true);
+      await apiRequest<{ ok: boolean }>("/telegram/test-notification", {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      sendSuccess();
+      showToast("Тестовое уведомление отправлено в Telegram");
+    } catch (error) {
+      sendError();
+      alert(getErrorMessage(error));
+    } finally {
+      setIsTestingTelegramNotification(false);
     }
   }
 
@@ -4725,6 +4773,57 @@ function App() {
     );
   }
 
+  function renderTelegramNotificationCard() {
+    const botUrl = getTelegramBotUrl();
+    const notificationStatus = hasSafeSession
+      ? "Telegram подключён"
+      : isTelegram
+        ? "Нужно перезапустить Mini App"
+        : "Открой через Telegram";
+
+    return (
+      <article className="profileCard telegramNotificationCard">
+        <div className="notificationCardGlow" aria-hidden="true" />
+        <div className="sectionHeader notificationCardHeader">
+          <div>
+            <p className="eyebrow">Telegram-уведомления</p>
+            <h2>Бот вернёт пользователя в игру</h2>
+          </div>
+          <span className={hasSafeSession ? "notificationStatusReady" : "notificationStatusPending"}>
+            {notificationStatus}
+          </span>
+        </div>
+
+        <p>
+          Бот будет присылать важные игровые события: рассчитан прогноз, рынок скоро закрывается,
+          ежедневный бонус готов, а для админа — заявки и рынки на расчёт.
+        </p>
+
+        <div className="notificationFeatureGrid">
+          <div><span>🎯</span><strong>Результаты</strong><small>выиграл / проиграл</small></div>
+          <div><span>🎁</span><strong>Бонус</strong><small>можно забрать</small></div>
+          <div><span>⏳</span><strong>Дедлайны</strong><small>рынок закрывается</small></div>
+          <div><span>⚙️</span><strong>Админка</strong><small>задачи модерации</small></div>
+        </div>
+
+        <div className="notificationActionRow">
+          <button onClick={sendTestTelegramNotification} disabled={!hasSafeSession || isTestingTelegramNotification}>
+            {isTestingTelegramNotification ? "Отправляю..." : "Отправить тест"}
+          </button>
+          <button className="secondaryButton" onClick={openTelegramBot} disabled={!botUrl && !TELEGRAM_MINI_APP_URL}>
+            Открыть бота
+          </button>
+        </div>
+
+        {!hasSafeSession && (
+          <small className="notificationHint">
+            Для теста уведомления открой приложение именно через Telegram Mini App.
+          </small>
+        )}
+      </article>
+    );
+  }
+
   function renderProfilePage() {
     if (!activeUser) {
       return <section className="profilePage"><div className="empty">Профиль пока не загружен.</div></section>;
@@ -4832,6 +4931,7 @@ function App() {
         {profileTab === "overview" && (
           <section className="profileContentGrid profileOverviewGrid">
             {renderDailyBonusCard("profile")}
+            {renderTelegramNotificationCard()}
             {renderInterestPicker("profile")}
             {renderReferralCard()}
 
