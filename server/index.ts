@@ -137,6 +137,13 @@ const DATABASE_URL = process.env.DATABASE_URL;
 const BOT_TOKEN = process.env.BOT_TOKEN || "";
 const APP_PUBLIC_URL = (process.env.APP_PUBLIC_URL || process.env.FRONTEND_URL || "").trim();
 const TELEGRAM_MINI_APP_URL = (process.env.TELEGRAM_MINI_APP_URL || "").trim();
+const BACKEND_PUBLIC_URL = (process.env.BACKEND_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || "").trim();
+const TELEGRAM_WEBHOOK_SECRET = (process.env.TELEGRAM_WEBHOOK_SECRET || "").trim();
+const TELEGRAM_WELCOME_LOGO_URL = (
+  process.env.TELEGRAM_WELCOME_LOGO_URL ||
+  (APP_PUBLIC_URL ? `${APP_PUBLIC_URL.replace(/\/$/, "")}/forecast-market-logo-cropped.png` : "")
+).trim();
+const TELEGRAM_REMINDERS_ENABLED = (process.env.TELEGRAM_REMINDERS_ENABLED || "true").toLowerCase() !== "false";
 const TELEGRAM_AUTH_MAX_AGE_SECONDS = Number(process.env.TELEGRAM_AUTH_MAX_AGE_SECONDS || 2 * 60);
 const SESSION_MAX_AGE_DAYS = Number(process.env.SESSION_MAX_AGE_DAYS || 30);
 const ADMIN_TELEGRAM_IDS = (process.env.ADMIN_TELEGRAM_IDS || "")
@@ -861,6 +868,165 @@ function getMarketAppUrl(marketId?: string) {
   }
 }
 
+function getAppStartUrl(startParam?: string) {
+  if (TELEGRAM_MINI_APP_URL) {
+    try {
+      const url = new URL(TELEGRAM_MINI_APP_URL);
+      if (startParam) url.searchParams.set("startapp", startParam);
+      return url.toString();
+    } catch {
+      if (!startParam) return TELEGRAM_MINI_APP_URL;
+      const separator = TELEGRAM_MINI_APP_URL.includes("?") ? "&" : "?";
+      return `${TELEGRAM_MINI_APP_URL}${separator}startapp=${encodeURIComponent(startParam)}`;
+    }
+  }
+
+  if (!APP_PUBLIC_URL) return "";
+
+  try {
+    const url = new URL(APP_PUBLIC_URL);
+    if (startParam) url.searchParams.set("startapp", startParam);
+    return url.toString();
+  } catch {
+    if (!startParam) return APP_PUBLIC_URL;
+    const separator = APP_PUBLIC_URL.includes("?") ? "&" : "?";
+    return `${APP_PUBLIC_URL}${separator}startapp=${encodeURIComponent(startParam)}`;
+  }
+}
+
+async function callTelegramApi(method: string, payload: Record<string, unknown>) {
+  if (!BOT_TOKEN) return { ok: false, reason: "BOT_TOKEN не настроен" } as const;
+
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const body = await response.text();
+    const parsed = body ? JSON.parse(body) : {};
+
+    if (!response.ok || !parsed.ok) {
+      console.warn(`Telegram ${method} failed:`, response.status, body);
+      return { ok: false, reason: `Telegram ${response.status}` } as const;
+    }
+
+    return { ok: true, result: parsed.result } as const;
+  } catch (error) {
+    console.warn(`Telegram ${method} error:`, error);
+    return { ok: false, reason: "Ошибка сети Telegram" } as const;
+  }
+}
+
+function getForecastMarketInlineKeyboard(startParam?: string) {
+  const appUrl = getAppStartUrl(startParam);
+
+  if (!appUrl) return undefined;
+
+  return {
+    inline_keyboard: [[{ text: "🚀 Открыть Forecast Market", url: appUrl }]],
+  };
+}
+
+async function sendTelegramWelcomeMessage(chatId: string | number, firstName?: string) {
+  const safeName = escapeTelegramHtml(firstName || "друг");
+  const caption =
+    `👋 <b>Привет, ${safeName}!</b>
+
+` +
+    `Это <b>Forecast Market</b> — социальная игра прогнозов.
+
+` +
+    `Как это работает:
+` +
+    `1) выбираешь событие;
+` +
+    `2) делаешь прогноз <b>Да</b> или <b>Нет</b>;
+` +
+    `3) получаешь игровые баллы, если прогноз сыграл;
+` +
+    `4) поднимаешься в рейтинге и турнире недели.
+
+` +
+    `Важно: баллы не являются деньгами, не покупаются, не продаются, не передаются и не выводятся. Это фановые прогнозы без реальных ставок.`;
+
+  const replyMarkup = getForecastMarketInlineKeyboard("home");
+
+  if (TELEGRAM_WELCOME_LOGO_URL) {
+    const photoResult = await callTelegramApi("sendPhoto", {
+      chat_id: chatId,
+      photo: TELEGRAM_WELCOME_LOGO_URL,
+      caption,
+      parse_mode: "HTML",
+      reply_markup: replyMarkup,
+    });
+
+    if (photoResult.ok) return photoResult;
+  }
+
+  return callTelegramApi("sendMessage", {
+    chat_id: chatId,
+    text: caption,
+    parse_mode: "HTML",
+    disable_web_page_preview: true,
+    reply_markup: replyMarkup,
+  });
+}
+
+async function processTelegramUpdate(update: any) {
+  const message = update?.message || update?.edited_message;
+  const text = String(message?.text || "").trim();
+  const chatId = message?.chat?.id;
+
+  if (!chatId) return;
+
+  const firstName = message?.from?.first_name || message?.chat?.first_name || "";
+
+  if (text.startsWith("/start")) {
+    await sendTelegramWelcomeMessage(chatId, firstName);
+    return;
+  }
+
+  if (text.startsWith("/help") || text) {
+    await callTelegramApi("sendMessage", {
+      chat_id: chatId,
+      text:
+        `Forecast Market — игра прогнозов за внутренние баллы.
+
+` +
+        `Нажми кнопку ниже, чтобы открыть приложение и выбрать рынок.`,
+      reply_markup: getForecastMarketInlineKeyboard("home"),
+    });
+  }
+}
+
+async function ensureTelegramWebhook() {
+  if (!BOT_TOKEN || !BACKEND_PUBLIC_URL) {
+    if (BOT_TOKEN && !BACKEND_PUBLIC_URL) {
+      console.warn("Telegram webhook не настроен: добавь BACKEND_PUBLIC_URL=https://forecast-market.onrender.com");
+    }
+    return;
+  }
+
+  const webhookUrl = `${BACKEND_PUBLIC_URL.replace(/\/$/, "")}/api/telegram/webhook`;
+  const payload: Record<string, unknown> = {
+    url: webhookUrl,
+    allowed_updates: ["message", "edited_message"],
+    drop_pending_updates: false,
+  };
+
+  if (TELEGRAM_WEBHOOK_SECRET) {
+    payload.secret_token = TELEGRAM_WEBHOOK_SECRET;
+  }
+
+  const result = await callTelegramApi("setWebhook", payload);
+
+  if (result.ok) {
+    console.log(`Telegram webhook установлен: ${webhookUrl}`);
+  }
+}
+
 async function sendTelegramMessageToUser(userId: string, html: string, marketId?: string) {
   if (!BOT_TOKEN) return { ok: false, reason: "BOT_TOKEN не настроен" } as const;
 
@@ -930,15 +1096,22 @@ async function sendSettlementNotifications(market: Market, outcome: Outcome, pay
   );
 }
 
-async function rememberNotificationEvent(queryRunner: QueryRunner, eventType: string, userId: string, marketId: string) {
+async function rememberNotificationEvent(
+  queryRunner: QueryRunner,
+  eventType: string,
+  userId: string,
+  marketId?: string | null,
+  notificationKey?: string
+) {
+  const key = notificationKey || marketId || "";
   const result = await queryRunner.query(
     `
-      INSERT INTO notification_events (id, event_type, user_id, market_id, created_at)
-      VALUES ($1, $2, $3, $4, NOW())
-      ON CONFLICT (event_type, user_id, market_id) DO NOTHING
+      INSERT INTO notification_events (id, event_type, user_id, market_id, notification_key, created_at)
+      VALUES ($1, $2, $3, $4, $5, NOW())
+      ON CONFLICT (event_type, user_id, notification_key) DO NOTHING
       RETURNING id
     `,
-    [createId(), eventType, userId, marketId]
+    [createId(), eventType, userId, marketId || null, key]
   );
 
   return Boolean(result.rows[0]);
@@ -975,6 +1148,93 @@ async function sendClosingTodayReminders() {
   } catch (error) {
     console.warn("Ошибка отправки напоминаний о закрытии рынков:", error);
   }
+}
+
+
+async function sendDailyBonusReadyReminders() {
+  if (!BOT_TOKEN || !TELEGRAM_REMINDERS_ENABLED) return;
+
+  try {
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const result = await pool.query(
+      `
+        SELECT id, name, balance, last_daily_bonus_at
+        FROM users
+        WHERE id LIKE 'telegram-%'
+          AND (
+            last_daily_bonus_at IS NULL
+            OR last_daily_bonus_at <= NOW() - INTERVAL '24 hours'
+          )
+        ORDER BY last_daily_bonus_at NULLS FIRST
+        LIMIT 100
+      `
+    );
+
+    for (const row of result.rows) {
+      const userId = String(row.id);
+      const inserted = await rememberNotificationEvent(pool, "daily_bonus_ready", userId, null, todayKey);
+      if (!inserted) continue;
+
+      const html =
+        `🎁 <b>Ежедневный бонус готов</b>
+
+` +
+        `${escapeTelegramHtml(row.name || "Игрок")}, можно забрать игровые баллы и продолжить серию.
+
+` +
+        `Открой Forecast Market и нажми «Забрать бонус».`;
+
+      await sendTelegramMessageToUser(userId, html);
+    }
+  } catch (error) {
+    console.warn("Ошибка отправки ежедневных бонусов:", error);
+  }
+}
+
+async function sendAdminTaskReminders() {
+  if (!BOT_TOKEN || !TELEGRAM_REMINDERS_ENABLED || ADMIN_TELEGRAM_IDS.length === 0) return;
+
+  try {
+    const [suggestionsResult, closedMarketsResult] = await Promise.all([
+      pool.query("SELECT COUNT(*)::int AS count FROM market_suggestions WHERE status = 'pending'"),
+      pool.query("SELECT COUNT(*)::int AS count FROM markets WHERE status = 'closed'"),
+    ]);
+
+    const pendingSuggestions = Number(suggestionsResult.rows[0]?.count || 0);
+    const closedMarkets = Number(closedMarketsResult.rows[0]?.count || 0);
+
+    if (pendingSuggestions === 0 && closedMarkets === 0) return;
+
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const notificationKey = `${todayKey}-${pendingSuggestions}-${closedMarkets}`;
+
+    for (const telegramId of ADMIN_TELEGRAM_IDS) {
+      const userId = `telegram-${telegramId}`;
+      const inserted = await rememberNotificationEvent(pool, "admin_tasks", userId, null, notificationKey);
+      if (!inserted) continue;
+
+      const html =
+        `⚙️ <b>Есть задачи админа</b>
+
+` +
+        `Заявки на рынки: <b>${pendingSuggestions}</b>
+` +
+        `Рынки ждут расчёта: <b>${closedMarkets}</b>
+
+` +
+        `Открой админку Forecast Market.`;
+
+      await sendTelegramMessageToUser(userId, html);
+    }
+  } catch (error) {
+    console.warn("Ошибка отправки админских уведомлений:", error);
+  }
+}
+
+async function sendScheduledTelegramNotifications() {
+  await sendClosingTodayReminders();
+  await sendDailyBonusReadyReminders();
+  await sendAdminTaskReminders();
 }
 
 
@@ -1574,6 +1834,7 @@ async function migrate() {
       event_type TEXT NOT NULL,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       market_id TEXT REFERENCES markets(id) ON DELETE CASCADE,
+      notification_key TEXT NOT NULL DEFAULT '',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       UNIQUE (event_type, user_id, market_id)
     );
@@ -1597,8 +1858,11 @@ async function migrate() {
     CREATE INDEX IF NOT EXISTS referrals_referred_user_id_idx ON referrals(referred_user_id);
     CREATE INDEX IF NOT EXISTS referrals_status_idx ON referrals(status);
     CREATE INDEX IF NOT EXISTS favorites_user_id_idx ON favorites(user_id);
+    ALTER TABLE notification_events ADD COLUMN IF NOT EXISTS notification_key TEXT NOT NULL DEFAULT '';
+    UPDATE notification_events SET notification_key = COALESCE(NULLIF(notification_key, ''), COALESCE(market_id, ''));
     CREATE INDEX IF NOT EXISTS notification_events_user_id_idx ON notification_events(user_id);
     CREATE INDEX IF NOT EXISTS notification_events_market_id_idx ON notification_events(market_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS notification_events_event_user_key_idx ON notification_events(event_type, user_id, notification_key);
     CREATE INDEX IF NOT EXISTS auth_sessions_user_id_idx ON auth_sessions(user_id);
     CREATE INDEX IF NOT EXISTS auth_sessions_expires_at_idx ON auth_sessions(expires_at);
 
@@ -1749,11 +2013,11 @@ setInterval(() => {
 }, POLYMARKET_AUTO_IMPORT_INTERVAL_MS);
 
 setTimeout(() => {
-  void sendClosingTodayReminders();
+  void sendScheduledTelegramNotifications();
 }, 15000);
 
 setInterval(() => {
-  void sendClosingTodayReminders();
+  void sendScheduledTelegramNotifications();
 }, 30 * 60 * 1000);
 
 const app = express();
@@ -1800,6 +2064,8 @@ app.get("/api/health", async (_request, response) => {
     adminUsersConfigured: ADMIN_USER_IDS.length,
     telegramAuthConfigured: Boolean(BOT_TOKEN),
     telegramNotificationsConfigured: Boolean(BOT_TOKEN),
+    telegramWebhookConfigured: Boolean(BOT_TOKEN && BACKEND_PUBLIC_URL),
+    telegramMiniAppConfigured: Boolean(TELEGRAM_MINI_APP_URL),
     secureSessionAuthEnabled: true,
     telegramAuthMaxAgeSeconds: TELEGRAM_AUTH_MAX_AGE_SECONDS,
     appPublicUrlConfigured: Boolean(APP_PUBLIC_URL),
@@ -1819,6 +2085,32 @@ app.get("/api/health", async (_request, response) => {
     pendingResolutionMarkets: pendingResult.rows[0].count,
     time: new Date().toISOString(),
   });
+});
+
+app.post("/api/telegram/webhook", async (request, response) => {
+  if (TELEGRAM_WEBHOOK_SECRET) {
+    const receivedSecret = request.header("x-telegram-bot-api-secret-token") || "";
+    if (receivedSecret !== TELEGRAM_WEBHOOK_SECRET) {
+      response.status(401).json({ ok: false });
+      return;
+    }
+  }
+
+  response.json({ ok: true });
+
+  processTelegramUpdate(request.body).catch((error) => {
+    console.warn("Ошибка обработки Telegram webhook:", error);
+  });
+});
+
+app.get("/api/telegram/webhook-info", async (_request, response) => {
+  if (!BOT_TOKEN) {
+    response.status(400).json({ ok: false, error: "BOT_TOKEN не настроен" });
+    return;
+  }
+
+  const result = await callTelegramApi("getWebhookInfo", {});
+  response.json(result);
 });
 
 app.get("/api/bootstrap", async (_request, response) => {
@@ -2983,4 +3275,5 @@ app.post("/api/reset", async (request, response) => {
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Forecast Market API запущен: http://localhost:${PORT}`);
+  void ensureTelegramWebhook();
 });
