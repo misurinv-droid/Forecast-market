@@ -16,6 +16,12 @@ type DemoUser = {
   lastDailyBonusAt?: string;
 };
 
+type TelegramAuthResponse = {
+  user: DemoUser;
+  sessionToken: string;
+  expiresAt: string;
+};
+
 type Market = {
   id: string;
   question: string;
@@ -187,6 +193,8 @@ const DAILY_BONUS_AMOUNT = 500;
 const DAILY_BONUS_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const ONBOARDING_STORAGE_KEY = "forecast-market-onboarding-seen";
 const TELEGRAM_MINI_APP_URL = String(import.meta.env.VITE_TELEGRAM_MINI_APP_URL || "").trim();
+const APP_PUBLIC_URL = String(import.meta.env.VITE_APP_PUBLIC_URL || window.location.origin).trim();
+const AUTH_SESSION_STORAGE_KEY = "forecast-market-auth-session";
 
 const emptyNewMarketForm: NewMarketForm = {
   question: "",
@@ -402,10 +410,6 @@ async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
   return data as T;
 }
 
-function getTelegramInitData() {
-  return getRealTelegramWebApp()?.initData || "";
-}
-
 function getRealTelegramWebApp() {
   const telegramWebApp = window.Telegram?.WebApp;
   if (!telegramWebApp) return undefined;
@@ -497,19 +501,39 @@ function getLaunchMarketId(telegramWebApp?: TelegramWebApp) {
   return extractMarketIdFromStartParam(telegramStartParam);
 }
 
+function removeTelegramPrivateParams(url: URL) {
+  // ВАЖНО: никогда не шарим tgWebAppData / initData. Это bearer-данные Telegram-сессии.
+  // Если их отправить другу, он может временно открыть приложение как отправитель.
+  [
+    "tgWebAppData",
+    "tgWebAppVersion",
+    "tgWebAppPlatform",
+    "tgWebAppThemeParams",
+    "tgWebAppStartParam",
+    "hash",
+  ].forEach((key) => url.searchParams.delete(key));
+
+  url.hash = "";
+}
+
 function getMarketShareUrl(marketId: string) {
   if (TELEGRAM_MINI_APP_URL) {
     try {
       const miniAppUrl = new URL(TELEGRAM_MINI_APP_URL);
+      removeTelegramPrivateParams(miniAppUrl);
       miniAppUrl.searchParams.set("startapp", `market_${marketId}`);
       return miniAppUrl.toString();
     } catch {
-      const separator = TELEGRAM_MINI_APP_URL.includes("?") ? "&" : "?";
-      return `${TELEGRAM_MINI_APP_URL}${separator}startapp=market_${encodeURIComponent(marketId)}`;
+      const cleanBase = TELEGRAM_MINI_APP_URL.split("#")[0].split("?tgWebAppData=")[0];
+      const separator = cleanBase.includes("?") ? "&" : "?";
+      return `${cleanBase}${separator}startapp=market_${encodeURIComponent(marketId)}`;
     }
   }
 
-  const url = new URL(window.location.href);
+  // Fallback для web-версии: строим ссылку с нуля от origin, а не из window.location.href,
+  // чтобы не утащить приватный Telegram hash из текущей Mini App-сессии.
+  const url = new URL(APP_PUBLIC_URL || window.location.origin);
+  removeTelegramPrivateParams(url);
   url.searchParams.set("market", marketId);
   return url.toString();
 }
@@ -554,6 +578,13 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [serverError, setServerError] = useState("");
   const [isTelegram, setIsTelegram] = useState(false);
+  const [authSessionToken, setAuthSessionToken] = useState(() => {
+    try {
+      return window.localStorage.getItem(AUTH_SESSION_STORAGE_KEY) || "";
+    } catch {
+      return "";
+    }
+  });
   const [isDailyBonusClaiming, setIsDailyBonusClaiming] = useState(false);
   const [isRulesOpen, setIsRulesOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(() => {
@@ -570,7 +601,7 @@ function App() {
     return users.find((user) => user.id === activeUserId) || null;
   }, [users, activeUserId]);
 
-  const isAdmin = Boolean(isTelegram && activeUser && adminUserIds.includes(activeUser.id));
+  const isAdmin = Boolean(isTelegram && authSessionToken && activeUser && adminUserIds.includes(activeUser.id));
 
   const dailyBonusInfo = useMemo(() => getDailyBonusInfo(activeUser), [activeUser]);
 
@@ -861,11 +892,9 @@ function App() {
   }
 
   function adminHeaders() {
-    const initData = getTelegramInitData();
-
     return {
       ...(activeUser ? { "x-user-id": activeUser.id } : {}),
-      ...(initData ? { "x-telegram-init-data": initData } : {}),
+      ...(authSessionToken ? { Authorization: `Bearer ${authSessionToken}` } : {}),
     };
   }
 
@@ -969,7 +998,7 @@ function App() {
       if (telegramUser?.id) {
         setIsTelegram(true);
         const fullName = [telegramUser.first_name, telegramUser.last_name].filter(Boolean).join(" ");
-        const telegramBackendUser = await apiRequest<DemoUser>("/telegram-user", {
+        const telegramAuthResponse = await apiRequest<TelegramAuthResponse>("/telegram-user", {
           method: "POST",
           body: JSON.stringify({
             initData: telegramInitData,
@@ -979,8 +1008,23 @@ function App() {
           }),
         });
 
+        const telegramBackendUser = telegramAuthResponse.user;
+        setAuthSessionToken(telegramAuthResponse.sessionToken);
+        try {
+          window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, telegramAuthResponse.sessionToken);
+        } catch {
+          // Встроенный WebView может запретить localStorage — токен останется в памяти до закрытия приложения.
+        }
+
         nextActiveUserId = telegramBackendUser.id;
         if (!nextUsers.some((user) => user.id === telegramBackendUser.id)) nextUsers = [...nextUsers, telegramBackendUser];
+      } else {
+        setAuthSessionToken("");
+        try {
+          window.localStorage.removeItem(AUTH_SESSION_STORAGE_KEY);
+        } catch {
+          // localStorage может быть недоступен.
+        }
       }
 
       setUsers(nextUsers);

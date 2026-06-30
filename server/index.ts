@@ -114,7 +114,8 @@ const DAILY_BONUS_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const DATABASE_URL = process.env.DATABASE_URL;
 const BOT_TOKEN = process.env.BOT_TOKEN || "";
 const APP_PUBLIC_URL = (process.env.APP_PUBLIC_URL || process.env.FRONTEND_URL || "").trim();
-const TELEGRAM_AUTH_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
+const TELEGRAM_AUTH_MAX_AGE_SECONDS = Number(process.env.TELEGRAM_AUTH_MAX_AGE_SECONDS || 2 * 60);
+const SESSION_MAX_AGE_DAYS = Number(process.env.SESSION_MAX_AGE_DAYS || 30);
 const ADMIN_TELEGRAM_IDS = (process.env.ADMIN_TELEGRAM_IDS || "")
   .split(",")
   .map((id) => id.trim())
@@ -314,6 +315,65 @@ function getTelegramInitData(request: express.Request) {
   return String(headerValue || bodyValue || "").trim();
 }
 
+function getBearerToken(request: express.Request) {
+  const value = String(request.header("authorization") || "").trim();
+  if (!value.toLowerCase().startsWith("bearer ")) return "";
+  return value.slice("bearer ".length).trim();
+}
+
+function createSessionToken() {
+  return crypto.randomBytes(32).toString("base64url");
+}
+
+function hashSessionToken(token: string) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+async function createAuthSession(userId: string, telegramId: string) {
+  const token = createSessionToken();
+  const tokenHash = hashSessionToken(token);
+  const result = await pool.query(
+    `INSERT INTO auth_sessions (token_hash, user_id, telegram_id, expires_at)
+     VALUES ($1, $2, $3, NOW() + ($4::text || ' days')::interval)
+     RETURNING expires_at`,
+    [tokenHash, userId, telegramId, String(SESSION_MAX_AGE_DAYS)]
+  );
+
+  // Небольшая уборка старых сессий при каждом новом входе.
+  await pool.query("DELETE FROM auth_sessions WHERE expires_at < NOW()");
+
+  return {
+    sessionToken: token,
+    expiresAt: result.rows[0]?.expires_at?.toISOString?.() || new Date(Date.now() + SESSION_MAX_AGE_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+  };
+}
+
+type RequestSession = {
+  userId: string;
+  telegramId: string;
+};
+
+async function getRequestSession(request: express.Request): Promise<RequestSession | null> {
+  const token = getBearerToken(request);
+  if (!token) return null;
+
+  const tokenHash = hashSessionToken(token);
+  const result = await pool.query(
+    `SELECT user_id, telegram_id
+     FROM auth_sessions
+     WHERE token_hash = $1 AND expires_at > NOW()`,
+    [tokenHash]
+  );
+
+  const row = result.rows[0];
+  if (!row) return null;
+
+  return {
+    userId: String(row.user_id),
+    telegramId: String(row.telegram_id),
+  };
+}
+
 function validateTelegramInitData(initData: string): TelegramAuthResult {
   if (!BOT_TOKEN) {
     return { ok: false, error: "На сервере не настроен BOT_TOKEN" };
@@ -360,12 +420,18 @@ function validateTelegramInitData(initData: string): TelegramAuthResult {
 
   const authDate = Number(params.get("auth_date") || 0);
 
-  if (authDate > 0) {
-    const ageSeconds = Math.floor(Date.now() / 1000) - authDate;
+  if (!authDate) {
+    return { ok: false, error: "В Telegram initData нет auth_date" };
+  }
 
-    if (ageSeconds > TELEGRAM_AUTH_MAX_AGE_SECONDS) {
-      return { ok: false, error: "Telegram-сессия устарела. Перезапусти Mini App." };
-    }
+  const ageSeconds = Math.floor(Date.now() / 1000) - authDate;
+
+  if (ageSeconds < -60) {
+    return { ok: false, error: "Некорректное время Telegram-сессии" };
+  }
+
+  if (ageSeconds > TELEGRAM_AUTH_MAX_AGE_SECONDS) {
+    return { ok: false, error: "Telegram-сессия устарела. Перезапусти Mini App." };
   }
 
   const userRaw = params.get("user");
@@ -391,30 +457,41 @@ function isAdminUserId(userId: string) {
   return ADMIN_USER_IDS.includes(userId);
 }
 
-function assertRequestMatchesUser(request: express.Request, response: express.Response, userId: string) {
-  const initData = getTelegramInitData(request);
+async function assertRequestMatchesUser(request: express.Request, response: express.Response, userId: string) {
+  // После входа все действия идут только через наш короткий Bearer sessionToken.
+  // Telegram initData больше не принимается как авторизация для действий, чтобы нельзя было
+  // повторно использовать случайно расшаренный tgWebAppData.
+  const session = await getRequestSession(request);
 
-  // Все действия от имени пользователя должны подтверждаться Telegram initData.
-  // Прямые web-ссылки остаются режимом просмотра и не могут работать от имени чужого аккаунта.
-  if (!initData) {
+  if (!session) {
     response.status(401).json({
-      error: "Требуется Telegram-авторизация. Открой приложение через Telegram Mini App.",
+      error: "Требуется безопасная сессия. Перезапусти приложение через Telegram Mini App.",
     });
     return false;
   }
 
-  const telegramAuth = validateTelegramInitData(initData);
-
-  if (!telegramAuth.ok) {
-    response.status(401).json({ error: `Telegram-авторизация не пройдена: ${telegramAuth.error}` });
+  if (userId !== session.telegramId && userId !== session.userId) {
+    response.status(403).json({ error: "Нельзя выполнить действие за другого пользователя." });
     return false;
   }
 
-  const telegramId = String(telegramAuth.user.id);
-  const telegramUserId = `telegram-${telegramId}`;
+  return true;
+}
 
-  if (userId !== telegramId && userId !== telegramUserId) {
-    response.status(403).json({ error: "Нельзя выполнить действие за другого пользователя." });
+async function requireAdmin(request: express.Request, response: express.Response) {
+  const session = await getRequestSession(request);
+
+  if (!session) {
+    response.status(401).json({
+      error: "Требуется безопасная сессия администратора. Перезапусти приложение через Telegram Mini App.",
+    });
+    return false;
+  }
+
+  if (!isAdminUserId(session.telegramId) && !isAdminUserId(session.userId)) {
+    response.status(403).json({
+      error: "Недостаточно прав. Это действие доступно только администратору.",
+    });
     return false;
   }
 
@@ -1335,6 +1412,14 @@ async function migrate() {
       UNIQUE (event_type, user_id, market_id)
     );
 
+    CREATE TABLE IF NOT EXISTS auth_sessions (
+      token_hash TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      telegram_id TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      expires_at TIMESTAMPTZ NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS predictions_market_id_idx ON predictions(market_id);
     CREATE INDEX IF NOT EXISTS predictions_user_id_idx ON predictions(user_id);
     CREATE INDEX IF NOT EXISTS comments_market_id_idx ON comments(market_id);
@@ -1345,6 +1430,8 @@ async function migrate() {
     CREATE INDEX IF NOT EXISTS favorites_user_id_idx ON favorites(user_id);
     CREATE INDEX IF NOT EXISTS notification_events_user_id_idx ON notification_events(user_id);
     CREATE INDEX IF NOT EXISTS notification_events_market_id_idx ON notification_events(market_id);
+    CREATE INDEX IF NOT EXISTS auth_sessions_user_id_idx ON auth_sessions(user_id);
+    CREATE INDEX IF NOT EXISTS auth_sessions_expires_at_idx ON auth_sessions(expires_at);
 
     ALTER TABLE users ADD COLUMN IF NOT EXISTS last_daily_bonus_at TIMESTAMPTZ;
   `);
@@ -1530,6 +1617,8 @@ app.get("/api/health", async (_request, response) => {
     adminUsersConfigured: ADMIN_USER_IDS.length,
     telegramAuthConfigured: Boolean(BOT_TOKEN),
     telegramNotificationsConfigured: Boolean(BOT_TOKEN),
+    secureSessionAuthEnabled: true,
+    telegramAuthMaxAgeSeconds: TELEGRAM_AUTH_MAX_AGE_SECONDS,
     appPublicUrlConfigured: Boolean(APP_PUBLIC_URL),
     dailyBonusAmount: DAILY_BONUS_AMOUNT,
     strictTelegramUserActions: true,
@@ -1575,19 +1664,18 @@ app.post("/api/telegram-user", async (request, response) => {
     .trim() || telegramUser.username || `Telegram ${telegramId}`;
 
   if (existingUserResult.rows[0]) {
-    const existingUser = toUser(existingUserResult.rows[0]);
+    let existingUser = toUser(existingUserResult.rows[0]);
 
     if (name && existingUser.name !== name) {
       const updatedUser = await pool.query(
         "UPDATE users SET name = $2 WHERE id = $1 RETURNING *",
         [userId, name]
       );
-
-      response.json(toUser(updatedUser.rows[0]));
-      return;
+      existingUser = toUser(updatedUser.rows[0]);
     }
 
-    response.json(existingUser);
+    const session = await createAuthSession(existingUser.id, telegramId);
+    response.json({ user: existingUser, ...session });
     return;
   }
 
@@ -1611,7 +1699,8 @@ app.post("/api/telegram-user", async (request, response) => {
     amount: START_BALANCE,
   });
 
-  response.status(201).json(user);
+  const session = await createAuthSession(user.id, telegramId);
+  response.status(201).json({ user, ...session });
 });
 
 app.post("/api/users/:userId/daily-bonus", async (request, response) => {
@@ -1622,7 +1711,7 @@ app.post("/api/users/:userId/daily-bonus", async (request, response) => {
     return;
   }
 
-  if (!assertRequestMatchesUser(request, response, userId)) return;
+  if (!(await assertRequestMatchesUser(request, response, userId))) return;
 
   try {
     const result = await withTransaction(async (client) => {
@@ -1698,7 +1787,7 @@ app.get("/api/polymarket/import-status", async (_request, response) => {
 });
 
 app.post("/api/polymarket/import", async (request, response) => {
-  if (!requireAdmin(request, response)) return;
+  if (!(await requireAdmin(request, response))) return;
 
   try {
     const limit = Math.min(100, Math.max(1, Number(request.body?.limit || POLYMARKET_AUTO_IMPORT_LIMIT)));
@@ -1726,7 +1815,7 @@ app.post("/api/market-suggestions", async (request, response) => {
       return;
     }
 
-    if (!assertRequestMatchesUser(request, response, String(userId))) return;
+    if (!(await assertRequestMatchesUser(request, response, String(userId)))) return;
 
     if (normalizedQuestion.length < 8) {
       response.status(400).json({ error: "Сформулируй вопрос рынка подробнее" });
@@ -1775,7 +1864,7 @@ app.post("/api/market-suggestions", async (request, response) => {
 });
 
 app.patch("/api/market-suggestions/:suggestionId", async (request, response) => {
-  if (!requireAdmin(request, response)) return;
+  if (!(await requireAdmin(request, response))) return;
 
   try {
     const { suggestionId } = request.params;
@@ -1818,7 +1907,7 @@ app.patch("/api/market-suggestions/:suggestionId", async (request, response) => 
 });
 
 app.post("/api/market-suggestions/:suggestionId/approve", async (request, response) => {
-  if (!requireAdmin(request, response)) return;
+  if (!(await requireAdmin(request, response))) return;
 
   try {
     const { suggestionId } = request.params;
@@ -1889,7 +1978,7 @@ app.post("/api/market-suggestions/:suggestionId/approve", async (request, respon
 });
 
 app.post("/api/market-suggestions/:suggestionId/reject", async (request, response) => {
-  if (!requireAdmin(request, response)) return;
+  if (!(await requireAdmin(request, response))) return;
 
   try {
     const { suggestionId } = request.params;
@@ -1918,7 +2007,7 @@ app.post("/api/market-suggestions/:suggestionId/reject", async (request, respons
 });
 
 app.post("/api/markets", async (request, response) => {
-  if (!requireAdmin(request, response)) {
+  if (!(await requireAdmin(request, response))) {
     return;
   }
 
@@ -1998,7 +2087,7 @@ app.post("/api/markets", async (request, response) => {
 });
 
 app.patch("/api/markets/:marketId", async (request, response) => {
-  if (!requireAdmin(request, response)) {
+  if (!(await requireAdmin(request, response))) {
     return;
   }
 
@@ -2048,7 +2137,7 @@ app.patch("/api/markets/:marketId", async (request, response) => {
 });
 
 app.post("/api/markets/:marketId/extend", async (request, response) => {
-  if (!requireAdmin(request, response)) {
+  if (!(await requireAdmin(request, response))) {
     return;
   }
 
@@ -2085,7 +2174,7 @@ app.post("/api/markets/:marketId/extend", async (request, response) => {
 });
 
 app.delete("/api/markets/:marketId", async (request, response) => {
-  if (!requireAdmin(request, response)) {
+  if (!(await requireAdmin(request, response))) {
     return;
   }
 
@@ -2145,7 +2234,7 @@ app.delete("/api/markets/:marketId", async (request, response) => {
 });
 
 app.post("/api/markets/:marketId/duplicate", async (request, response) => {
-  if (!requireAdmin(request, response)) {
+  if (!(await requireAdmin(request, response))) {
     return;
   }
 
@@ -2211,7 +2300,7 @@ app.post("/api/markets/:marketId/predictions", async (request, response) => {
     return;
   }
 
-  if (!assertRequestMatchesUser(request, response, userId)) return;
+  if (!(await assertRequestMatchesUser(request, response, userId))) return;
 
   if (!outcome) {
     response.status(400).json({ error: "Некорректный исход" });
@@ -2326,7 +2415,7 @@ app.post("/api/markets/:marketId/predictions", async (request, response) => {
 });
 
 app.post("/api/markets/:marketId/resolve", async (request, response) => {
-  if (!requireAdmin(request, response)) {
+  if (!(await requireAdmin(request, response))) {
     return;
   }
 
@@ -2446,7 +2535,7 @@ app.post("/api/markets/:marketId/comments", async (request, response) => {
     return;
   }
 
-  if (!assertRequestMatchesUser(request, response, userId)) return;
+  if (!(await assertRequestMatchesUser(request, response, userId))) return;
 
   const [marketResult, userResult] = await Promise.all([
     pool.query("SELECT * FROM markets WHERE id = $1", [marketId]),
@@ -2505,7 +2594,7 @@ app.post("/api/markets/:marketId/comments", async (request, response) => {
 });
 
 app.delete("/api/comments/:commentId", async (request, response) => {
-  if (!requireAdmin(request, response)) {
+  if (!(await requireAdmin(request, response))) {
     return;
   }
 
@@ -2524,7 +2613,7 @@ app.delete("/api/comments/:commentId", async (request, response) => {
 app.post("/api/users/:userId/favorites/:marketId", async (request, response) => {
   const { userId, marketId } = request.params;
 
-  if (!assertRequestMatchesUser(request, response, userId)) return;
+  if (!(await assertRequestMatchesUser(request, response, userId))) return;
 
   const [userResult, marketResult] = await Promise.all([
     pool.query("SELECT id FROM users WHERE id = $1", [userId]),
@@ -2569,7 +2658,7 @@ app.post("/api/users/:userId/favorites/:marketId", async (request, response) => 
 });
 
 app.post("/api/reset", async (request, response) => {
-  if (!requireAdmin(request, response)) {
+  if (!(await requireAdmin(request, response))) {
     return;
   }
 
