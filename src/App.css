@@ -11690,3 +11690,131 @@ body,
     width: 100%;
   }
 }
+
+
+/* Modal scroll and close fixes */
+.modalOverlay,
+.activityOverlay {
+  z-index: 22000 !important;
+  align-items: start !important;
+  justify-items: center !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  overscroll-behavior: contain !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-y !important;
+  padding: calc(env(safe-area-inset-top, 0px) + 14px) 12px calc(env(safe-area-inset-bottom, 0px) + 18px) !important;
+}
+
+.activityOverlay {
+  display: grid !important;
+  place-items: start center !important;
+}
+
+.modalBackdropButton {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.onboardingModal,
+.rulesModal,
+.activityPanel,
+.modalScrollableSheet {
+  position: relative;
+  z-index: 1;
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 32px) !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  overscroll-behavior: contain !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-y !important;
+}
+
+.modalSheetTopBar,
+.activityPanelHeader {
+  position: sticky;
+  top: -1px;
+  z-index: 5;
+  margin: -4px -4px 12px;
+  padding: 8px 4px 10px;
+  border-radius: 22px 22px 14px 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(255, 255, 255, 0.86));
+  backdrop-filter: blur(14px);
+}
+
+.modalSheetTopBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modalSheetTopBar span {
+  color: #0f172a;
+  font-size: 0.9rem;
+  font-weight: 950;
+}
+
+.modalSheetTopBar .modalCloseButton {
+  position: static;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-radius: 14px;
+  font-size: 1.25rem;
+}
+
+.modalBottomCloseButton {
+  width: 100%;
+  margin-top: 16px;
+}
+
+.rulesModal .rulesIntro {
+  padding-right: 0;
+}
+
+.rulesModal .rulesContent {
+  padding-right: 0 !important;
+}
+
+.activityPanelFooter {
+  position: sticky;
+  bottom: -1px;
+  z-index: 5;
+  padding-top: 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.96) 28%, rgba(255, 255, 255, 0.98));
+}
+
+.telegramApp .modalOverlay,
+.telegramApp .activityOverlay {
+  padding: calc(env(safe-area-inset-top, 0px) + 8px) 10px calc(env(safe-area-inset-bottom, 0px) + 12px) !important;
+}
+
+.telegramApp .rulesModal,
+.telegramApp .onboardingModal,
+.telegramApp .activityPanel {
+  width: 100% !important;
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 20px) !important;
+  border-radius: 24px !important;
+}
+
+.telegramApp .modalSheetTopBar,
+.telegramApp .activityPanelHeader {
+  margin: -2px -2px 10px;
+  padding: 7px 2px 9px;
+  border-radius: 18px 18px 12px 12px;
+}
+
+.telegramApp .activityPanelFooter {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+/* Back button should not force page to top anymore; it restores saved scroll position from App.tsx. */

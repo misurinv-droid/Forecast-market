@@ -8,7 +8,7 @@ type SuggestionStatus = "pending" | "approved" | "rejected";
 type SortMode = "newest" | "probability" | "trades" | "comments";
 type DetailsTab = "overview" | "trades" | "participants" | "chat";
 type MainView = "markets" | "imported" | "search" | "predictions" | "tournament" | "suggest" | "admin" | "moderation" | "settlement" | "profile";
-type AppRouteSnapshot = { mainView: MainView; selectedMarketId: string | null };
+type AppRouteSnapshot = { mainView: MainView; selectedMarketId: string | null; scrollY: number };
 type SwipeRailMode = "pending" | "horizontal" | "vertical";
 type SwipeRailState = { rail: HTMLElement; startX: number; startY: number; scrollLeft: number; mode: SwipeRailMode; moved: boolean; nextLeft: number; rafId: number | null };
 type MarketBadge = { label: string; emoji: string; tone: "hot" | "soon" | "new" | "interest" | "poly" | "mine" | "closed" };
@@ -1531,13 +1531,29 @@ function App() {
     }, 2400);
   }
 
-  function scrollAppToTop(behavior: ScrollBehavior = "smooth") {
+  function getAppScrollTop() {
+    const mainScroll = document.querySelector("main.app")?.scrollTop || 0;
+    return Math.max(
+      window.scrollY || 0,
+      document.documentElement.scrollTop || 0,
+      document.body.scrollTop || 0,
+      mainScroll,
+    );
+  }
+
+  function restoreAppScrollPosition(scrollY: number, behavior: ScrollBehavior = "auto") {
+    const top = Math.max(0, Math.round(scrollY || 0));
+
     window.requestAnimationFrame(() => {
-      window.scrollTo({ top: 0, behavior });
-      document.documentElement.scrollTo?.({ top: 0, behavior });
-      document.body.scrollTo?.({ top: 0, behavior });
-      document.querySelector("main.app")?.scrollTo?.({ top: 0, behavior });
+      window.scrollTo({ top, behavior });
+      document.documentElement.scrollTo?.({ top, behavior });
+      document.body.scrollTo?.({ top, behavior });
+      document.querySelector("main.app")?.scrollTo?.({ top, behavior });
     });
+  }
+
+  function scrollAppToTop(behavior: ScrollBehavior = "smooth") {
+    restoreAppScrollPosition(0, behavior);
   }
 
   function navigateBottomTab(view: MainView) {
@@ -1554,7 +1570,25 @@ function App() {
     }
   }
 
+  function closeActiveOverlay() {
+    if (isActivityOpen) {
+      setIsActivityOpen(false);
+      sendHaptic("light");
+      return true;
+    }
+
+    if (isRulesOpen) {
+      setIsRulesOpen(false);
+      sendHaptic("light");
+      return true;
+    }
+
+    return false;
+  }
+
   function goBackRoute() {
+    if (closeActiveOverlay()) return;
+
     const previousRoute = routeHistory[routeHistory.length - 1];
 
     sendHaptic("light");
@@ -1564,19 +1598,17 @@ function App() {
       setRouteHistory((currentHistory) => currentHistory.slice(0, -1));
       setSelectedMarketId(previousRoute.selectedMarketId);
       setMainView(previousRoute.mainView);
-      window.setTimeout(() => scrollAppToTop("auto"), 0);
+      window.setTimeout(() => restoreAppScrollPosition(previousRoute.scrollY, "auto"), 0);
       return;
     }
 
     if (selectedMarketId) {
       setSelectedMarketId(null);
-      window.setTimeout(() => scrollAppToTop("auto"), 0);
       return;
     }
 
     if (mainView !== "markets") {
       setMainView("markets");
-      window.setTimeout(() => scrollAppToTop("auto"), 0);
     }
   }
 
@@ -1754,7 +1786,7 @@ function App() {
   }, [selectedInterestCategories]);
 
   useEffect(() => {
-    const nextRoute: AppRouteSnapshot = { mainView, selectedMarketId };
+    const nextRoute: AppRouteSnapshot = { mainView, selectedMarketId, scrollY: getAppScrollTop() };
     const previousRoute = lastRouteRef.current;
 
     if (!previousRoute) {
@@ -1772,13 +1804,18 @@ function App() {
       return;
     }
 
+    const previousRouteWithScroll: AppRouteSnapshot = {
+      ...previousRoute,
+      scrollY: getAppScrollTop(),
+    };
+
     setRouteHistory((currentHistory) => {
       const lastSavedRoute = currentHistory[currentHistory.length - 1];
       const alreadySaved =
-        lastSavedRoute?.mainView === previousRoute.mainView &&
-        lastSavedRoute?.selectedMarketId === previousRoute.selectedMarketId;
+        lastSavedRoute?.mainView === previousRouteWithScroll.mainView &&
+        lastSavedRoute?.selectedMarketId === previousRouteWithScroll.selectedMarketId;
 
-      return alreadySaved ? currentHistory : [...currentHistory, previousRoute].slice(-24);
+      return alreadySaved ? currentHistory : [...currentHistory, previousRouteWithScroll].slice(-24);
     });
 
     lastRouteRef.current = nextRoute;
@@ -1786,7 +1823,7 @@ function App() {
 
   useEffect(() => {
     const telegramWebApp = getRealTelegramWebApp();
-    const canGoBack = mainView !== "markets" || Boolean(selectedMarketId);
+    const canGoBack = isActivityOpen || isRulesOpen || mainView !== "markets" || Boolean(selectedMarketId);
 
     if (!telegramWebApp?.BackButton) return;
 
@@ -1810,7 +1847,7 @@ function App() {
         // Игнорируем старые клиенты Telegram.
       }
     };
-  }, [mainView, selectedMarketId, routeHistory]);
+  }, [mainView, selectedMarketId, routeHistory, isActivityOpen, isRulesOpen]);
 
   async function initializeApp() {
     setIsLoading(true);
@@ -3420,10 +3457,15 @@ function App() {
     if (!isRulesOpen) return null;
 
     return (
-      <div className="modalOverlay">
-        <section className="rulesModal">
-          <button className="modalCloseButton" onClick={() => setIsRulesOpen(false)}>×</button>
+      <div className="modalOverlay rulesModalOverlay" role="dialog" aria-modal="true" aria-label="Правила Forecast Market">
+        <button className="modalBackdropButton" aria-label="Закрыть правила" onClick={() => setIsRulesOpen(false)} />
+        <section className="rulesModal modalScrollableSheet">
+          <div className="modalSheetTopBar">
+            <span>Правила Forecast Market</span>
+            <button className="modalCloseButton" onClick={() => setIsRulesOpen(false)}>×</button>
+          </div>
           {renderRulesContent()}
+          <button className="modalBottomCloseButton" onClick={() => setIsRulesOpen(false)}>Закрыть правила</button>
         </section>
       </div>
     );
@@ -3478,6 +3520,9 @@ function App() {
               setMainView("markets");
             }}>
               Главная
+            </button>
+            <button className="secondaryButton" onClick={() => setIsActivityOpen(false)}>
+              Закрыть
             </button>
           </div>
         </section>
@@ -4858,7 +4903,7 @@ function App() {
   }
 
   const appClassName = `app ${isTelegram ? "telegramApp" : ""}`;
-  const canShowBackButton = mainView !== "markets" || Boolean(selectedMarketId);
+  const canShowBackButton = isActivityOpen || isRulesOpen || mainView !== "markets" || Boolean(selectedMarketId);
 
   if (isLoading) {
     return (
