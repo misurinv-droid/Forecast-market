@@ -34,9 +34,25 @@ type DailyMissionClaim = {
   rewardAmount: number;
   createdAt: string;
 };
+
+type WeeklyTournamentAward = {
+  id: string;
+  weekKey: string;
+  weekStart: string;
+  weekEnd: string;
+  userId: string;
+  userName: string;
+  place?: number;
+  score: number;
+  predictionsCount: number;
+  wins: number;
+  rewardAmount: number;
+  awardType: "top" | "participation";
+  createdAt: string;
+};
 type MyPredictionTab = "active" | "waiting" | "settled" | "won" | "lost" | "all";
 type ProfileTab = "overview" | "achievements" | "predictions" | "social" | "history";
-type AdminPanelTab = "overview" | "users" | "markets" | "create" | "suggestions" | "settlement" | "polymarket" | "points" | "security";
+type AdminPanelTab = "overview" | "users" | "markets" | "create" | "suggestions" | "settlement" | "polymarket" | "points" | "tournament" | "security";
 
 type DemoUser = {
   id: string;
@@ -185,6 +201,7 @@ type BootstrapData = {
   marketSuggestions?: MarketSuggestion[];
   referrals?: Referral[];
   dailyMissionClaims?: DailyMissionClaim[];
+  weeklyTournamentAwards?: WeeklyTournamentAward[];
   favoriteMarketIdsByUser: Record<string, string[]>;
   adminUserIds?: string[];
 };
@@ -547,6 +564,10 @@ function getTournamentScoreTransactionAmount(transaction: BalanceTransaction) {
   return Number(transaction.amount || 0);
 }
 
+const WEEKLY_TOURNAMENT_TOP_REWARDS = [5000, 3000, 1500];
+const WEEKLY_TOURNAMENT_PARTICIPATION_REWARD = 300;
+const WEEKLY_TOURNAMENT_MIN_PREDICTIONS = 3;
+
 function formatShortDate(date: Date) {
   return date.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
 }
@@ -866,6 +887,7 @@ function App() {
   const [marketSuggestions, setMarketSuggestions] = useState<MarketSuggestion[]>([]);
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [dailyMissionClaims, setDailyMissionClaims] = useState<DailyMissionClaim[]>([]);
+  const [weeklyTournamentAwards, setWeeklyTournamentAwards] = useState<WeeklyTournamentAward[]>([]);
   const [favoriteMarketIdsByUser, setFavoriteMarketIdsByUser] = useState<Record<string, string[]>>({});
   const [adminUserIds, setAdminUserIds] = useState<string[]>([]);
 
@@ -939,6 +961,7 @@ function App() {
   });
   const [isDailyBonusClaiming, setIsDailyBonusClaiming] = useState(false);
   const [claimingDailyMissionId, setClaimingDailyMissionId] = useState<string | null>(null);
+  const [isAwardingWeeklyTournament, setIsAwardingWeeklyTournament] = useState(false);
   const [isTestingTelegramNotification, setIsTestingTelegramNotification] = useState(false);
   const [isSavingTelegramNotificationPrefs, setIsSavingTelegramNotificationPrefs] = useState(false);
   const [isRulesOpen, setIsRulesOpen] = useState(false);
@@ -1109,6 +1132,25 @@ function App() {
     if (!activeUser) return null;
     return weeklyStandings.find((row) => row.user.id === activeUser.id) || null;
   }, [weeklyStandings, activeUser]);
+
+  const currentWeekKey = useMemo(() => getLocalDateKey(currentWeekStart), [currentWeekStart]);
+
+  const currentWeekAwards = useMemo(() => {
+    return weeklyTournamentAwards.filter((award) => award.weekKey === currentWeekKey);
+  }, [weeklyTournamentAwards, currentWeekKey]);
+
+  const hasCurrentWeekAwards = currentWeekAwards.length > 0;
+
+  const activeUserWeeklyAwards = useMemo(() => {
+    if (!activeUser) return [];
+    return currentWeekAwards.filter((award) => award.userId === activeUser.id);
+  }, [currentWeekAwards, activeUser]);
+
+  const latestWeeklyAwards = useMemo(() => {
+    return [...weeklyTournamentAwards]
+      .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+      .slice(0, 12);
+  }, [weeklyTournamentAwards]);
 
   const categories = useMemo(() => {
     return ["Все", ...Array.from(new Set(markets.map((market) => market.category)))];
@@ -1674,6 +1716,7 @@ function App() {
     setMarketSuggestions(data.marketSuggestions || []);
     setReferrals(data.referrals || []);
     setDailyMissionClaims(data.dailyMissionClaims || []);
+    setWeeklyTournamentAwards(data.weeklyTournamentAwards || []);
     setFavoriteMarketIdsByUser(data.favoriteMarketIdsByUser || {});
     setAdminUserIds(data.adminUserIds || []);
 
@@ -2393,6 +2436,47 @@ function App() {
       alert(getErrorMessage(error));
     } finally {
       setIsApplyingBulkPoints(false);
+    }
+  }
+
+  async function awardWeeklyTournamentRewards() {
+    if (!requireClientAdmin()) return;
+
+    if (hasCurrentWeekAwards) {
+      alert("Награды за эту неделю уже выданы.");
+      return;
+    }
+
+    const confirmed = window.confirm("Завершить текущую неделю и выдать награды турнира? Повторно выдать награды за эту неделю будет нельзя.");
+
+    if (!confirmed) return;
+
+    try {
+      setIsAwardingWeeklyTournament(true);
+      const result = await apiRequest<{
+        weekKey: string;
+        weekStart: string;
+        weekEnd: string;
+        awards: WeeklyTournamentAward[];
+        totalRewardAmount: number;
+        awardedUsers: number;
+      }>("/admin/tournament/weekly-awards", {
+        method: "POST",
+        headers: adminHeaders(),
+      });
+
+      setWeeklyTournamentAwards((currentAwards) => {
+        const newAwardIds = new Set(result.awards.map((award) => award.id));
+        return [...result.awards, ...currentAwards.filter((award) => !newAwardIds.has(award.id))];
+      });
+      await refreshData(activeUser?.id);
+      sendSuccess();
+      showToast(`Турнир завершён: ${result.awardedUsers} игроков · +${result.totalRewardAmount.toLocaleString("ru-RU")} б.`);
+    } catch (error) {
+      sendError();
+      alert(getErrorMessage(error));
+    } finally {
+      setIsAwardingWeeklyTournament(false);
     }
   }
 
@@ -3183,13 +3267,31 @@ function App() {
             <strong>{activeUserWeeklyStanding?.score ? `${activeUserWeeklyStanding.score > 0 ? "+" : ""}${activeUserWeeklyStanding.score.toLocaleString("ru-RU")}` : "0"} баллов</strong>
             <p>{activeUserWeeklyStanding?.predictionsCount || 0} прогнозов · {activeUserWeeklyStanding?.wins || 0} выиграно · выплаты {(activeUserWeeklyStanding?.payouts || 0).toLocaleString("ru-RU")}</p>
           </div>
-          {gapToTopThree > 0 ? (
+          {activeUserWeeklyAwards.length > 0 ? (
+            <div className="tournamentGap success">Награда недели: <b>+{activeUserWeeklyAwards.reduce((sum, award) => sum + award.rewardAmount, 0).toLocaleString("ru-RU")}</b> баллов 🏆</div>
+          ) : gapToTopThree > 0 ? (
             <div className="tournamentGap">До топ-3: <b>{gapToTopThree.toLocaleString("ru-RU")}</b> баллов</div>
           ) : activeUserWeeklyRank > 0 && activeUserWeeklyRank <= 3 ? (
             <div className="tournamentGap success">Ты в топ-3 недели 🔥</div>
           ) : (
             <button onClick={() => setMainView("markets")}>Сделать прогноз</button>
           )}
+        </section>
+
+        <section className="tournamentRewardsCard">
+          <div className="sectionHeader">
+            <div>
+              <h2>Награды недели</h2>
+              <p>{hasCurrentWeekAwards ? "Награды за эту неделю уже выданы." : "Админ завершает неделю вручную после проверки результатов."}</p>
+            </div>
+            <span>{hasCurrentWeekAwards ? "Выдано" : "Ожидает"}</span>
+          </div>
+          <div className="tournamentRewardsGrid">
+            <div><b>🥇 1 место</b><strong>+5 000</strong><small>баллов</small></div>
+            <div><b>🥈 2 место</b><strong>+3 000</strong><small>баллов</small></div>
+            <div><b>🥉 3 место</b><strong>+1 500</strong><small>баллов</small></div>
+            <div><b>🎁 Участие</b><strong>+300</strong><small>за 3+ прогноза</small></div>
+          </div>
         </section>
 
         <section className="podiumGrid">
@@ -3219,6 +3321,28 @@ function App() {
               </div>
             ))}
           </div>
+        </section>
+
+        <section className="tournamentTableCard weeklyAwardsHistoryCard">
+          <div className="sectionHeader">
+            <h2>История наград</h2>
+            <span>{latestWeeklyAwards.length} операций</span>
+          </div>
+          {latestWeeklyAwards.length === 0 ? (
+            <div className="empty">Недельные награды ещё не выдавались.</div>
+          ) : (
+            <div className="weeklyAwardsList">
+              {latestWeeklyAwards.map((award) => (
+                <div className={`weeklyAwardItem ${award.userId === activeUser?.id ? "activeWeeklyAwardItem" : ""}`} key={award.id}>
+                  <div>
+                    <strong>{award.awardType === "top" ? `#${award.place} недели` : "Участие в турнире"}</strong>
+                    <span>{award.userName} · {formatDateForDisplay(award.weekStart)} — {formatDateForDisplay(award.weekEnd)}</span>
+                  </div>
+                  <b>+{award.rewardAmount.toLocaleString("ru-RU")}</b>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       </section>
     );
@@ -4756,6 +4880,7 @@ function App() {
         { id: "settlement", title: "Расчёт рынков", shortTitle: "Расчёт", icon: "⚖️", badge: closedMarketsCount || undefined },
         { id: "polymarket", title: "Импорт Polymarket", shortTitle: "Импорт", icon: "◆", badge: totalImported },
         { id: "points", title: "Начисления баллов", shortTitle: "Баллы", icon: "₽" },
+        { id: "tournament", title: "Награды турнира", shortTitle: "Турнир", icon: "🏆", badge: hasCurrentWeekAwards ? undefined : weeklyStandings.length || undefined },
         { id: "security", title: "Доступы и безопасность", shortTitle: "Доступ", icon: "🔐" },
       ];
 
@@ -4809,6 +4934,7 @@ function App() {
                 <button onClick={() => setAdminTab("suggestions")}><strong>{pendingSuggestions.length}</strong><span>новых заявок</span></button>
                 <button onClick={() => setAdminTab("polymarket")}><strong>{totalImported}</strong><span>импортированных рынков</span></button>
                 <button onClick={() => setAdminTab("points")}><strong>±</strong><span>ручные начисления</span></button>
+                <button onClick={() => setAdminTab("tournament")}><strong>🏆</strong><span>{hasCurrentWeekAwards ? "награды недели выданы" : "выдать награды недели"}</span></button>
               </div>
             </article>
 
@@ -5036,6 +5162,80 @@ function App() {
       );
     }
 
+    function renderAdminTournament() {
+      const topRewardRows = weeklyStandings.slice(0, 3);
+      const participationRows = weeklyStandings.filter((row) => row.predictionsCount >= WEEKLY_TOURNAMENT_MIN_PREDICTIONS);
+      const previewTotal =
+        topRewardRows.reduce((sum, _row, index) => sum + (WEEKLY_TOURNAMENT_TOP_REWARDS[index] || 0), 0) +
+        participationRows.length * WEEKLY_TOURNAMENT_PARTICIPATION_REWARD;
+
+      return (
+        <div className="adminTabPanel">
+          <section className="adminTournamentRewardsCard">
+            <div className="sectionHeader">
+              <div>
+                <h2>Награды турнира недели</h2>
+                <p>Ручное завершение текущей недели. Повторная выдача за тот же период заблокирована backend-ом.</p>
+              </div>
+              <span className={hasCurrentWeekAwards ? "notificationStatusReady" : "notificationStatusPending"}>
+                {hasCurrentWeekAwards ? "Уже выдано" : "Готово к выдаче"}
+              </span>
+            </div>
+
+            <div className="adminTournamentPeriod">
+              <div><span>Период</span><strong>{formatShortDate(currentWeekStart)} — {formatShortDate(currentWeekEnd)}</strong><small>{currentWeekKey}</small></div>
+              <div><span>Участников</span><strong>{weeklyStandings.length}</strong><small>в текущем топе</small></div>
+              <div><span>3+ прогноза</span><strong>{participationRows.length}</strong><small>получат участие</small></div>
+              <div><span>План наград</span><strong>+{previewTotal.toLocaleString("ru-RU")}</strong><small>если выдать сейчас</small></div>
+            </div>
+
+            <div className="tournamentRewardsGrid adminTournamentPrizeGrid">
+              <div><b>🥇 1 место</b><strong>+5 000</strong><small>{topRewardRows[0]?.user.name || "нет участника"}</small></div>
+              <div><b>🥈 2 место</b><strong>+3 000</strong><small>{topRewardRows[1]?.user.name || "нет участника"}</small></div>
+              <div><b>🥉 3 место</b><strong>+1 500</strong><small>{topRewardRows[2]?.user.name || "нет участника"}</small></div>
+              <div><b>🎁 Участие</b><strong>+300</strong><small>{participationRows.length} игроков</small></div>
+            </div>
+
+            <button className="createMarketButton" onClick={awardWeeklyTournamentRewards} disabled={isAwardingWeeklyTournament || hasCurrentWeekAwards || weeklyStandings.length === 0}>
+              {isAwardingWeeklyTournament ? "Выдаём награды..." : hasCurrentWeekAwards ? "Награды уже выданы" : "Завершить неделю и выдать награды"}
+            </button>
+          </section>
+
+          <section className="adminTwoColumn">
+            <article className="adminFormCard">
+              <div className="sectionHeader"><h2>Текущий топ</h2></div>
+              <div className="tournamentRows compactTournamentRows">
+                {weeklyStandings.slice(0, 10).length === 0 ? (
+                  <div className="empty">Пока нет результатов за неделю.</div>
+                ) : weeklyStandings.slice(0, 10).map((row, index) => (
+                  <div className="tournamentRow" key={row.user.id}>
+                    <div className="tournamentRank">#{index + 1}</div>
+                    <div className="tournamentName"><strong>{row.user.name}</strong><span>{row.predictionsCount} прогнозов · {row.wins} побед</span></div>
+                    <div className="tournamentScore"><strong>{row.score >= 0 ? "+" : ""}{row.score.toLocaleString("ru-RU")}</strong><span>баллов</span></div>
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <article className="adminFormCard">
+              <div className="sectionHeader"><h2>Выданные награды</h2></div>
+              <div className="weeklyAwardsList">
+                {latestWeeklyAwards.length === 0 ? <div className="empty">Наград пока нет.</div> : latestWeeklyAwards.slice(0, 10).map((award) => (
+                  <div className="weeklyAwardItem" key={award.id}>
+                    <div>
+                      <strong>{award.awardType === "top" ? `#${award.place} недели` : "Участие"}</strong>
+                      <span>{award.userName} · {formatDateForDisplay(award.weekStart)}</span>
+                    </div>
+                    <b>+{award.rewardAmount.toLocaleString("ru-RU")}</b>
+                  </div>
+                ))}
+              </div>
+            </article>
+          </section>
+        </div>
+      );
+    }
+
     function renderAdminSecurity() {
       return (
         <div className="adminTabPanel">
@@ -5079,6 +5279,7 @@ function App() {
         {adminTab === "settlement" && <div className="adminTabPanel adminEmbeddedPanel">{renderSettlementPage()}</div>}
         {adminTab === "polymarket" && renderAdminPolymarket()}
         {adminTab === "points" && renderAdminPoints()}
+        {adminTab === "tournament" && renderAdminTournament()}
         {adminTab === "security" && renderAdminSecurity()}
       </section>
     );

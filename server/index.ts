@@ -116,6 +116,22 @@ type DailyMissionClaim = {
   createdAt: string;
 };
 
+type WeeklyTournamentAward = {
+  id: string;
+  weekKey: string;
+  weekStart: string;
+  weekEnd: string;
+  userId: string;
+  userName: string;
+  place?: number;
+  score: number;
+  predictionsCount: number;
+  wins: number;
+  rewardAmount: number;
+  awardType: "top" | "participation";
+  createdAt: string;
+};
+
 type DatabaseSnapshot = {
   users: DemoUser[];
   markets: Market[];
@@ -125,6 +141,7 @@ type DatabaseSnapshot = {
   marketSuggestions: MarketSuggestion[];
   referrals: Referral[];
   dailyMissionClaims: DailyMissionClaim[];
+  weeklyTournamentAwards: WeeklyTournamentAward[];
   favoriteMarketIdsByUser: Record<string, string[]>;
   adminUserIds: string[];
   polymarketImport?: {
@@ -174,6 +191,10 @@ const DAILY_MISSION_REWARDS: Record<string, number> = {
   referral: 1000,
 };
 
+const WEEKLY_TOURNAMENT_TOP_REWARDS = [5000, 3000, 1500];
+const WEEKLY_TOURNAMENT_PARTICIPATION_REWARD = 300;
+const WEEKLY_TOURNAMENT_MIN_PREDICTIONS = 3;
+
 function getTodayDateKey() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -183,6 +204,26 @@ function getRuDatePrefix(date = new Date()) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const year = String(date.getFullYear());
   return `${day}.${month}.${year}`;
+}
+
+function getWeekStartDate(date = new Date()) {
+  const start = new Date(date);
+  start.setUTCHours(0, 0, 0, 0);
+  const day = start.getUTCDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  start.setUTCDate(start.getUTCDate() + diff);
+  return start;
+}
+
+function getWeekEndDate(date = new Date()) {
+  const end = getWeekStartDate(date);
+  end.setUTCDate(end.getUTCDate() + 7);
+  end.setUTCMilliseconds(-1);
+  return end;
+}
+
+function getDateKey(date: Date) {
+  return date.toISOString().slice(0, 10);
 }
 
 const POLYMARKET_GAMMA_BASE_URL = "https://gamma-api.polymarket.com";
@@ -732,6 +773,27 @@ function toDailyMissionClaim(row: any): DailyMissionClaim {
   };
 }
 
+function toWeeklyTournamentAward(row: any): WeeklyTournamentAward {
+  const weekStart = row.week_start instanceof Date ? row.week_start.toISOString().slice(0, 10) : String(row.week_start).slice(0, 10);
+  const weekEnd = row.week_end instanceof Date ? row.week_end.toISOString().slice(0, 10) : String(row.week_end).slice(0, 10);
+
+  return {
+    id: row.id,
+    weekKey: row.week_key,
+    weekStart,
+    weekEnd,
+    userId: row.user_id,
+    userName: row.user_name,
+    place: row.place === null || row.place === undefined ? undefined : Number(row.place),
+    score: Number(row.score || 0),
+    predictionsCount: Number(row.predictions_count || 0),
+    wins: Number(row.wins || 0),
+    rewardAmount: Number(row.reward_amount || 0),
+    awardType: row.award_type === "participation" ? "participation" : "top",
+    createdAt: formatDbDateTime(row.created_at),
+  };
+}
+
 type QueryRunner = {
   query: (text: string, params?: unknown[]) => Promise<{ rows: any[] }>;
 };
@@ -826,6 +888,56 @@ async function isDailyMissionCompleted(queryRunner: QueryRunner, userId: string,
   }
 
   return false;
+}
+
+
+type WeeklyTournamentStandingRow = {
+  userId: string;
+  userName: string;
+  score: number;
+  spent: number;
+  payouts: number;
+  predictionsCount: number;
+  wins: number;
+};
+
+async function getWeeklyTournamentStandings(
+  queryRunner: QueryRunner,
+  weekStart: Date,
+  weekEnd: Date
+): Promise<WeeklyTournamentStandingRow[]> {
+  const result = await queryRunner.query(
+    `
+      SELECT
+        u.id AS user_id,
+        u.name AS user_name,
+        COALESCE(SUM(CASE WHEN t.type IN ('prediction_buy', 'payout') THEN t.amount ELSE 0 END), 0)::int AS score,
+        ABS(COALESCE(SUM(CASE WHEN t.type = 'prediction_buy' THEN t.amount ELSE 0 END), 0))::int AS spent,
+        COALESCE(SUM(CASE WHEN t.type = 'payout' AND t.amount > 0 THEN t.amount ELSE 0 END), 0)::int AS payouts,
+        COUNT(CASE WHEN t.type = 'prediction_buy' THEN 1 END)::int AS predictions_count,
+        COUNT(CASE WHEN t.type = 'payout' AND t.amount > 0 THEN 1 END)::int AS wins
+      FROM users u
+      LEFT JOIN transactions t
+        ON t.user_id = u.id
+       AND t.created_at >= $1
+       AND t.created_at <= $2
+       AND t.type IN ('prediction_buy', 'payout')
+      GROUP BY u.id, u.name
+      HAVING COUNT(t.id) > 0
+      ORDER BY score DESC, wins DESC, predictions_count DESC, user_name ASC
+    `,
+    [weekStart.toISOString(), weekEnd.toISOString()]
+  );
+
+  return result.rows.map((row) => ({
+    userId: String(row.user_id),
+    userName: String(row.user_name),
+    score: Number(row.score || 0),
+    spent: Number(row.spent || 0),
+    payouts: Number(row.payouts || 0),
+    predictionsCount: Number(row.predictions_count || 0),
+    wins: Number(row.wins || 0),
+  }));
 }
 
 
@@ -1980,6 +2092,23 @@ async function migrate() {
       UNIQUE (user_id, mission_id, mission_date)
     );
 
+    CREATE TABLE IF NOT EXISTS weekly_tournament_awards (
+      id TEXT PRIMARY KEY,
+      week_key TEXT NOT NULL,
+      week_start DATE NOT NULL,
+      week_end DATE NOT NULL,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      user_name TEXT NOT NULL,
+      place INTEGER,
+      score INTEGER NOT NULL DEFAULT 0,
+      predictions_count INTEGER NOT NULL DEFAULT 0,
+      wins INTEGER NOT NULL DEFAULT 0,
+      reward_amount INTEGER NOT NULL,
+      award_type TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (week_key, user_id, award_type)
+    );
+
     CREATE INDEX IF NOT EXISTS predictions_market_id_idx ON predictions(market_id);
     CREATE INDEX IF NOT EXISTS predictions_user_id_idx ON predictions(user_id);
     CREATE INDEX IF NOT EXISTS comments_market_id_idx ON comments(market_id);
@@ -1993,6 +2122,8 @@ async function migrate() {
     CREATE INDEX IF NOT EXISTS favorites_user_id_idx ON favorites(user_id);
     CREATE INDEX IF NOT EXISTS daily_mission_claims_user_id_idx ON daily_mission_claims(user_id);
     CREATE INDEX IF NOT EXISTS daily_mission_claims_date_idx ON daily_mission_claims(mission_date);
+    CREATE INDEX IF NOT EXISTS weekly_tournament_awards_week_key_idx ON weekly_tournament_awards(week_key);
+    CREATE INDEX IF NOT EXISTS weekly_tournament_awards_user_id_idx ON weekly_tournament_awards(user_id);
     ALTER TABLE notification_events ADD COLUMN IF NOT EXISTS notification_key TEXT NOT NULL DEFAULT '';
     UPDATE notification_events SET notification_key = COALESCE(NULLIF(notification_key, ''), COALESCE(market_id, ''));
     CREATE INDEX IF NOT EXISTS notification_events_user_id_idx ON notification_events(user_id);
@@ -2093,7 +2224,7 @@ async function closeExpiredMarkets(db: Pool | PoolClient = pool) {
 async function getSnapshot(): Promise<DatabaseSnapshot> {
   await closeExpiredMarkets();
 
-  const [usersResult, marketsResult, predictionsResult, commentsResult, transactionsResult, suggestionsResult, referralsResult, dailyMissionClaimsResult, favoritesResult] =
+  const [usersResult, marketsResult, predictionsResult, commentsResult, transactionsResult, suggestionsResult, referralsResult, dailyMissionClaimsResult, weeklyTournamentAwardsResult, favoritesResult] =
     await Promise.all([
       pool.query("SELECT * FROM users ORDER BY name ASC"),
       pool.query("SELECT * FROM markets ORDER BY created_at DESC"),
@@ -2103,6 +2234,7 @@ async function getSnapshot(): Promise<DatabaseSnapshot> {
       pool.query("SELECT * FROM market_suggestions ORDER BY created_at DESC LIMIT 500"),
       pool.query("SELECT * FROM referrals ORDER BY created_at DESC LIMIT 500"),
       pool.query("SELECT * FROM daily_mission_claims ORDER BY created_at DESC LIMIT 1000"),
+      pool.query("SELECT * FROM weekly_tournament_awards ORDER BY created_at DESC LIMIT 500"),
       pool.query("SELECT * FROM favorites ORDER BY user_id ASC, market_id ASC"),
     ]);
 
@@ -2131,6 +2263,7 @@ async function getSnapshot(): Promise<DatabaseSnapshot> {
     marketSuggestions: suggestionsResult.rows.map(toSuggestion),
     referrals: referralsResult.rows.map(toReferral),
     dailyMissionClaims: dailyMissionClaimsResult.rows.map(toDailyMissionClaim),
+    weeklyTournamentAwards: weeklyTournamentAwardsResult.rows.map(toWeeklyTournamentAward),
     favoriteMarketIdsByUser,
     adminUserIds: ADMIN_USER_IDS,
     polymarketImport: {
@@ -2686,6 +2819,143 @@ app.post("/api/admin/users/points/bulk", async (request, response) => {
   } catch (error) {
     console.error("bulk points failed", error);
     response.status(500).json({ error: "Не удалось массово изменить балансы игроков" });
+  }
+});
+
+app.post("/api/admin/tournament/weekly-awards", async (request, response) => {
+  if (!(await requireAdmin(request, response))) return;
+
+  const weekStart = getWeekStartDate();
+  const weekEnd = getWeekEndDate();
+  const weekKey = getDateKey(weekStart);
+
+  try {
+    const result = await withTransaction(async (client) => {
+      const alreadyAwarded = await client.query(
+        "SELECT COUNT(*)::int AS count FROM weekly_tournament_awards WHERE week_key = $1",
+        [weekKey]
+      );
+
+      if (Number(alreadyAwarded.rows[0]?.count || 0) > 0) {
+        return { error: "Награды за эту неделю уже выданы" } as const;
+      }
+
+      const standings = await getWeeklyTournamentStandings(client, weekStart, weekEnd);
+
+      if (standings.length === 0) {
+        return { error: "За эту неделю пока нет участников турнира" } as const;
+      }
+
+      const awardsToCreate: Array<{
+        userId: string;
+        userName: string;
+        place?: number;
+        score: number;
+        predictionsCount: number;
+        wins: number;
+        rewardAmount: number;
+        awardType: "top" | "participation";
+      }> = [];
+
+      standings.slice(0, 3).forEach((row, index) => {
+        const rewardAmount = WEEKLY_TOURNAMENT_TOP_REWARDS[index] || 0;
+        if (rewardAmount <= 0) return;
+
+        awardsToCreate.push({
+          userId: row.userId,
+          userName: row.userName,
+          place: index + 1,
+          score: row.score,
+          predictionsCount: row.predictionsCount,
+          wins: row.wins,
+          rewardAmount,
+          awardType: "top",
+        });
+      });
+
+      standings
+        .filter((row) => row.predictionsCount >= WEEKLY_TOURNAMENT_MIN_PREDICTIONS)
+        .forEach((row, index) => {
+          awardsToCreate.push({
+            userId: row.userId,
+            userName: row.userName,
+            place: index + 1,
+            score: row.score,
+            predictionsCount: row.predictionsCount,
+            wins: row.wins,
+            rewardAmount: WEEKLY_TOURNAMENT_PARTICIPATION_REWARD,
+            awardType: "participation",
+          });
+        });
+
+      if (awardsToCreate.length === 0) {
+        return { error: "Нет наград для выдачи: нужны участники в топе или 3+ прогноза за неделю" } as const;
+      }
+
+      const createdAwards: WeeklyTournamentAward[] = [];
+      let totalRewardAmount = 0;
+
+      for (const award of awardsToCreate) {
+        const awardResult = await client.query(
+          `
+            INSERT INTO weekly_tournament_awards (
+              id, week_key, week_start, week_end, user_id, user_name,
+              place, score, predictions_count, wins, reward_amount, award_type, created_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+            RETURNING *
+          `,
+          [
+            createId(),
+            weekKey,
+            weekStart.toISOString().slice(0, 10),
+            weekEnd.toISOString().slice(0, 10),
+            award.userId,
+            award.userName,
+            award.place || null,
+            award.score,
+            award.predictionsCount,
+            award.wins,
+            award.rewardAmount,
+            award.awardType,
+          ]
+        );
+
+        await client.query("UPDATE users SET balance = balance + $2 WHERE id = $1", [award.userId, award.rewardAmount]);
+
+        await addBalanceTransaction(client, {
+          userId: award.userId,
+          type: "system",
+          title: award.awardType === "top" ? "Награда турнира недели" : "Бонус за участие в турнире",
+          description: award.awardType === "top"
+            ? `Место #${award.place} за неделю ${weekStart.toISOString().slice(0, 10)} — ${weekEnd.toISOString().slice(0, 10)}`
+            : `Бонус за ${WEEKLY_TOURNAMENT_MIN_PREDICTIONS}+ прогнозов за неделю`,
+          amount: award.rewardAmount,
+        });
+
+        createdAwards.push(toWeeklyTournamentAward(awardResult.rows[0]));
+        totalRewardAmount += award.rewardAmount;
+      }
+
+      return {
+        weekKey,
+        weekStart: weekStart.toISOString().slice(0, 10),
+        weekEnd: weekEnd.toISOString().slice(0, 10),
+        awards: createdAwards,
+        awardedUsers: new Set(createdAwards.map((award) => award.userId)).size,
+        totalRewardAmount,
+      };
+    });
+
+    if (!result || "error" in result) {
+      response.status(400).json({ error: result?.error || "Не удалось выдать награды турнира" });
+      return;
+    }
+
+    response.json(result);
+  } catch (error) {
+    console.error("weekly tournament awards failed", error);
+    response.status(500).json({ error: "Не удалось выдать награды турнира недели" });
   }
 });
 

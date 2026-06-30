@@ -12462,3 +12462,152 @@ body,
 .claimedDailyMission .dailyMissionIcon {
   background: rgba(209, 250, 229, 0.96);
 }
+
+
+/* Weekly tournament rewards */
+.tournamentRewardsCard,
+.adminTournamentRewardsCard {
+  position: relative;
+  overflow: hidden;
+  padding: 18px;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(245, 158, 11, 0.15), transparent 34%),
+    radial-gradient(circle at 95% 10%, rgba(37, 99, 235, 0.13), transparent 38%),
+    rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(226, 232, 240, 0.88);
+  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.08);
+}
+
+.tournamentRewardsGrid,
+.adminTournamentPeriod {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tournamentRewardsGrid div,
+.adminTournamentPeriod div {
+  padding: 13px;
+  border-radius: 18px;
+  background: rgba(248, 250, 252, 0.86);
+  border: 1px solid rgba(226, 232, 240, 0.86);
+}
+
+.tournamentRewardsGrid b,
+.adminTournamentPeriod span {
+  display: block;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.tournamentRewardsGrid strong,
+.adminTournamentPeriod strong {
+  display: block;
+  margin-top: 5px;
+  color: #0f172a;
+  font-size: 1.18rem;
+  line-height: 1;
+}
+
+.tournamentRewardsGrid small,
+.adminTournamentPeriod small {
+  display: block;
+  margin-top: 5px;
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.weeklyAwardsHistoryCard,
+.adminTournamentRewardsCard {
+  display: grid;
+  gap: 13px;
+}
+
+.weeklyAwardsList {
+  display: grid;
+  gap: 8px;
+}
+
+.weeklyAwardItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 12px;
+  border-radius: 18px;
+  background: rgba(248, 250, 252, 0.86);
+  border: 1px solid rgba(226, 232, 240, 0.86);
+}
+
+.weeklyAwardItem strong {
+  display: block;
+  color: #0f172a;
+  font-size: 0.86rem;
+}
+
+.weeklyAwardItem span {
+  display: block;
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.weeklyAwardItem b {
+  color: #047857;
+  white-space: nowrap;
+}
+
+.activeWeeklyAwardItem {
+  background: rgba(209, 250, 229, 0.72);
+  border-color: rgba(52, 211, 153, 0.55);
+}
+
+.adminTournamentRewardsCard .createMarketButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.compactTournamentRows {
+  max-height: 520px;
+  overflow: auto;
+}
+
+.telegramApp .tournamentRewardsCard,
+.telegramApp .adminTournamentRewardsCard {
+  padding: 14px;
+  border-radius: 24px;
+}
+
+.telegramApp .tournamentRewardsGrid,
+.telegramApp .adminTournamentPeriod {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.telegramApp .tournamentRewardsGrid div,
+.telegramApp .adminTournamentPeriod div {
+  padding: 10px;
+  border-radius: 16px;
+}
+
+@media (max-width: 760px) {
+  .tournamentRewardsGrid,
+  .adminTournamentPeriod {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .weeklyAwardItem {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 420px) {
+  .tournamentRewardsGrid,
+  .adminTournamentPeriod {
+    grid-template-columns: 1fr;
+  }
+}
