@@ -12,7 +12,7 @@ type AppRouteSnapshot = { mainView: MainView; selectedMarketId: string | null };
 type SwipeRailMode = "pending" | "horizontal" | "vertical";
 type SwipeRailState = { rail: HTMLElement; startX: number; startY: number; scrollLeft: number; mode: SwipeRailMode; moved: boolean; nextLeft: number; rafId: number | null };
 type MarketBadge = { label: string; emoji: string; tone: "hot" | "soon" | "new" | "interest" | "poly" | "mine" | "closed" };
-type MyPredictionTab = "active" | "settled" | "won" | "lost" | "all";
+type MyPredictionTab = "active" | "waiting" | "settled" | "won" | "lost" | "all";
 type ProfileTab = "overview" | "achievements" | "predictions" | "social" | "history";
 type AdminPanelTab = "overview" | "users" | "markets" | "create" | "suggestions" | "settlement" | "polymarket" | "points" | "security";
 
@@ -966,12 +966,18 @@ function App() {
   const activeDailyBonusAmount = getNextDailyBonusAmount(activeUser);
 
   const myPredictionsByTab = useMemo(() => {
-    if (myPredictionTab === "active") return activeUserOpenPredictions;
+    const isWaitingForSettlement = (prediction: Prediction) => {
+      const market = markets.find((item) => item.id === prediction.marketId);
+      return !prediction.settledAt && market?.status === "closed";
+    };
+
+    if (myPredictionTab === "active") return activeUserOpenPredictions.filter((prediction) => !isWaitingForSettlement(prediction));
+    if (myPredictionTab === "waiting") return activeUserOpenPredictions.filter(isWaitingForSettlement);
     if (myPredictionTab === "settled") return activeUserSettledPredictions;
     if (myPredictionTab === "won") return activeUserSettledPredictions.filter((prediction) => prediction.outcome === prediction.resolvedOutcome);
     if (myPredictionTab === "lost") return activeUserSettledPredictions.filter((prediction) => prediction.outcome !== prediction.resolvedOutcome);
     return activeUserPredictions;
-  }, [myPredictionTab, activeUserOpenPredictions, activeUserSettledPredictions, activeUserPredictions]);
+  }, [myPredictionTab, activeUserOpenPredictions, activeUserSettledPredictions, activeUserPredictions, markets]);
 
   const activeFavoriteMarkets = useMemo(() => {
     return markets.filter((market) => favoriteMarketIds.includes(market.id));
@@ -2516,12 +2522,17 @@ function App() {
     const market = markets.find((item) => item.id === prediction.marketId);
     const isSettled = Boolean(prediction.settledAt);
     const isWinner = isSettled && prediction.outcome === prediction.resolvedOutcome;
+    const isWaiting = !isSettled && market?.status === "closed";
+    const isLive = !isSettled && market?.status === "open";
     const estimatedPayout = estimatePredictionPayout(market, prediction);
     const currentProbability = market ? (prediction.outcome === "yes" ? getYesProbability(market) : 100 - getYesProbability(market)) : prediction.probabilityAtPurchase;
+    const probabilityDiff = currentProbability - prediction.probabilityAtPurchase;
+    const resultAmount = isSettled ? (prediction.payout || 0) - prediction.amount : estimatedPayout - prediction.amount;
+    const statusLabel = isSettled ? (isWinner ? "Выиграл" : "Проиграл") : isWaiting ? "Ждёт расчёта" : isLive ? "В игре" : "Активный";
 
     return (
       <button
-        className={`myPredictionCard ${variant === "full" ? "myPredictionCardFull" : ""} ${isSettled ? "settledPredictionCard" : ""}`}
+        className={`myPredictionCard gamePredictionCard ${variant === "full" ? "myPredictionCardFull" : ""} ${isSettled ? "settledPredictionCard" : ""} ${isWinner ? "winnerPredictionCard" : ""} ${isWaiting ? "waitingPredictionCard" : ""}`}
         key={prediction.id}
         onClick={() => {
           setSelectedMarketId(prediction.marketId);
@@ -2533,21 +2544,44 @@ function App() {
         </div>
         <div className="myPredictionBody">
           <div className="myPredictionTopLine">
-            <span>{isSettled ? "Завершён" : "Активный"}</span>
+            <span className={`predictionStatusPill ${isWinner ? "predictionStatusWin" : isSettled ? "predictionStatusLoss" : isWaiting ? "predictionStatusWaiting" : "predictionStatusLive"}`}>
+              {statusLabel}
+            </span>
             <strong>{prediction.amount.toLocaleString("ru-RU")} б.</strong>
           </div>
           <h4>{market?.question || prediction.marketQuestion}</h4>
-          <div className="myPredictionMetaGrid">
-            <div><span>При покупке</span><strong>{prediction.probabilityAtPurchase}%</strong></div>
-            <div><span>{isSettled ? "Выплата" : "Потенциально"}</span><strong>{estimatedPayout.toLocaleString("ru-RU")}</strong></div>
-            <div><span>{isSettled ? "Результат" : "Сейчас"}</span><strong>{isSettled ? getOutcomeText(prediction.resolvedOutcome) : `${currentProbability}%`}</strong></div>
+
+          <div className="predictionProgressLine">
+            <span>При покупке {prediction.probabilityAtPurchase}%</span>
+            <b className={probabilityDiff >= 0 ? "positiveAmount" : "negativeAmount"}>
+              {probabilityDiff >= 0 ? "+" : ""}{probabilityDiff} п.п.
+            </b>
+            <span>Сейчас {currentProbability}%</span>
           </div>
+
+          <div className="predictionProbabilityTrack" aria-label={`Текущая вероятность ${currentProbability}%`}>
+            <span style={{ width: `${Math.max(2, Math.min(100, currentProbability))}%` }} />
+          </div>
+
+          <div className="myPredictionMetaGrid gamePredictionMetaGrid">
+            <div><span>Сумма</span><strong>{prediction.amount.toLocaleString("ru-RU")}</strong></div>
+            <div><span>{isSettled ? "Выплата" : "Потенциально"}</span><strong>{estimatedPayout.toLocaleString("ru-RU")}</strong></div>
+            <div>
+              <span>{isSettled ? "Итог" : "Потенц. итог"}</span>
+              <strong className={resultAmount >= 0 ? "positiveAmount" : "negativeAmount"}>
+                {resultAmount >= 0 ? "+" : ""}{resultAmount.toLocaleString("ru-RU")}
+              </strong>
+            </div>
+          </div>
+
           {isSettled ? (
             <p className={isWinner ? "predictionSettlement winText" : "predictionSettlement lossText"}>
-              {isWinner ? "Выигрыш" : "Проигрыш"} · {prediction.settledAt}
+              {isWinner ? "Выигрыш начислен" : "Прогноз не сыграл"} · {prediction.settledAt}
             </p>
+          ) : isWaiting ? (
+            <p className="activePrediction waitingPredictionText">Рынок закрыт. Осталось дождаться расчёта администратором.</p>
           ) : (
-            <p className="activePrediction">Ожидает расчёта · нажми, чтобы открыть рынок</p>
+            <p className="activePrediction">Рынок ещё открыт · нажми, чтобы открыть детали</p>
           )}
         </div>
       </button>
@@ -2652,41 +2686,93 @@ function App() {
       return <section className="myPredictionsPage"><div className="empty">Прогнозы пока не загружены.</div></section>;
     }
 
-    const tabs: { id: MyPredictionTab; title: string; count: number }[] = [
-      { id: "active", title: "Активные", count: activeUserOpenPredictions.length },
-      { id: "settled", title: "Завершённые", count: activeUserSettledPredictions.length },
-      { id: "won", title: "Выигранные", count: activeUserSettledPredictions.filter((prediction) => prediction.outcome === prediction.resolvedOutcome).length },
-      { id: "lost", title: "Проигранные", count: activeUserSettledPredictions.filter((prediction) => prediction.outcome !== prediction.resolvedOutcome).length },
-      { id: "all", title: "Все", count: activeUserPredictions.length },
+    const waitingPredictions = activeUserOpenPredictions.filter((prediction) => {
+      const market = markets.find((item) => item.id === prediction.marketId);
+      return market?.status === "closed";
+    });
+    const livePredictions = activeUserOpenPredictions.filter((prediction) => {
+      const market = markets.find((item) => item.id === prediction.marketId);
+      return market?.status !== "closed";
+    });
+    const wonPredictions = activeUserSettledPredictions.filter((prediction) => prediction.outcome === prediction.resolvedOutcome);
+    const lostPredictions = activeUserSettledPredictions.filter((prediction) => prediction.outcome !== prediction.resolvedOutcome);
+    const potentialPayout = activeUserOpenPredictions.reduce((sum, prediction) => {
+      const market = markets.find((item) => item.id === prediction.marketId);
+      return sum + estimatePredictionPayout(market, prediction);
+    }, 0);
+    const openInvested = activeUserOpenPredictions.reduce((sum, prediction) => sum + prediction.amount, 0);
+    const settledResult = activeUserStats.payouts - activeUserStats.invested;
+    const potentialResult = potentialPayout - openInvested;
+
+    const tabs: { id: MyPredictionTab; title: string; icon: string; count: number }[] = [
+      { id: "active", title: "Активные", icon: "🟢", count: livePredictions.length },
+      { id: "waiting", title: "Ждут", icon: "🧮", count: waitingPredictions.length },
+      { id: "won", title: "Выиграл", icon: "🏆", count: wonPredictions.length },
+      { id: "lost", title: "Проиграл", icon: "📉", count: lostPredictions.length },
+      { id: "settled", title: "Заверш.", icon: "✅", count: activeUserSettledPredictions.length },
+      { id: "all", title: "Все", icon: "📚", count: activeUserPredictions.length },
     ];
 
     return (
-      <section className="myPredictionsPage">
-        <section className="myPredictionsHero">
+      <section className="myPredictionsPage gamePredictionsPage">
+        <section className="myPredictionsHero gamePredictionsHero">
           <div>
             <p className="eyebrow">Личный портфель</p>
             <h2>Мои прогнозы</h2>
-            <p>Все твои активные и завершённые позиции: сколько вложено, что может прийти и как менялся баланс.</p>
+            <p>Следи за активными позициями, ожидаемыми выплатами и результатами. Это твой игровой портфель Forecast Market.</p>
+            <div className="predictionHeroActions">
+              <button onClick={() => setMainView("markets")}>Сделать ещё прогноз</button>
+              <button className="secondaryButton" onClick={() => setMainView("tournament")}>Турнир недели</button>
+            </div>
           </div>
-          <div className="myPredictionsSummary">
-            <div><span>Активные</span><strong>{activeUserOpenPredictions.length}</strong></div>
-            <div><span>Winrate</span><strong>{activeUserStats.winRate}%</strong></div>
-            <div><span>Баланс</span><strong>{activeUser.balance.toLocaleString("ru-RU")}</strong></div>
+          <div className="myPredictionsSummary gamePredictionsSummary">
+            <div><span>Активные</span><strong>{livePredictions.length}</strong><small>в игре</small></div>
+            <div><span>Ждут</span><strong>{waitingPredictions.length}</strong><small>расчёта</small></div>
+            <div><span>Winrate</span><strong>{activeUserStats.winRate}%</strong><small>{activeUserStats.wins}/{activeUserStats.settledCount || 0}</small></div>
+            <div><span>Итог</span><strong className={settledResult >= 0 ? "positiveAmount" : "negativeAmount"}>{settledResult >= 0 ? "+" : ""}{settledResult.toLocaleString("ru-RU")}</strong><small>по всем</small></div>
           </div>
         </section>
 
-        <section className="predictionTabs">
+        <section className="predictionPortfolioGrid">
+          <article>
+            <span>Вложено активно</span>
+            <strong>{openInvested.toLocaleString("ru-RU")}</strong>
+            <small>баллов сейчас в игре</small>
+          </article>
+          <article>
+            <span>Потенциальная выплата</span>
+            <strong>{potentialPayout.toLocaleString("ru-RU")}</strong>
+            <small>если активные прогнозы сыграют</small>
+          </article>
+          <article>
+            <span>Потенциальный итог</span>
+            <strong className={potentialResult >= 0 ? "positiveAmount" : "negativeAmount"}>{potentialResult >= 0 ? "+" : ""}{potentialResult.toLocaleString("ru-RU")}</strong>
+            <small>по активным позициям</small>
+          </article>
+          <article>
+            <span>Баланс</span>
+            <strong>{activeUser.balance.toLocaleString("ru-RU")}</strong>
+            <small>доступно для прогнозов</small>
+          </article>
+        </section>
+
+        <section className="predictionTabs gamePredictionTabs">
           {tabs.map((tab) => (
             <button key={tab.id} className={myPredictionTab === tab.id ? "activePredictionTab" : ""} onClick={() => setMyPredictionTab(tab.id)}>
-              {tab.title}<span>{tab.count}</span>
+              <span>{tab.icon}</span>
+              <strong>{tab.title}</strong>
+              <small>{tab.count}</small>
             </button>
           ))}
         </section>
 
-        <section className="myPredictionsLayout">
-          <div className="myPredictionsListCard">
+        <section className="myPredictionsLayout gamePredictionsLayout">
+          <div className="myPredictionsListCard gamePredictionsListCard">
             <div className="sectionHeader">
-              <h2>Позиции</h2>
+              <div>
+                <h2>Позиции</h2>
+                <p>{myPredictionsByTab.length} прогнозов в выбранном разделе</p>
+              </div>
               <span>{myPredictionsByTab.length}</span>
             </div>
             {myPredictionsByTab.length === 0 ? (
@@ -2696,15 +2782,18 @@ function App() {
                 <button onClick={() => setMainView("markets")}>Перейти к рынкам</button>
               </div>
             ) : (
-              <div className="myPredictionList">
+              <div className="myPredictionList gamePredictionList">
                 {myPredictionsByTab.map((prediction) => renderPredictionCard(prediction, "full"))}
               </div>
             )}
           </div>
 
-          <aside className="balanceHistoryCard">
+          <aside className="balanceHistoryCard gameBalanceHistoryCard">
             <div className="sectionHeader">
-              <h2>История баллов</h2>
+              <div>
+                <h2>История баллов</h2>
+                <p>Последние операции</p>
+              </div>
               <span>{activeUserTransactions.length}</span>
             </div>
             {renderTransactions(12)}

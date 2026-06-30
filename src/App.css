@@ -11021,3 +11021,394 @@ body,
 .telegramApp .detailsBadgeRow {
   margin-bottom: 9px;
 }
+
+
+/* Upgraded My Predictions portfolio */
+.gamePredictionsPage {
+  display: grid;
+  gap: 16px;
+}
+
+.gamePredictionsHero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 0.84fr);
+  gap: 16px;
+  align-items: stretch;
+  border-radius: 32px;
+  background:
+    radial-gradient(circle at 8% 4%, rgba(37, 99, 235, 0.16), transparent 36%),
+    radial-gradient(circle at 92% 12%, rgba(20, 184, 166, 0.16), transparent 38%),
+    rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  box-shadow: 0 20px 62px rgba(15, 23, 42, 0.10);
+}
+
+.predictionHeroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 15px;
+}
+
+.predictionHeroActions button {
+  border: 0;
+  border-radius: 15px;
+  padding: 11px 14px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #162bdc, #07a9cf);
+  font-weight: 950;
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.16);
+}
+
+.predictionHeroActions .secondaryButton {
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(226, 232, 240, 0.88);
+  box-shadow: none;
+}
+
+.gamePredictionsSummary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.gamePredictionsSummary div {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  min-height: 104px;
+  padding: 14px;
+  border-radius: 22px;
+  background: rgba(248, 250, 252, 0.86);
+  border: 1px solid rgba(226, 232, 240, 0.88);
+  overflow: hidden;
+}
+
+.gamePredictionsSummary div::after {
+  content: "";
+  position: absolute;
+  inset: auto -28px -38px auto;
+  width: 88px;
+  height: 88px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.gamePredictionsSummary span,
+.predictionPortfolioGrid span {
+  color: #64748b;
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.gamePredictionsSummary strong,
+.predictionPortfolioGrid strong {
+  color: #0f172a;
+  font-size: 1.55rem;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.gamePredictionsSummary small,
+.predictionPortfolioGrid small {
+  color: #94a3b8;
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.predictionPortfolioGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.predictionPortfolioGrid article {
+  display: grid;
+  gap: 6px;
+  min-height: 106px;
+  padding: 14px;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(20, 184, 166, 0.10), transparent 44%),
+    rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(226, 232, 240, 0.88);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+}
+
+.gamePredictionTabs {
+  position: sticky;
+  top: 8px;
+  z-index: 24;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid rgba(226, 232, 240, 0.92);
+  box-shadow: 0 16px 44px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(18px);
+  scrollbar-width: none;
+}
+
+.gamePredictionTabs::-webkit-scrollbar {
+  display: none;
+}
+
+.gamePredictionTabs button {
+  flex: 0 0 auto;
+  min-width: 104px;
+  display: grid;
+  place-items: center;
+  gap: 3px;
+  border: 0;
+  border-radius: 18px;
+  padding: 9px 10px;
+  color: #64748b;
+  background: transparent;
+  font-weight: 900;
+}
+
+.gamePredictionTabs button > span {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.gamePredictionTabs button strong {
+  font-size: 0.76rem;
+  line-height: 1.06;
+}
+
+.gamePredictionTabs button small {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  min-height: 18px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: #1d4ed8;
+  background: rgba(219, 234, 254, 0.88);
+  font-size: 0.62rem;
+  font-weight: 950;
+}
+
+.gamePredictionTabs button.activePredictionTab {
+  color: #0f172a;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(20, 184, 166, 0.20), transparent 44%),
+    linear-gradient(135deg, rgba(219, 234, 254, 0.94), rgba(204, 251, 241, 0.92));
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.12);
+}
+
+.gamePredictionsLayout {
+  align-items: start;
+}
+
+.gamePredictionsListCard,
+.gameBalanceHistoryCard {
+  border-radius: 28px;
+}
+
+.gamePredictionList {
+  gap: 12px;
+}
+
+.gamePredictionCard {
+  position: relative;
+  overflow: hidden;
+}
+
+.gamePredictionCard::after {
+  content: "";
+  position: absolute;
+  inset: auto -38px -52px auto;
+  width: 110px;
+  height: 110px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.06);
+  pointer-events: none;
+}
+
+.winnerPredictionCard::after {
+  background: rgba(20, 184, 166, 0.10);
+}
+
+.waitingPredictionCard::after {
+  background: rgba(245, 158, 11, 0.10);
+}
+
+.predictionStatusPill {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: #334155;
+  background: rgba(241, 245, 249, 0.92);
+  font-size: 0.68rem;
+  line-height: 1;
+  font-weight: 950;
+}
+
+.predictionStatusLive {
+  color: #0f766e;
+  background: rgba(204, 251, 241, 0.95);
+}
+
+.predictionStatusWaiting {
+  color: #b45309;
+  background: rgba(254, 243, 199, 0.96);
+}
+
+.predictionStatusWin {
+  color: #047857;
+  background: rgba(209, 250, 229, 0.96);
+}
+
+.predictionStatusLoss {
+  color: #b91c1c;
+  background: rgba(254, 226, 226, 0.96);
+}
+
+.predictionProgressLine {
+  display: grid;
+  grid-template-columns: auto auto auto;
+  gap: 8px;
+  align-items: center;
+  margin-top: 9px;
+  color: #64748b;
+  font-size: 0.74rem;
+  font-weight: 850;
+}
+
+.predictionProgressLine b {
+  justify-self: center;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  font-size: 0.7rem;
+}
+
+.predictionProbabilityTrack {
+  height: 7px;
+  margin-top: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(226, 232, 240, 0.95);
+}
+
+.predictionProbabilityTrack span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2563eb, #14b8a6);
+}
+
+.gamePredictionMetaGrid {
+  margin-top: 11px;
+}
+
+.waitingPredictionText {
+  color: #b45309 !important;
+}
+
+.telegramApp .gamePredictionsPage {
+  gap: 12px;
+}
+
+.telegramApp .gamePredictionsHero {
+  grid-template-columns: 1fr;
+  gap: 12px;
+  padding: 15px;
+  border-radius: 26px;
+}
+
+.telegramApp .predictionHeroActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.telegramApp .predictionHeroActions button {
+  padding: 10px 8px;
+  font-size: 0.76rem;
+}
+
+.telegramApp .gamePredictionsSummary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.telegramApp .gamePredictionsSummary div {
+  min-height: 92px;
+  padding: 12px;
+  border-radius: 19px;
+}
+
+.telegramApp .gamePredictionsSummary strong,
+.telegramApp .predictionPortfolioGrid strong {
+  font-size: 1.28rem;
+}
+
+.telegramApp .predictionPortfolioGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.telegramApp .predictionPortfolioGrid article {
+  min-height: 94px;
+  padding: 12px;
+  border-radius: 20px;
+}
+
+.telegramApp .gamePredictionTabs {
+  top: 4px;
+  gap: 5px;
+  padding: 6px;
+  border-radius: 21px;
+}
+
+.telegramApp .gamePredictionTabs button {
+  min-width: 82px;
+  border-radius: 16px;
+  padding: 7px 7px;
+}
+
+.telegramApp .gamePredictionTabs button strong {
+  font-size: 0.64rem;
+}
+
+.telegramApp .gamePredictionTabs button small {
+  font-size: 0.56rem;
+  min-height: 16px;
+}
+
+.telegramApp .predictionProgressLine {
+  grid-template-columns: 1fr auto 1fr;
+  gap: 5px;
+  font-size: 0.64rem;
+}
+
+.telegramApp .predictionStatusPill {
+  padding: 4px 6px;
+  font-size: 0.6rem;
+}
+
+@media (max-width: 980px) {
+  .gamePredictionsHero,
+  .myPredictionsLayout.gamePredictionsLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .predictionPortfolioGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .predictionHeroActions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}
