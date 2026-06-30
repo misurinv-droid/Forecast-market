@@ -11818,3 +11818,110 @@ body,
 }
 
 /* Back button should not force page to top anymore; it restores saved scroll position from App.tsx. */
+
+
+/* Activity center read / clear controls */
+.activityPanelHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.activityPanelHeaderActions > button,
+.activityClearButton,
+.activityCloseButton {
+  border: 0;
+  border-radius: 14px;
+  font-weight: 950;
+}
+
+.activityPanelHeaderActions .activityClearButton {
+  width: auto;
+  height: 36px;
+  padding: 0 12px;
+  color: #1d4ed8;
+  background: rgba(219, 234, 254, 0.92);
+  font-size: 0.74rem;
+}
+
+.activityPanelHeaderActions .activityCloseButton {
+  width: 36px;
+  height: 36px;
+  color: #0f172a;
+  background: rgba(241, 245, 249, 0.92);
+  font-size: 1.25rem;
+}
+
+.activityItemActions {
+  display: grid;
+  gap: 7px;
+  align-items: center;
+}
+
+.activityItemActions button {
+  border: 0;
+  border-radius: 14px;
+  padding: 9px 11px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #162bdc, #07a9cf);
+  font-size: 0.74rem;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.activityItemActions .activityDismissButton {
+  color: #475569;
+  background: rgba(241, 245, 249, 0.94);
+  box-shadow: none;
+}
+
+.activityItem-calm .activityItemActions .activityDismissButton {
+  display: none;
+}
+
+.telegramApp .activityPanelHeaderActions {
+  align-self: start;
+  gap: 6px;
+}
+
+.telegramApp .activityPanelHeaderActions .activityClearButton {
+  height: 34px;
+  padding: 0 9px;
+  font-size: 0.66rem;
+}
+
+.telegramApp .activityPanelHeaderActions .activityCloseButton {
+  width: 34px;
+  height: 34px;
+}
+
+.telegramApp .activityItemActions {
+  grid-column: 1 / -1;
+  grid-template-columns: 1fr 1fr;
+  width: 100%;
+}
+
+.telegramApp .activityItemActions button {
+  width: 100%;
+  padding: 9px 10px;
+}
+
+.telegramApp .activityItem-calm .activityItemActions {
+  grid-template-columns: 1fr;
+}
+
+@media (max-width: 760px) {
+  .activityItemActions {
+    grid-column: 1 / -1;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+
+  .activityItemActions button {
+    width: 100%;
+  }
+
+  .activityItem-calm .activityItemActions {
+    grid-template-columns: 1fr;
+  }
+}

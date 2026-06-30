@@ -226,6 +226,7 @@ const INTERESTS_STORAGE_KEY = "forecast-market-user-interests";
 const TELEGRAM_MINI_APP_URL = String(import.meta.env.VITE_TELEGRAM_MINI_APP_URL || "").trim();
 const APP_PUBLIC_URL = String(import.meta.env.VITE_APP_PUBLIC_URL || window.location.origin).trim();
 const AUTH_SESSION_STORAGE_KEY = "forecast-market-auth-session";
+const ACTIVITY_DISMISSED_STORAGE_KEY = "forecast-market-dismissed-activity-items";
 
 const emptyNewMarketForm: NewMarketForm = {
   question: "",
@@ -812,6 +813,15 @@ function App() {
   const [buyingPredictionKey, setBuyingPredictionKey] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState("");
   const [isActivityOpen, setIsActivityOpen] = useState(false);
+  const [dismissedActivityIds, setDismissedActivityIds] = useState<string[]>(() => {
+    try {
+      const rawDismissedItems = window.localStorage.getItem(ACTIVITY_DISMISSED_STORAGE_KEY);
+      const parsedDismissedItems = JSON.parse(rawDismissedItems || "[]");
+      return Array.isArray(parsedDismissedItems) ? parsedDismissedItems.filter((item) => typeof item === "string") : [];
+    } catch {
+      return [];
+    }
+  });
 
   const [isAdminOpen, setIsAdminOpen] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState("Все");
@@ -1248,7 +1258,7 @@ function App() {
 
     if (dailyBonusInfo.canClaim) {
       items.push({
-        id: "daily-bonus-ready",
+        id: `daily-bonus-ready-${activeUser.id}-${new Date().toISOString().slice(0, 10)}`,
         emoji: "🎁",
         title: "Ежедневный бонус готов",
         text: `Можно забрать +${activeDailyBonusAmount.toLocaleString("ru-RU")} игровых баллов прямо сейчас.`,
@@ -1265,7 +1275,7 @@ function App() {
 
     if (waitingPredictions.length > 0) {
       items.push({
-        id: "waiting-predictions",
+        id: `waiting-predictions-${waitingPredictions.map((prediction) => prediction.id).join("-")}`,
         emoji: "🧮",
         title: `${waitingPredictions.length} прогнозов ждут расчёта`,
         text: "Рынки уже закрыты. Осталось дождаться расчёта результата.",
@@ -1360,7 +1370,7 @@ function App() {
 
     if (isAdmin && (pendingSuggestions.length > 0 || closedMarketsCount > 0)) {
       items.unshift({
-        id: "admin-tasks",
+        id: `admin-tasks-${pendingSuggestions.length}-${closedMarketsCount}`,
         emoji: "⚙️",
         title: "Есть задачи админа",
         text: `${pendingSuggestions.length} заявок · ${closedMarketsCount} рынков ждут расчёта.`,
@@ -1399,7 +1409,25 @@ function App() {
     closedMarketsCount,
   ]);
 
-  const activityBadgeCount = Math.min(activityItems.filter((item) => item.tone !== "calm").length, 9);
+  const visibleActivityItems = useMemo(() => {
+    return activityItems.filter((item) => item.tone === "calm" || !dismissedActivityIds.includes(item.id));
+  }, [activityItems, dismissedActivityIds]);
+
+  const activityDisplayItems = useMemo<ActivityItem[]>(() => {
+    if (visibleActivityItems.length > 0) return visibleActivityItems;
+
+    return [{
+      id: "activity-cleared",
+      emoji: "✅",
+      title: "Все события очищены",
+      text: "Счётчик сброшен. Новые события снова появятся здесь, когда что-то изменится.",
+      tone: "calm",
+      actionLabel: "На главную",
+      action: () => setMainView("markets"),
+    }];
+  }, [visibleActivityItems]);
+
+  const activityBadgeCount = Math.min(visibleActivityItems.filter((item) => item.tone !== "calm").length, 9);
 
   const settlementQueueMarkets = useMemo(() => {
     return markets
@@ -1784,6 +1812,14 @@ function App() {
       // localStorage может быть недоступен во встроенном WebView — это не критично.
     }
   }, [selectedInterestCategories]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(ACTIVITY_DISMISSED_STORAGE_KEY, JSON.stringify(dismissedActivityIds.slice(-120)));
+    } catch {
+      // localStorage может быть недоступен во встроенном WebView — это не критично.
+    }
+  }, [dismissedActivityIds]);
 
   useEffect(() => {
     const nextRoute: AppRouteSnapshot = { mainView, selectedMarketId, scrollY: getAppScrollTop() };
@@ -3471,6 +3507,35 @@ function App() {
     );
   }
 
+  function dismissActivityItem(activityId: string) {
+    setDismissedActivityIds((currentIds) => (
+      currentIds.includes(activityId) ? currentIds : [...currentIds, activityId].slice(-120)
+    ));
+  }
+
+  function clearActivityItems() {
+    const idsToDismiss = visibleActivityItems.filter((item) => item.tone !== "calm").map((item) => item.id);
+
+    if (idsToDismiss.length === 0) {
+      setIsActivityOpen(false);
+      return;
+    }
+
+    setDismissedActivityIds((currentIds) => Array.from(new Set([...currentIds, ...idsToDismiss])).slice(-120));
+    sendHaptic("medium");
+    showToast("События очищены");
+  }
+
+  function openActivityItem(item: ActivityItem) {
+    if (item.tone !== "calm") {
+      dismissActivityItem(item.id);
+    }
+
+    setIsActivityOpen(false);
+    sendHaptic("light");
+    item.action();
+  }
+
   function renderActivityCenter() {
     if (!isActivityOpen) return null;
 
@@ -3484,26 +3549,32 @@ function App() {
               <h2>Что требует внимания</h2>
               <span>{activityBadgeCount > 0 ? `${activityBadgeCount} важных событий` : "Новых задач нет"}</span>
             </div>
-            <button onClick={() => setIsActivityOpen(false)}>×</button>
+            <div className="activityPanelHeaderActions">
+              {activityBadgeCount > 0 && (
+                <button className="activityClearButton" onClick={clearActivityItems}>Очистить</button>
+              )}
+              <button className="activityCloseButton" onClick={() => setIsActivityOpen(false)}>×</button>
+            </div>
           </div>
 
           <div className="activityList">
-            {activityItems.map((item) => (
+            {activityDisplayItems.map((item) => (
               <article className={`activityItem activityItem-${item.tone}`} key={item.id}>
                 <div className="activityIcon">{item.emoji}</div>
                 <div>
                   <strong>{item.title}</strong>
                   <p>{item.text}</p>
                 </div>
-                <button
-                  onClick={() => {
-                    setIsActivityOpen(false);
-                    sendHaptic("light");
-                    item.action();
-                  }}
-                >
-                  {item.actionLabel}
-                </button>
+                <div className="activityItemActions">
+                  <button onClick={() => openActivityItem(item)}>
+                    {item.actionLabel}
+                  </button>
+                  {item.tone !== "calm" && (
+                    <button className="activityDismissButton" onClick={() => dismissActivityItem(item.id)}>
+                      Скрыть
+                    </button>
+                  )}
+                </div>
               </article>
             ))}
           </div>
@@ -3521,6 +3592,11 @@ function App() {
             }}>
               Главная
             </button>
+            {activityBadgeCount > 0 && (
+              <button className="secondaryButton" onClick={clearActivityItems}>
+                Очистить всё
+              </button>
+            )}
             <button className="secondaryButton" onClick={() => setIsActivityOpen(false)}>
               Закрыть
             </button>
