@@ -8,6 +8,7 @@ type SortMode = "newest" | "probability" | "trades" | "comments";
 type DetailsTab = "overview" | "trades" | "participants" | "chat";
 type MainView = "markets" | "imported" | "search" | "predictions" | "tournament" | "suggest" | "admin" | "moderation" | "settlement" | "profile";
 type MyPredictionTab = "active" | "settled" | "won" | "lost" | "all";
+type ProfileTab = "overview" | "achievements" | "predictions" | "social" | "history";
 type AdminPanelTab = "overview" | "users" | "markets" | "create" | "suggestions" | "settlement" | "polymarket" | "points" | "security";
 
 type DemoUser = {
@@ -799,6 +800,7 @@ function App() {
   const [adminMarketStatus, setAdminMarketStatus] = useState<"all" | "open" | "closed" | "resolved" | "polymarket">("all");
   const [mainView, setMainView] = useState<MainView>("markets");
   const [myPredictionTab, setMyPredictionTab] = useState<MyPredictionTab>("active");
+  const [profileTab, setProfileTab] = useState<ProfileTab>("overview");
 
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
   const [detailsTab, setDetailsTab] = useState<DetailsTab>("overview");
@@ -3884,75 +3886,141 @@ function App() {
     const displayInitial = activeUser.name.slice(0, 1).toUpperCase();
     const roleTitle = isAdmin ? "Администратор" : "Участник";
     const level = activeUserLevel;
+    const netResult = activeUserStats.payouts - activeUserStats.invested;
+    const bestPayout = activeUserSettledPredictions.reduce((max, prediction) => Math.max(max, prediction.payout || 0), 0);
+    const waitingResultCount = activeUserPredictions.filter((prediction) => {
+      const market = markets.find((item) => item.id === prediction.marketId);
+      return !prediction.settledAt && market?.status === "closed";
+    }).length;
+    const nextLevelHint = level.nextTitle === "Максимум" ? "Максимальный уровень" : `До «${level.nextTitle}»`;
+    const profileTabs: { id: ProfileTab; icon: string; label: string; badge?: number | string }[] = [
+      { id: "overview", icon: "🏠", label: "Обзор" },
+      { id: "achievements", icon: "🏅", label: "Достижения", badge: `${unlockedAchievementsCount}/${activeUserAchievements.length}` },
+      { id: "predictions", icon: "🎯", label: "Прогнозы", badge: activeUserPredictions.length },
+      { id: "social", icon: "🤝", label: "Соц.", badge: activeUserReferrals.length },
+      { id: "history", icon: "💳", label: "Баллы", badge: activeUserTransactions.length },
+    ];
 
     return (
-      <section className="profilePage">
-        <article className="profileHeroCard">
-          <div className="profileAvatar">{displayInitial}</div>
-          <div className="profileMainInfo">
+      <section className="profilePage gameProfilePage">
+        <article className="profileHeroCard gameProfileHeroCard">
+          <div className="profileHeroGlow" aria-hidden="true" />
+          <div className="profileAvatar gameProfileAvatar">{displayInitial}</div>
+
+          <div className="profileMainInfo gameProfileMainInfo">
             <div className="profileRoleRow">
               <span className="profileRole">{roleTitle}</span>
               <span className="profileLevelBadge">{level.emoji} Уровень {level.level} · {level.title}</span>
             </div>
             <h2>{activeUser.name}</h2>
             <p>{level.description}</p>
-            <div className="levelProgressBlock">
+
+            <div className="levelProgressBlock gameLevelProgressBlock">
               <div className="levelProgressTop">
                 <span>{level.score.toLocaleString("ru-RU")} XP</span>
-                <span>Следующий: {level.nextTitle}</span>
+                <span>{nextLevelHint}</span>
               </div>
               <div className="levelProgressBar"><span style={{ width: `${level.progress}%` }} /></div>
             </div>
+
+            <div className="profileHeroActions">
+              <button onClick={() => setMainView("predictions")}>Мои прогнозы</button>
+              <button className="secondaryButton" onClick={() => void shareReferral()}>Пригласить друга</button>
+            </div>
           </div>
-          <div className="profileBalanceBox">
+
+          <div className="profileBalanceBox gameProfileBalanceBox">
             <span>Баланс</span>
             <strong>{activeUser.balance.toLocaleString("ru-RU")} баллов</strong>
+            <small className={netResult >= 0 ? "positiveAmount" : "negativeAmount"}>
+              {netResult >= 0 ? "+" : ""}{netResult.toLocaleString("ru-RU")} итог игры
+            </small>
             <button onClick={() => refreshData(activeUser.id)}>Обновить данные</button>
           </div>
         </article>
 
-        <section className="profileStatsGrid">
+        <section className="profileStatsGrid gameProfileStatsGrid">
           <div>
-            <span>Место в рейтинге</span>
+            <span>Место</span>
             <strong>{activeUserRank ? `#${activeUserRank}` : "—"}</strong>
+            <small>общий рейтинг</small>
           </div>
           <div>
-            <span>Всего прогнозов</span>
+            <span>Прогнозы</span>
             <strong>{activeUserStats.predictionsCount}</strong>
-          </div>
-          <div>
-            <span>Активные прогнозы</span>
-            <strong>{activeUserOpenPredictions.length}</strong>
+            <small>{activeUserOpenPredictions.length} активных</small>
           </div>
           <div>
             <span>Winrate</span>
             <strong>{activeUserStats.winRate}%</strong>
+            <small>{activeUserStats.wins}/{activeUserStats.settledCount || 0} побед</small>
           </div>
           <div>
-            <span>Достижения</span>
-            <strong>{unlockedAchievementsCount}/{activeUserAchievements.length}</strong>
+            <span>Ждут результата</span>
+            <strong>{waitingResultCount}</strong>
+            <small>закрытые рынки</small>
+          </div>
+          <div>
+            <span>Лучшая выплата</span>
+            <strong>{bestPayout.toLocaleString("ru-RU")}</strong>
+            <small>баллов</small>
           </div>
           <div>
             <span>Серия бонуса</span>
-            <strong>{activeUser?.dailyBonusStreak || 0}</strong>
-          </div>
-          <div>
-            <span>Вложено</span>
-            <strong>{activeUserStats.invested.toLocaleString("ru-RU")}</strong>
-          </div>
-          <div>
-            <span>Получено выплат</span>
-            <strong>{activeUserStats.payouts.toLocaleString("ru-RU")}</strong>
+            <strong>{activeUser.dailyBonusStreak || 0}</strong>
+            <small>рекорд {activeUser.bestDailyBonusStreak || 0}</small>
           </div>
         </section>
 
-        <section className="profileContentGrid">
-          {renderDailyBonusCard("profile")}
-          {renderReferralCard()}
+        <nav className="profileTabBar" aria-label="Разделы профиля">
+          {profileTabs.map((tab) => (
+            <button className={profileTab === tab.id ? "activeProfileTab" : ""} key={tab.id} onClick={() => setProfileTab(tab.id)}>
+              <span>{tab.icon}</span>
+              <strong>{tab.label}</strong>
+              {tab.badge !== undefined && <small>{tab.badge}</small>}
+            </button>
+          ))}
+        </nav>
 
-          <div className="profileCard achievementsCard profileWideCard">
+        {profileTab === "overview" && (
+          <section className="profileContentGrid profileOverviewGrid">
+            {renderDailyBonusCard("profile")}
+            {renderReferralCard()}
+
+            <div className="profileCard gameProfileTipCard">
+              <div className="sectionHeader">
+                <h2>Следующий шаг</h2>
+                <span>🎮</span>
+              </div>
+              <p>
+                {activeUserOpenPredictions.length === 0
+                  ? "Сделай первый активный прогноз из главной ленты — так ты попадёшь в турнир недели."
+                  : waitingResultCount > 0
+                    ? "У тебя есть прогнозы, которые ждут расчёта. Проверь их в разделе «Мои»."
+                    : "Продолжай играть: выбирай рынки в блоках «Для тебя» и «Закрываются скоро»."}
+              </p>
+              <button onClick={() => setMainView(activeUserOpenPredictions.length === 0 ? "markets" : "predictions")}>
+                {activeUserOpenPredictions.length === 0 ? "Открыть главную" : "Открыть прогнозы"}
+              </button>
+            </div>
+
+            <div className="profileCard profileRulesCard">
+              <div className="sectionHeader">
+                <h2>Правила и безопасность</h2>
+                <button onClick={() => setIsRulesOpen(true)}>Открыть</button>
+              </div>
+              <p>Коротко: это фановые прогнозы за игровые баллы. Никаких реальных денег, вывода, пополнений или ставок.</p>
+            </div>
+          </section>
+        )}
+
+        {profileTab === "achievements" && (
+          <section className="profileCard achievementsCard profileWideCard">
             <div className="sectionHeader">
-              <h2>Достижения</h2>
+              <div>
+                <h2>Достижения</h2>
+                <p>Открывай бейджи за прогнозы, победы, серии бонусов и активность.</p>
+              </div>
               <span>{unlockedAchievementsCount}/{activeUserAchievements.length}</span>
             </div>
             <div className="achievementGrid">
@@ -3968,87 +4036,96 @@ function App() {
                 </article>
               ))}
             </div>
-          </div>
+          </section>
+        )}
 
-          <div className="profileCard profileRulesCard">
-            <div className="sectionHeader">
-              <h2>Правила и безопасность</h2>
-              <button onClick={() => setIsRulesOpen(true)}>Открыть</button>
-            </div>
-            <p>Коротко: это фановые прогнозы за игровые баллы. Никаких реальных денег, вывода, пополнений или ставок.</p>
-          </div>
-
-          <div className="profileCard">
-            <div className="sectionHeader">
-              <h2>Активные прогнозы</h2>
-              <span>{activeUserOpenPredictions.length}</span>
-            </div>
-            {activeUserOpenPredictions.length === 0 ? (
-              <div className="empty">Активных прогнозов пока нет.</div>
-            ) : (
-              <div className="myPredictionList compactMyPredictionList">
-                {activeUserOpenPredictions.slice(0, 5).map((prediction) => renderPredictionCard(prediction))}
+        {profileTab === "predictions" && (
+          <section className="profileContentGrid profilePredictionsGrid">
+            <div className="profileCard">
+              <div className="sectionHeader">
+                <h2>Активные прогнозы</h2>
+                <span>{activeUserOpenPredictions.length}</span>
               </div>
-            )}
-          </div>
-
-          <div className="profileCard">
-            <div className="sectionHeader">
-              <h2>Завершённые прогнозы</h2>
-              <span>{activeUserSettledPredictions.length}</span>
+              {activeUserOpenPredictions.length === 0 ? (
+                <div className="empty">Активных прогнозов пока нет.</div>
+              ) : (
+                <div className="myPredictionList compactMyPredictionList">
+                  {activeUserOpenPredictions.slice(0, 8).map((prediction) => renderPredictionCard(prediction))}
+                </div>
+              )}
             </div>
-            {activeUserSettledPredictions.length === 0 ? (
-              <div className="empty">Завершённых прогнозов пока нет.</div>
-            ) : (
-              <div className="myPredictionList compactMyPredictionList">
-                {activeUserSettledPredictions.slice(0, 5).map((prediction) => renderPredictionCard(prediction))}
+
+            <div className="profileCard">
+              <div className="sectionHeader">
+                <h2>Завершённые прогнозы</h2>
+                <span>{activeUserSettledPredictions.length}</span>
               </div>
-            )}
-          </div>
-
-          <div className="profileCard">
-            <div className="sectionHeader">
-              <h2>История баллов</h2>
-              <span>{activeUserTransactions.length}</span>
+              {activeUserSettledPredictions.length === 0 ? (
+                <div className="empty">Завершённых прогнозов пока нет.</div>
+              ) : (
+                <div className="myPredictionList compactMyPredictionList">
+                  {activeUserSettledPredictions.slice(0, 8).map((prediction) => renderPredictionCard(prediction))}
+                </div>
+              )}
             </div>
-            {renderTransactions(8)}
-          </div>
 
-          <div className="profileCard profileWideCard">
-            <div className="sectionHeader">
-              <h2>Мои предложенные рынки</h2>
-              <span>{activeUserSuggestions.length}</span>
-            </div>
-            {renderSuggestionList(activeUserSuggestions.slice(0, 6), "profile")}
-          </div>
-
-          <div className="profileCard profileWideCard">
-            <div className="sectionHeader">
-              <h2>Избранные рынки</h2>
-              <span>{activeFavoriteMarkets.length}</span>
-            </div>
-            {activeFavoriteMarkets.length === 0 ? (
-              <div className="empty">Добавляй интересные рынки в избранное — они появятся здесь.</div>
-            ) : (
-              <div className="favoriteMarketList">
-                {activeFavoriteMarkets.map((market) => (
-                  <button
-                    className="favoriteMarketItem"
-                    key={market.id}
-                    onClick={() => {
-                      setSelectedMarketId(market.id);
-                      setDetailsTab("overview");
-                    }}
-                  >
-                    <span>{market.category}</span>
-                    <strong>{market.question}</strong>
-                    <small>{market.status === "resolved" ? `Рассчитан: ${getOutcomeText(market.resolvedOutcome)}` : `До ${formatDateForDisplay(market.closesAt)}`}</small>
-                  </button>
-                ))}
+            <div className="profileCard profileWideCard">
+              <div className="sectionHeader">
+                <h2>Избранные рынки</h2>
+                <span>{activeFavoriteMarkets.length}</span>
               </div>
-            )}
-          </div>
-        </section>
+              {activeFavoriteMarkets.length === 0 ? (
+                <div className="empty">Добавляй интересные рынки в избранное — они появятся здесь.</div>
+              ) : (
+                <div className="favoriteMarketList">
+                  {activeFavoriteMarkets.map((market) => (
+                    <button
+                      className="favoriteMarketItem"
+                      key={market.id}
+                      onClick={() => {
+                        setSelectedMarketId(market.id);
+                        setDetailsTab("overview");
+                      }}
+                    >
+                      <span>{market.category}</span>
+                      <strong>{market.question}</strong>
+                      <small>{market.status === "resolved" ? `Рассчитан: ${getOutcomeText(market.resolvedOutcome)}` : `До ${formatDateForDisplay(market.closesAt)}`}</small>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {profileTab === "social" && (
+          <section className="profileContentGrid profileSocialGrid">
+            {renderReferralCard()}
+
+            <div className="profileCard profileWideCard">
+              <div className="sectionHeader">
+                <h2>Мои предложенные рынки</h2>
+                <span>{activeUserSuggestions.length}</span>
+              </div>
+              {renderSuggestionList(activeUserSuggestions.slice(0, 8), "profile")}
+            </div>
+          </section>
+        )}
+
+        {profileTab === "history" && (
+          <section className="profileContentGrid profileHistoryGrid">
+            <div className="profileCard profileWideCard">
+              <div className="sectionHeader">
+                <div>
+                  <h2>История баллов</h2>
+                  <p>Все начисления, списания, прогнозы, выплаты, бонусы и рефералы.</p>
+                </div>
+                <span>{activeUserTransactions.length}</span>
+              </div>
+              {renderTransactions(16)}
+            </div>
+          </section>
+        )}
       </section>
     );
   }

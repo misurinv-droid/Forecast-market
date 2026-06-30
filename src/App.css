@@ -10111,3 +10111,349 @@ button:disabled,
     width: 100%;
   }
 }
+
+
+/* Game profile upgrade */
+.gameProfilePage {
+  display: grid;
+  gap: 16px;
+}
+
+.gameProfileHeroCard {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(220px, 0.34fr);
+  gap: 18px;
+  align-items: center;
+  border-radius: 32px;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(37, 99, 235, 0.16), transparent 36%),
+    radial-gradient(circle at 92% 10%, rgba(20, 184, 166, 0.18), transparent 38%),
+    rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  box-shadow: 0 20px 62px rgba(15, 23, 42, 0.10);
+}
+
+.profileHeroGlow {
+  position: absolute;
+  inset: auto -70px -120px auto;
+  width: 260px;
+  height: 260px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.16), rgba(20, 184, 166, 0.20));
+  pointer-events: none;
+}
+
+.gameProfileAvatar {
+  position: relative;
+  width: 86px;
+  height: 86px;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 25% 18%, rgba(255, 255, 255, 0.8), transparent 34%),
+    linear-gradient(135deg, #1d4ed8, #14b8a6);
+  color: #ffffff;
+  box-shadow: 0 18px 38px rgba(37, 99, 235, 0.24);
+  font-size: 2.35rem;
+}
+
+.gameProfileMainInfo {
+  position: relative;
+}
+
+.gameProfileMainInfo h2 {
+  margin-bottom: 6px;
+  font-size: clamp(1.55rem, 3vw, 2.25rem);
+  letter-spacing: -0.04em;
+}
+
+.gameLevelProgressBlock {
+  margin-top: 14px;
+  max-width: 560px;
+}
+
+.profileHeroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.profileHeroActions button {
+  border: 0;
+  border-radius: 15px;
+  padding: 10px 13px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #162bdc, #07a9cf);
+  font-weight: 950;
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.16);
+}
+
+.profileHeroActions .secondaryButton {
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(226, 232, 240, 0.88);
+  box-shadow: none;
+}
+
+.gameProfileBalanceBox {
+  position: relative;
+  align-self: stretch;
+  justify-content: center;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(20, 184, 166, 0.16), transparent 44%),
+    rgba(248, 250, 252, 0.86);
+  border: 1px solid rgba(226, 232, 240, 0.88);
+}
+
+.gameProfileBalanceBox small {
+  display: inline-flex;
+  width: fit-content;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  font-size: 0.74rem;
+  font-weight: 950;
+}
+
+.gameProfileStatsGrid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.gameProfileStatsGrid div {
+  position: relative;
+  min-height: 110px;
+  border-radius: 24px;
+  overflow: hidden;
+}
+
+.gameProfileStatsGrid div::after {
+  content: "";
+  position: absolute;
+  inset: auto -30px -40px auto;
+  width: 90px;
+  height: 90px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.gameProfileStatsGrid small {
+  display: block;
+  margin-top: 5px;
+  color: #94a3b8;
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.profileTabBar {
+  position: sticky;
+  top: 8px;
+  z-index: 25;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid rgba(226, 232, 240, 0.92);
+  box-shadow: 0 16px 44px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(18px);
+}
+
+.profileTabBar button {
+  display: grid;
+  place-items: center;
+  gap: 3px;
+  min-height: 56px;
+  border: 0;
+  border-radius: 18px;
+  padding: 7px 5px;
+  color: #64748b;
+  background: transparent;
+  font-weight: 900;
+}
+
+.profileTabBar button span {
+  font-size: 1.16rem;
+  line-height: 1;
+}
+
+.profileTabBar button strong {
+  font-size: 0.72rem;
+  line-height: 1.05;
+}
+
+.profileTabBar button small {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  min-height: 18px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: #1d4ed8;
+  background: rgba(219, 234, 254, 0.88);
+  font-size: 0.62rem;
+  font-weight: 950;
+}
+
+.profileTabBar button.activeProfileTab {
+  color: #0f172a;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(20, 184, 166, 0.20), transparent 44%),
+    linear-gradient(135deg, rgba(219, 234, 254, 0.94), rgba(204, 251, 241, 0.92));
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.12);
+}
+
+.profileOverviewGrid,
+.profilePredictionsGrid,
+.profileSocialGrid,
+.profileHistoryGrid {
+  margin-top: 0;
+}
+
+.gameProfileTipCard {
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(168, 85, 247, 0.12), transparent 40%),
+    rgba(255, 255, 255, 0.82);
+}
+
+.gameProfileTipCard p {
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.gameProfileTipCard > button {
+  width: 100%;
+  margin-top: 10px;
+  border: 0;
+  border-radius: 15px;
+  padding: 11px 13px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #7c3aed, #2563eb);
+  font-weight: 950;
+}
+
+.telegramApp .gameProfilePage {
+  gap: 12px;
+}
+
+.telegramApp .gameProfileHeroCard {
+  grid-template-columns: 1fr;
+  gap: 12px;
+  padding: 15px;
+  border-radius: 26px;
+  text-align: left;
+}
+
+.telegramApp .gameProfileAvatar {
+  width: 70px;
+  height: 70px;
+  border-radius: 23px;
+  font-size: 2rem;
+}
+
+.telegramApp .gameProfileMainInfo h2 {
+  font-size: 1.55rem;
+}
+
+.telegramApp .gameLevelProgressBlock {
+  margin-top: 11px;
+}
+
+.telegramApp .profileHeroActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.telegramApp .profileHeroActions button {
+  padding: 10px 8px;
+  font-size: 0.76rem;
+}
+
+.telegramApp .gameProfileBalanceBox {
+  padding: 13px;
+  border-radius: 20px;
+}
+
+.telegramApp .gameProfileStatsGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.telegramApp .gameProfileStatsGrid div {
+  min-height: 96px;
+  border-radius: 20px;
+}
+
+.telegramApp .gameProfileStatsGrid strong {
+  font-size: 1.28rem;
+}
+
+.telegramApp .profileTabBar {
+  top: 4px;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 21px;
+  overflow-x: auto;
+  grid-template-columns: repeat(5, minmax(66px, 1fr));
+  scrollbar-width: none;
+}
+
+.telegramApp .profileTabBar::-webkit-scrollbar {
+  display: none;
+}
+
+.telegramApp .profileTabBar button {
+  min-height: 50px;
+  border-radius: 16px;
+  padding: 6px 4px;
+}
+
+.telegramApp .profileTabBar button span {
+  font-size: 1.02rem;
+}
+
+.telegramApp .profileTabBar button strong {
+  font-size: 0.62rem;
+}
+
+.telegramApp .profileTabBar button small {
+  font-size: 0.56rem;
+  min-height: 16px;
+}
+
+.telegramApp .profileContentGrid {
+  gap: 11px;
+}
+
+@media (max-width: 1020px) {
+  .gameProfileHeroCard {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .gameProfileBalanceBox {
+    grid-column: 1 / -1;
+  }
+
+  .gameProfileStatsGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .gameProfileHeroCard {
+    grid-template-columns: 1fr;
+  }
+
+  .gameProfileStatsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .profileTabBar {
+    overflow-x: auto;
+    grid-template-columns: repeat(5, minmax(72px, 1fr));
+  }
+}
