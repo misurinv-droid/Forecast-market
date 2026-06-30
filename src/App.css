@@ -6795,3 +6795,326 @@ button:disabled,
   opacity: 0.58;
   filter: grayscale(0.15);
 }
+
+/* Admin center redesign */
+.adminHomeShortcut {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid rgba(37, 99, 235, 0.14);
+  border-radius: 24px;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.10), rgba(20, 184, 166, 0.10));
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.06);
+}
+
+.adminHomeShortcut strong {
+  display: block;
+  font-size: 16px;
+  color: #0f172a;
+}
+
+.adminHomeShortcut span {
+  display: block;
+  margin-top: 3px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.adminCenterPage {
+  animation: softAppear 0.25s ease;
+}
+
+.adminCenterHero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 18px;
+  padding: 26px;
+  border: 1px solid rgba(37, 99, 235, 0.14);
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(37, 99, 235, 0.18), transparent 34%),
+    radial-gradient(circle at 88% 16%, rgba(20, 184, 166, 0.18), transparent 34%),
+    rgba(255, 255, 255, 0.86);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.10);
+  overflow: hidden;
+}
+
+.adminCenterHero h2 {
+  margin: 5px 0 8px;
+  font-size: clamp(28px, 4vw, 44px);
+  letter-spacing: -0.06em;
+  color: #0f172a;
+}
+
+.adminCenterHero p {
+  max-width: 760px;
+  margin: 0;
+  color: #64748b;
+  line-height: 1.55;
+}
+
+.adminCenterStatus {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 18px;
+  border-radius: 24px;
+  background: linear-gradient(150deg, #0f172a, #1d4ed8 58%, #0891b2);
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.22);
+}
+
+.adminCenterStatus span,
+.adminCenterStatus small {
+  color: rgba(255,255,255,.74);
+  font-size: 13px;
+}
+
+.adminCenterStatus strong {
+  font-size: 22px;
+}
+
+.adminStatsGrid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.adminStatsGrid > div,
+.adminSecurityGrid > div,
+.adminImportStats > div {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.06);
+}
+
+.adminStatsGrid span,
+.adminSecurityGrid span,
+.adminImportStats span {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.adminStatsGrid strong,
+.adminSecurityGrid strong,
+.adminImportStats strong {
+  display: block;
+  margin-top: 7px;
+  font-size: 26px;
+  color: #0f172a;
+}
+
+.adminStatsGrid small {
+  display: block;
+  margin-top: 4px;
+  color: #94a3b8;
+  font-weight: 700;
+}
+
+.adminQuickActionsPanel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 26px;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(18px);
+}
+
+.adminQuickActionsPanel button {
+  flex: 1 1 170px;
+}
+
+.adminCenterSection {
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 18px 56px rgba(15, 23, 42, 0.07);
+  overflow: hidden;
+}
+
+.adminCenterSection > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.adminCenterSection > summary::-webkit-details-marker {
+  display: none;
+}
+
+.adminCenterSection > summary strong {
+  display: block;
+  font-size: 18px;
+  color: #0f172a;
+}
+
+.adminCenterSection > summary span {
+  display: block;
+  margin-top: 3px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.adminCenterSection > summary b {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.adminCenterSection[open] > summary {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.adminCenterSection[open] > summary b {
+  transform: rotate(180deg);
+}
+
+.adminCenterForm,
+.adminEmbeddedBlock,
+.adminImportBox,
+.adminSecurityGrid {
+  padding: 18px;
+}
+
+.adminCenterForm {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.adminEmbeddedBlock .settlementPage,
+.adminEmbeddedBlock .moderationPage {
+  padding: 0;
+  margin: 0;
+}
+
+.adminEmbeddedBlock .settlementHeroPanel,
+.adminEmbeddedBlock .moderationHeroPanel {
+  display: none;
+}
+
+.adminEmbeddedBlock .settlementQueueSection,
+.adminEmbeddedBlock .settlementUpcomingSection {
+  margin-top: 0;
+}
+
+.adminEmbeddedBlock .settlementGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.adminImportBox p {
+  margin: 0 0 14px;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.adminImportStats,
+.adminSecurityGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.adminImportActions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.adminImportActions button {
+  flex: 1;
+}
+
+@media (max-width: 900px) {
+  .adminCenterHero {
+    grid-template-columns: 1fr;
+    padding: 20px;
+    border-radius: 26px;
+  }
+
+  .adminStatsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .adminImportStats,
+  .adminSecurityGrid,
+  .adminEmbeddedBlock .settlementGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .adminHomeShortcut {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 640px) {
+  .adminCenterHero h2 {
+    font-size: 28px;
+  }
+
+  .adminStatsGrid > div,
+  .adminSecurityGrid > div,
+  .adminImportStats > div {
+    padding: 13px;
+    border-radius: 18px;
+  }
+
+  .adminStatsGrid strong,
+  .adminSecurityGrid strong,
+  .adminImportStats strong {
+    font-size: 22px;
+  }
+
+  .adminCenterSection {
+    border-radius: 22px;
+  }
+
+  .adminCenterSection > summary {
+    padding: 15px;
+  }
+
+  .adminCenterForm,
+  .adminEmbeddedBlock,
+  .adminImportBox,
+  .adminSecurityGrid {
+    padding: 14px;
+  }
+
+  .adminQuickActionsPanel {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .adminQuickActionsPanel button {
+    flex: initial;
+    min-height: 46px;
+    padding: 12px 10px;
+    font-size: 13px;
+  }
+
+  .adminImportActions {
+    flex-direction: column;
+  }
+}

@@ -6,7 +6,7 @@ type MarketStatus = "open" | "closed" | "resolved";
 type SuggestionStatus = "pending" | "approved" | "rejected";
 type SortMode = "newest" | "probability" | "trades" | "comments";
 type DetailsTab = "overview" | "trades" | "participants" | "chat";
-type MainView = "markets" | "imported" | "search" | "predictions" | "suggest" | "moderation" | "settlement" | "profile";
+type MainView = "markets" | "imported" | "search" | "predictions" | "suggest" | "admin" | "moderation" | "settlement" | "profile";
 type MyPredictionTab = "active" | "settled" | "won" | "lost" | "all";
 
 type DemoUser = {
@@ -2175,36 +2175,13 @@ function App() {
     return (
       <section className="discoveryPage">
         {isAdmin && (
-          <details className="adminDrawer">
-            <summary>
-              <div>
-                <strong>Админ-панель</strong>
-                <span>Создание рынков и управление событиями</span>
-              </div>
-              <b>{isAdminOpen ? "Свернуть" : "Открыть"}</b>
-            </summary>
-            <div className="adminDrawerBody">
-              <div className="adminHeader compactAdminHeader">
-                <div>
-                  <h2>Новый рынок</h2>
-                  <p>Создавай собственные события. Импорт Polymarket живёт в отдельной вкладке.</p>
-                </div>
-                <button onClick={() => setIsAdminOpen((current) => !current)}>{isAdminOpen ? "Скрыть форму" : "Показать форму"}</button>
-              </div>
-
-              {isAdminOpen && (
-                <div className="adminForm compactAdminForm">
-                  <label className="wideField">Вопрос рынка<input placeholder="Например: Поедем ли мы компанией в отпуск в августе?" value={newMarket.question} onChange={(event) => setNewMarket((current) => ({ ...current, question: event.target.value }))} /></label>
-                  <label>Категория<input placeholder="Друзья" value={newMarket.category} onChange={(event) => setNewMarket((current) => ({ ...current, category: event.target.value }))} /></label>
-                  <label>Дата закрытия<input type="date" value={newMarket.closesAt} onChange={(event) => setNewMarket((current) => ({ ...current, closesAt: event.target.value }))} /></label>
-                  <label className="wideField">Описание и правила расчета<textarea placeholder="Опиши, что должно произойти, чтобы рынок был рассчитан как «Да»." value={newMarket.description} onChange={(event) => setNewMarket((current) => ({ ...current, description: event.target.value }))} /></label>
-                  <label className="wideField">Источник расчета<input placeholder="Например: решение в общем чате / официальный сайт / публичная новость" value={newMarket.source} onChange={(event) => setNewMarket((current) => ({ ...current, source: event.target.value }))} /></label>
-                  <label>Начальная вероятность “Да”, %<input type="number" min="1" max="99" value={newMarket.yesProbability} onChange={(event) => setNewMarket((current) => ({ ...current, yesProbability: Number(event.target.value) }))} /></label>
-                  <button className="createMarketButton" onClick={createMarket}>Создать рынок</button>
-                </div>
-              )}
+          <section className="adminHomeShortcut">
+            <div>
+              <strong>Админ-центр</strong>
+              <span>{pendingSuggestions.length} заявок · {closedMarketsCount} рынков ждут расчёта · {importedOpenCount} импортированных открыто</span>
             </div>
-          </details>
+            <button onClick={() => setMainView("admin")}>Открыть админку</button>
+          </section>
         )}
 
         <section className="discoveryHeroGrid">
@@ -2788,6 +2765,142 @@ function App() {
     );
   }
 
+
+  function renderAdminPage() {
+    if (!isAdmin) {
+      return (
+        <section className="adminCenterPage pageStack">
+          <div className="empty adminOnlyNotice">
+            <strong>Админка доступна только администраторам.</strong>
+            <p>Открой приложение через Telegram Mini App под админским аккаунтом.</p>
+          </div>
+        </section>
+      );
+    }
+
+    const totalImported = markets.filter((market) => isPolymarketSource(market.source)).length;
+    const resolvedMarketsCount = markets.filter((market) => market.status === "resolved").length;
+    const totalPredictionsCount = predictions.length;
+    const totalUsersCount = users.length;
+
+    return (
+      <section className="adminCenterPage pageStack">
+        <section className="adminCenterHero">
+          <div>
+            <p className="eyebrow">Админка</p>
+            <h2>Центр управления Forecast Market</h2>
+            <p>Заявки, расчёт, импорт Polymarket и создание рынков собраны в одном месте. Редактирование и закрытие конкретного рынка остаются внутри карточки рынка.</p>
+          </div>
+          <div className="adminCenterStatus">
+            <span>Активная сессия</span>
+            <strong>{activeUser?.name}</strong>
+            <small>{authSessionToken ? "Защищённый вход через Telegram" : "Нет безопасной сессии"}</small>
+          </div>
+        </section>
+
+        <section className="adminStatsGrid">
+          <div><span>Ждут расчёта</span><strong>{closedMarketsCount}</strong><small>рынков</small></div>
+          <div><span>Новые заявки</span><strong>{pendingSuggestions.length}</strong><small>на модерации</small></div>
+          <div><span>Открытые рынки</span><strong>{openMarketsCount}</strong><small>доступны участникам</small></div>
+          <div><span>Polymarket</span><strong>{totalImported}</strong><small>{importedOpenCount} открыто</small></div>
+          <div><span>Участники</span><strong>{totalUsersCount}</strong><small>{totalPredictionsCount} прогнозов</small></div>
+          <div><span>Рассчитано</span><strong>{resolvedMarketsCount}</strong><small>рынков</small></div>
+        </section>
+
+        <section className="adminQuickActionsPanel">
+          <button onClick={() => setIsAdminOpen((current) => !current)}>{isAdminOpen ? "Скрыть создание" : "Создать рынок"}</button>
+          <button className="secondaryButton" onClick={() => setMainView("settlement")}>Очередь расчёта</button>
+          <button className="secondaryButton" onClick={() => setMainView("moderation")}>Заявки</button>
+          <button className="secondaryButton" onClick={refreshPolymarketImport} disabled={isPolymarketImporting}>{isPolymarketImporting ? "Импортируем..." : "Подтянуть Polymarket"}</button>
+          <button className="secondaryButton" onClick={() => refreshData(activeUser?.id)}>Обновить данные</button>
+        </section>
+
+        <details className="adminCenterSection" open={isAdminOpen}>
+          <summary>
+            <div>
+              <strong>Создать рынок</strong>
+              <span>Быстрая форма для своего события</span>
+            </div>
+            <b>⌄</b>
+          </summary>
+          <div className="adminForm compactAdminForm adminCenterForm">
+            <label className="wideField">Вопрос рынка<input placeholder="Например: Поедем ли мы компанией в отпуск в августе?" value={newMarket.question} onChange={(event) => setNewMarket((current) => ({ ...current, question: event.target.value }))} /></label>
+            <label>Категория<input placeholder="Друзья" value={newMarket.category} onChange={(event) => setNewMarket((current) => ({ ...current, category: event.target.value }))} /></label>
+            <label>Дата закрытия<input type="date" value={newMarket.closesAt} onChange={(event) => setNewMarket((current) => ({ ...current, closesAt: event.target.value }))} /></label>
+            <label className="wideField">Описание и правила расчета<textarea placeholder="Опиши, что должно произойти, чтобы рынок был рассчитан как «Да»." value={newMarket.description} onChange={(event) => setNewMarket((current) => ({ ...current, description: event.target.value }))} /></label>
+            <label className="wideField">Источник расчета<input placeholder="Например: решение в общем чате / официальный сайт / публичная новость" value={newMarket.source} onChange={(event) => setNewMarket((current) => ({ ...current, source: event.target.value }))} /></label>
+            <label>Начальная вероятность “Да”, %<input type="number" min="1" max="99" value={newMarket.yesProbability} onChange={(event) => setNewMarket((current) => ({ ...current, yesProbability: Number(event.target.value) }))} /></label>
+            <button className="createMarketButton" onClick={createMarket}>Создать рынок</button>
+          </div>
+        </details>
+
+        <details className="adminCenterSection" open={closedMarketsCount > 0}>
+          <summary>
+            <div>
+              <strong>Очередь расчёта</strong>
+              <span>{closedMarketsCount} рынков ждут решения</span>
+            </div>
+            <b>⌄</b>
+          </summary>
+          <div className="adminEmbeddedBlock">
+            {renderSettlementPage()}
+          </div>
+        </details>
+
+        <details className="adminCenterSection" open={pendingSuggestions.length > 0}>
+          <summary>
+            <div>
+              <strong>Заявки пользователей</strong>
+              <span>{pendingSuggestions.length} новых · {marketSuggestions.length} всего</span>
+            </div>
+            <b>⌄</b>
+          </summary>
+          <div className="adminEmbeddedBlock">
+            {renderSuggestionList(marketSuggestions, "admin")}
+          </div>
+        </details>
+
+        <details className="adminCenterSection">
+          <summary>
+            <div>
+              <strong>Импорт Polymarket</strong>
+              <span>{totalImported} импортировано · {importedOpenCount} открыто</span>
+            </div>
+            <b>⌄</b>
+          </summary>
+          <div className="adminImportBox">
+            <p>Polymarket используется только как источник идей. Внутри Forecast Market остаются игровые баллы без реальных ставок, кошельков и вывода.</p>
+            <div className="adminImportStats">
+              <div><span>Всего</span><strong>{totalImported}</strong></div>
+              <div><span>Открыто</span><strong>{importedOpenCount}</strong></div>
+              <div><span>Категорий</span><strong>{Math.max(0, importedCategories.length - 1)}</strong></div>
+            </div>
+            <div className="adminImportActions">
+              <button onClick={refreshPolymarketImport} disabled={isPolymarketImporting}>{isPolymarketImporting ? "Подтягиваем..." : "Подтянуть свежие события"}</button>
+              <button className="secondaryButton" onClick={() => setMainView("imported")}>Открыть импортированные</button>
+            </div>
+          </div>
+        </details>
+
+        <details className="adminCenterSection">
+          <summary>
+            <div>
+              <strong>Безопасность и доступы</strong>
+              <span>Проверка текущей сессии</span>
+            </div>
+            <b>⌄</b>
+          </summary>
+          <div className="adminSecurityGrid">
+            <div><span>Telegram</span><strong>{isTelegram ? "Да" : "Нет"}</strong></div>
+            <div><span>Session token</span><strong>{authSessionToken ? "Есть" : "Нет"}</strong></div>
+            <div><span>Роль</span><strong>{isAdmin ? "Админ" : "Участник"}</strong></div>
+            <div><span>Mini App URL</span><strong>{TELEGRAM_MINI_APP_URL ? "Настроен" : "Не настроен"}</strong></div>
+          </div>
+        </details>
+      </section>
+    );
+  }
+
   function renderModerationPage() {
     if (!isAdmin) {
       return <section className="moderationPage"><div className="empty">Этот раздел доступен только администраторам.</div></section>;
@@ -3084,24 +3197,13 @@ function App() {
           </button>
           {isAdmin && (
             <button
-              className={mainView === "moderation" && !selectedMarket ? "activeProductNav" : ""}
+              className={(mainView === "admin" || mainView === "moderation" || mainView === "settlement") && !selectedMarket ? "activeProductNav" : ""}
               onClick={() => {
                 setSelectedMarketId(null);
-                setMainView("moderation");
+                setMainView("admin");
               }}
             >
-              Заявки {pendingSuggestions.length > 0 ? `· ${pendingSuggestions.length}` : ""}
-            </button>
-          )}
-          {isAdmin && (
-            <button
-              className={mainView === "settlement" && !selectedMarket ? "activeProductNav" : ""}
-              onClick={() => {
-                setSelectedMarketId(null);
-                setMainView("settlement");
-              }}
-            >
-              Расчёт {closedMarketsCount > 0 ? `· ${closedMarketsCount}` : ""}
+              Админка {pendingSuggestions.length + closedMarketsCount > 0 ? `· ${pendingSuggestions.length + closedMarketsCount}` : ""}
             </button>
           )}
           <button
@@ -3156,6 +3258,8 @@ function App() {
         renderMyPredictionsPage()
       ) : mainView === "suggest" && !selectedMarket ? (
         renderSuggestionPage()
+      ) : mainView === "admin" && !selectedMarket ? (
+        renderAdminPage()
       ) : mainView === "moderation" && !selectedMarket ? (
         renderModerationPage()
       ) : mainView === "settlement" && !selectedMarket ? (
