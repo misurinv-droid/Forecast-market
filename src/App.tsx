@@ -3885,7 +3885,7 @@ function App() {
           />
           <div className="brandHeroText">
             <span>Социальная биржа прогнозов</span>
-            <strong>Следи за вероятностями, делай прогнозы и соревнуйся с друзьями</strong>
+            <strong>Прогнозируй события, набирай баллы и поднимайся в рейтинге</strong>
           </div>
         </div>
         <div className="brandHeaderProfileCard">
