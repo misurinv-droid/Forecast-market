@@ -8720,3 +8720,92 @@ button:disabled,
     max-width: 45% !important;
   }
 }
+
+
+/* Header variant B: bright product */
+.brandHeader {
+  margin-bottom: 12px !important;
+}
+
+.brandHeroShell {
+  min-height: 0 !important;
+  padding: 15px 17px !important;
+  border-radius: 28px !important;
+  background:
+    radial-gradient(circle at 8% 20%, rgba(29, 78, 216, 0.18), transparent 34%),
+    radial-gradient(circle at 94% 18%, rgba(20, 184, 166, 0.24), transparent 35%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.70), rgba(224, 247, 250, 0.62)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.82) !important;
+  box-shadow: 0 18px 48px rgba(37, 99, 235, 0.12) !important;
+}
+
+.brandHeroShell::after {
+  content: "" !important;
+  position: absolute !important;
+  inset: auto -22px -58px auto !important;
+  width: 150px !important;
+  height: 150px !important;
+  border-radius: 999px !important;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.16), rgba(20, 184, 166, 0.22)) !important;
+  display: block !important;
+}
+
+.brandHeroLogo {
+  width: min(48%, 270px) !important;
+  max-width: 270px !important;
+}
+
+.brandHeroText span {
+  background: rgba(209, 250, 229, 0.84) !important;
+  color: #0f766e !important;
+}
+
+.brandHeroText strong {
+  color: #07132d !important;
+  font-size: 1.03rem !important;
+  line-height: 1.2 !important;
+}
+
+.telegramApp .brandHeader {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 50px) !important;
+  padding-left: 12px !important;
+  padding-right: 12px !important;
+}
+
+.telegramApp .brandHeroShell {
+  padding: 11px 12px !important;
+  border-radius: 22px !important;
+  gap: 10px !important;
+}
+
+.telegramApp .brandHeroLogo {
+  width: 154px !important;
+  max-width: 50% !important;
+}
+
+.telegramApp .brandHeroText {
+  max-width: 46% !important;
+}
+
+.telegramApp .brandHeroText span {
+  padding: 4px 7px !important;
+  font-size: 0.52rem !important;
+  line-height: 1.05 !important;
+  white-space: nowrap !important;
+}
+
+.telegramApp .brandHeroText strong {
+  font-size: 0.64rem !important;
+  line-height: 1.14 !important;
+}
+
+@media (max-width: 390px) {
+  .telegramApp .brandHeroLogo {
+    width: 148px !important;
+    max-width: 50% !important;
+  }
+
+  .telegramApp .brandHeroText strong {
+    font-size: 0.58rem !important;
+  }
+}
