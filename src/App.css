@@ -10679,3 +10679,86 @@ button:disabled,
     width: 100%;
   }
 }
+
+
+/* Telegram scroll / swipe gesture fix */
+html,
+body,
+#root {
+  overscroll-behavior-y: none;
+}
+
+.is-telegram-webapp,
+.is-telegram-webapp body {
+  overscroll-behavior-y: none;
+}
+
+.telegramApp {
+  overscroll-behavior-y: none !important;
+  touch-action: pan-y;
+}
+
+.telegramApp .gameShelf,
+.telegramApp .interestPickerCard,
+.telegramApp .todayInGameCard,
+.telegramApp .profilePage {
+  touch-action: pan-y;
+}
+
+.telegramApp .gameShelf .gameShelfList,
+.telegramApp .interestChipGrid {
+  touch-action: pan-x pan-y;
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.telegramApp .marketMiniRow,
+.telegramApp .quickTradeMarketRow,
+.telegramApp .quickBetPanel {
+  touch-action: pan-y;
+}
+
+.telegramApp button,
+.telegramApp input,
+.telegramApp select,
+.telegramApp textarea,
+.telegramApp .bottomTabBar {
+  touch-action: manipulation;
+}
+
+.telegramApp .bottomTabBar button.activeBottomTab {
+  position: relative;
+}
+
+.telegramApp .bottomTabBar button.activeBottomTab::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  transform: translateX(-50%);
+  background: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+@media (max-width: 760px) {
+  main:not(.telegramApp) .bottomTabBar button.activeBottomTab {
+    position: relative;
+  }
+
+  main:not(.telegramApp) .bottomTabBar button.activeBottomTab::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 4px;
+    width: 4px;
+    height: 4px;
+    border-radius: 999px;
+    transform: translateX(-50%);
+    background: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  }
+}

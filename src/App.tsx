@@ -646,10 +646,14 @@ function setupTelegramChrome(telegramWebApp?: TelegramWebApp) {
   telegramWebApp.ready?.();
   telegramWebApp.expand?.();
 
-  // В Android и Telegram Desktop вызов disableVerticalSwipes иногда ломает обычный скролл.
-  // Для нашего приложения важнее нормальная прокрутка ленты, поэтому явно оставляем свайпы включёнными.
+  // В мобильном Telegram вертикальный свайп может сворачивать Mini App вместо прокрутки страницы.
+  // Поэтому на iOS/Android запрещаем нативный жест сворачивания, а обычную прокрутку оставляем внутри приложения.
   try {
-    telegramWebApp.enableVerticalSwipes?.();
+    if (platform === "ios" || platform === "android") {
+      telegramWebApp.disableVerticalSwipes?.();
+    } else {
+      telegramWebApp.enableVerticalSwipes?.();
+    }
   } catch {
     // Игнорируем старые клиенты Telegram, где метода нет.
   }
@@ -1335,6 +1339,29 @@ function App() {
     window.setTimeout(() => {
       setToastMessage((currentMessage) => currentMessage === message ? "" : currentMessage);
     }, 2400);
+  }
+
+  function scrollAppToTop(behavior: ScrollBehavior = "smooth") {
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior });
+      document.documentElement.scrollTo?.({ top: 0, behavior });
+      document.body.scrollTo?.({ top: 0, behavior });
+      document.querySelector("main.app")?.scrollTo?.({ top: 0, behavior });
+    });
+  }
+
+  function navigateBottomTab(view: MainView) {
+    const isSameView = mainView === view && !selectedMarket;
+
+    setSelectedMarketId(null);
+    setMainView(view);
+    sendHaptic(isSameView ? "medium" : "light");
+
+    if (isSameView) {
+      scrollAppToTop("smooth");
+    } else {
+      window.setTimeout(() => scrollAppToTop("auto"), 0);
+    }
   }
 
   function closeOnboarding() {
@@ -4401,50 +4428,35 @@ function App() {
       <nav className="bottomTabBar" aria-label="Нижняя навигация">
         <button
           className={mainView === "markets" && !selectedMarket ? "activeBottomTab" : ""}
-          onClick={() => {
-            setSelectedMarketId(null);
-            setMainView("markets");
-          }}
+          onClick={() => navigateBottomTab("markets")}
         >
           <span>🏠</span>
           <strong>Главная</strong>
         </button>
         <button
           className={mainView === "search" && !selectedMarket ? "activeBottomTab" : ""}
-          onClick={() => {
-            setSelectedMarketId(null);
-            setMainView("search");
-          }}
+          onClick={() => navigateBottomTab("search")}
         >
           <span>🔍</span>
           <strong>Поиск</strong>
         </button>
         <button
           className={mainView === "predictions" && !selectedMarket ? "activeBottomTab" : ""}
-          onClick={() => {
-            setSelectedMarketId(null);
-            setMainView("predictions");
-          }}
+          onClick={() => navigateBottomTab("predictions")}
         >
           <span>🎯</span>
           <strong>Мои</strong>
         </button>
         <button
           className={mainView === "tournament" && !selectedMarket ? "activeBottomTab" : ""}
-          onClick={() => {
-            setSelectedMarketId(null);
-            setMainView("tournament");
-          }}
+          onClick={() => navigateBottomTab("tournament")}
         >
           <span>🏆</span>
           <strong>Турнир</strong>
         </button>
         <button
           className={mainView === "profile" && !selectedMarket ? "activeBottomTab" : ""}
-          onClick={() => {
-            setSelectedMarketId(null);
-            setMainView("profile");
-          }}
+          onClick={() => navigateBottomTab("profile")}
         >
           <span>👤</span>
           <strong>Профиль</strong>
@@ -4454,10 +4466,7 @@ function App() {
       {isAdmin && (
         <button
           className={`mobileAdminFab ${(mainView === "admin" || mainView === "moderation" || mainView === "settlement") && !selectedMarket ? "activeMobileAdminFab" : ""}`}
-          onClick={() => {
-            setSelectedMarketId(null);
-            setMainView("admin");
-          }}
+          onClick={() => navigateBottomTab("admin")}
         >
           ⚙️ Админка {pendingSuggestions.length + closedMarketsCount > 0 ? `· ${pendingSuggestions.length + closedMarketsCount}` : ""}
         </button>
