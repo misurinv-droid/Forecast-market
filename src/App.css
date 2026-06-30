@@ -7294,3 +7294,127 @@ button:disabled,
     font-size: 11px;
   }
 }
+
+
+/* Referral system */
+.referralCard {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 8% 12%, rgba(34, 211, 238, 0.18), transparent 32%),
+    radial-gradient(circle at 92% 10%, rgba(99, 102, 241, 0.18), transparent 30%),
+    rgba(255, 255, 255, 0.9);
+}
+
+.referralGlow {
+  position: absolute;
+  inset: -80px -60px auto auto;
+  width: 180px;
+  height: 180px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.16), rgba(20, 184, 166, 0.14));
+  pointer-events: none;
+}
+
+.referralHeader {
+  position: relative;
+  z-index: 1;
+}
+
+.referralHeader h2 {
+  margin: 4px 0 0;
+}
+
+.referralEmoji {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 16px;
+  background: #eef2ff;
+  font-size: 24px;
+}
+
+.referralStatsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.referralStatsGrid div {
+  padding: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.referralStatsGrid span {
+  display: block;
+  margin-bottom: 4px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.referralStatsGrid strong {
+  color: #0f172a;
+  font-size: 18px;
+}
+
+.referralShareButton {
+  width: 100%;
+  margin-top: 2px;
+}
+
+.referralList {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.referralListItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(248, 250, 252, 0.88);
+}
+
+.referralListItem strong,
+.referralListItem span {
+  display: block;
+}
+
+.referralListItem span {
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.referralQualified {
+  color: #059669;
+}
+
+.referralPending {
+  color: #64748b;
+}
+
+.compactEmpty {
+  padding: 12px;
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+@media (max-width: 720px) {
+  .referralStatsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .referralStatsGrid div {
+    padding: 9px;
+  }
+}

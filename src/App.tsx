@@ -69,13 +69,27 @@ type MarketComment = {
 type BalanceTransaction = {
   id: string;
   userId: string;
-  type: "start" | "prediction_buy" | "payout" | "refund" | "system" | "daily_bonus";
+  type: "start" | "prediction_buy" | "payout" | "refund" | "system" | "daily_bonus" | "referral_bonus" | "welcome_bonus";
   title: string;
   description: string;
   amount: number;
   marketId?: string;
   marketQuestion?: string;
   createdAt: string;
+};
+
+type Referral = {
+  id: string;
+  referrerUserId: string;
+  referrerName: string;
+  referredUserId: string;
+  referredName: string;
+  status: "pending" | "qualified";
+  rewardAmount: number;
+  welcomeAmount: number;
+  createdAt: string;
+  qualifiedAt?: string;
+  rewardClaimedAt?: string;
 };
 
 type MarketSuggestion = {
@@ -136,6 +150,7 @@ type BootstrapData = {
   comments: MarketComment[];
   transactions?: BalanceTransaction[];
   marketSuggestions?: MarketSuggestion[];
+  referrals?: Referral[];
   favoriteMarketIdsByUser: Record<string, string[]>;
   adminUserIds?: string[];
 };
@@ -580,6 +595,7 @@ function getLaunchMarketId(telegramWebApp?: TelegramWebApp) {
   }
 
   const telegramStartParam = telegramWebApp?.initDataUnsafe?.start_param || params.get("startapp") || params.get("tgWebAppStartParam");
+  if (String(telegramStartParam || "").startsWith("ref_")) return "";
   return extractMarketIdFromStartParam(telegramStartParam);
 }
 
@@ -645,6 +661,29 @@ function getMarketShareUrl(marketId: string) {
   return url.toString();
 }
 
+function getReferralShareUrl(userId: string) {
+  const startParam = `ref_${userId}`;
+
+  if (TELEGRAM_MINI_APP_URL) {
+    try {
+      const miniAppUrl = new URL(TELEGRAM_MINI_APP_URL);
+      removeTelegramPrivateParams(miniAppUrl);
+      miniAppUrl.searchParams.set("startapp", startParam);
+      return miniAppUrl.toString();
+    } catch {
+      const cleanBase = TELEGRAM_MINI_APP_URL.split("#")[0].split("?tgWebAppData=")[0];
+      const separator = cleanBase.includes("?") ? "&" : "?";
+      return `${cleanBase}${separator}startapp=${encodeURIComponent(startParam)}`;
+    }
+  }
+
+  const url = new URL(APP_PUBLIC_URL || window.location.origin);
+  removeTelegramPrivateParams(url);
+  url.searchParams.set("ref", userId);
+  return url.toString();
+}
+
+
 function App() {
   const [users, setUsers] = useState<DemoUser[]>([]);
   const [activeUserId, setActiveUserId] = useState("");
@@ -655,6 +694,7 @@ function App() {
   const [comments, setComments] = useState<MarketComment[]>([]);
   const [transactions, setTransactions] = useState<BalanceTransaction[]>([]);
   const [marketSuggestions, setMarketSuggestions] = useState<MarketSuggestion[]>([]);
+  const [referrals, setReferrals] = useState<Referral[]>([]);
   const [favoriteMarketIdsByUser, setFavoriteMarketIdsByUser] = useState<Record<string, string[]>>({});
   const [adminUserIds, setAdminUserIds] = useState<string[]>([]);
 
@@ -757,6 +797,19 @@ function App() {
     return marketSuggestions.filter((suggestion) => suggestion.userId === activeUser.id);
   }, [marketSuggestions, activeUser]);
 
+
+
+  const activeUserReferrals = useMemo(() => {
+    if (!activeUser) return [];
+    return referrals.filter((referral) => referral.referrerUserId === activeUser.id);
+  }, [referrals, activeUser]);
+
+  const activeUserReferralStats = useMemo(() => {
+    const qualified = activeUserReferrals.filter((referral) => referral.status === "qualified");
+    const pending = activeUserReferrals.filter((referral) => referral.status === "pending");
+    const earned = qualified.reduce((sum, referral) => sum + referral.rewardAmount, 0);
+    return { qualified, pending, earned };
+  }, [activeUserReferrals]);
   const pendingSuggestions = useMemo(() => {
     return marketSuggestions.filter((suggestion) => suggestion.status === "pending");
   }, [marketSuggestions]);
@@ -1002,6 +1055,7 @@ function App() {
     setComments(data.comments || []);
     setTransactions(data.transactions || []);
     setMarketSuggestions(data.marketSuggestions || []);
+    setReferrals(data.referrals || []);
     setFavoriteMarketIdsByUser(data.favoriteMarketIdsByUser || {});
     setAdminUserIds(data.adminUserIds || []);
 
@@ -1168,6 +1222,7 @@ function App() {
       setComments(data.comments || []);
       setTransactions(data.transactions || []);
       setMarketSuggestions(data.marketSuggestions || []);
+      setReferrals(data.referrals || []);
       setFavoriteMarketIdsByUser(data.favoriteMarketIdsByUser || {});
       setAdminUserIds(data.adminUserIds || []);
       setActiveUserId(nextActiveUserId);
@@ -1614,7 +1669,7 @@ function App() {
   }
 
   function exportDemoData() {
-    const payload = { version: 4, source: "postgres", exportedAt: new Date().toISOString(), users, markets, predictions, comments, transactions, marketSuggestions, favoriteMarketIdsByUser, adminUserIds };
+    const payload = { version: 5, source: "postgres", exportedAt: new Date().toISOString(), users, markets, predictions, comments, transactions, marketSuggestions, referrals, favoriteMarketIdsByUser, adminUserIds };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -1651,6 +1706,36 @@ function App() {
     alert("Ссылка на рынок скопирована.");
   }
 
+
+
+  async function shareReferral() {
+    if (!activeUser) return;
+
+    const url = getReferralShareUrl(activeUser.id);
+    const text = `Заходи в Forecast Market 👀\n\nДелай прогнозы за игровые баллы, забирай бонусы и соревнуйся в рейтинге. Когда сделаешь первый прогноз, мы оба получим бонус.`;
+    const telegramShareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
+    const telegramWebApp = getRealTelegramWebApp();
+
+    if (telegramWebApp?.openTelegramLink) {
+      telegramWebApp.openTelegramLink(telegramShareUrl);
+      sendSuccess();
+      return;
+    }
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "Forecast Market", text, url });
+        sendSuccess();
+        return;
+      } catch {
+        // Пользователь мог закрыть системное окно шеринга.
+      }
+    }
+
+    await navigator.clipboard?.writeText(`${text}\n${url}`);
+    sendSuccess();
+    alert("Реферальная ссылка скопирована.");
+  }
   function renderTradeHistory(marketPredictions: Prediction[]) {
     if (marketPredictions.length === 0) {
       return <div className="emptyChat">Пока сделок нет. Первый прогноз появится здесь.</div>;
@@ -2195,6 +2280,53 @@ function App() {
             {isDailyBonusClaiming ? "Начисляем..." : canClaim ? "Забрать" : "Ждём"}
           </button>
         </div>
+      </article>
+    );
+  }
+
+
+  function renderReferralCard() {
+    if (!activeUser) return null;
+
+    const qualified = activeUserReferralStats.qualified;
+    const pending = activeUserReferralStats.pending;
+    const preview = activeUserReferrals.slice(0, 4);
+
+    return (
+      <article className="referralCard profileCard">
+        <div className="referralGlow" aria-hidden="true" />
+        <div className="sectionHeader referralHeader">
+          <div>
+            <p className="eyebrow">Пригласи друга</p>
+            <h2>+1 000 баллов за друга</h2>
+          </div>
+          <span className="referralEmoji">🤝</span>
+        </div>
+        <p>Отправь ссылку другу. Когда он зайдёт через Telegram Mini App и сделает первый прогноз, ты получишь +1 000 баллов, а друг — приветственный бонус +500.</p>
+        <div className="referralStatsGrid">
+          <div><span>Приглашено</span><strong>{activeUserReferrals.length}</strong></div>
+          <div><span>Сделали прогноз</span><strong>{qualified.length}</strong></div>
+          <div><span>Ожидают</span><strong>{pending.length}</strong></div>
+          <div><span>Получено</span><strong>{activeUserReferralStats.earned.toLocaleString("ru-RU")}</strong></div>
+        </div>
+        <button className="primaryButton referralShareButton" onClick={() => void shareReferral()}>Пригласить друга</button>
+        {preview.length > 0 ? (
+          <div className="referralList">
+            {preview.map((referral) => (
+              <div className="referralListItem" key={referral.id}>
+                <div>
+                  <strong>{referral.referredName}</strong>
+                  <span>{referral.status === "qualified" ? "Сделал первый прогноз" : "Ещё не сделал прогноз"}</span>
+                </div>
+                <b className={referral.status === "qualified" ? "referralQualified" : "referralPending"}>
+                  {referral.status === "qualified" ? "+1 000" : "⏳"}
+                </b>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="empty compactEmpty">Пока нет приглашённых друзей. Поделись ссылкой — и начни собирать бонусы.</div>
+        )}
       </article>
     );
   }
@@ -3095,6 +3227,7 @@ function App() {
 
         <section className="profileContentGrid">
           {renderDailyBonusCard("profile")}
+          {renderReferralCard()}
 
           <div className="profileCard achievementsCard profileWideCard">
             <div className="sectionHeader">

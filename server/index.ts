@@ -65,13 +65,27 @@ type MarketComment = {
 type BalanceTransaction = {
   id: string;
   userId: string;
-  type: "start" | "prediction_buy" | "payout" | "refund" | "system" | "daily_bonus";
+  type: "start" | "prediction_buy" | "payout" | "refund" | "system" | "daily_bonus" | "referral_bonus" | "welcome_bonus";
   title: string;
   description: string;
   amount: number;
   marketId?: string;
   marketQuestion?: string;
   createdAt: string;
+};
+
+type Referral = {
+  id: string;
+  referrerUserId: string;
+  referrerName: string;
+  referredUserId: string;
+  referredName: string;
+  status: "pending" | "qualified";
+  rewardAmount: number;
+  welcomeAmount: number;
+  createdAt: string;
+  qualifiedAt?: string;
+  rewardClaimedAt?: string;
 };
 
 type MarketSuggestion = {
@@ -96,6 +110,7 @@ type DatabaseSnapshot = {
   comments: MarketComment[];
   transactions: BalanceTransaction[];
   marketSuggestions: MarketSuggestion[];
+  referrals: Referral[];
   favoriteMarketIdsByUser: Record<string, string[]>;
   adminUserIds: string[];
   polymarketImport?: {
@@ -116,9 +131,12 @@ const DAILY_BONUS_AMOUNT = 500;
 const DAILY_BONUS_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const DAILY_BONUS_GRACE_MS = 48 * 60 * 60 * 1000;
 const DAILY_BONUS_STREAK_AMOUNTS = [500, 600, 700, 800, 1000, 1200, 1500];
+const REFERRAL_REWARD_AMOUNT = Number(process.env.REFERRAL_REWARD_AMOUNT || 1000);
+const REFERRAL_WELCOME_AMOUNT = Number(process.env.REFERRAL_WELCOME_AMOUNT || 500);
 const DATABASE_URL = process.env.DATABASE_URL;
 const BOT_TOKEN = process.env.BOT_TOKEN || "";
 const APP_PUBLIC_URL = (process.env.APP_PUBLIC_URL || process.env.FRONTEND_URL || "").trim();
+const TELEGRAM_MINI_APP_URL = (process.env.TELEGRAM_MINI_APP_URL || "").trim();
 const TELEGRAM_AUTH_MAX_AGE_SECONDS = Number(process.env.TELEGRAM_AUTH_MAX_AGE_SECONDS || 2 * 60);
 const SESSION_MAX_AGE_DAYS = Number(process.env.SESSION_MAX_AGE_DAYS || 30);
 const ADMIN_TELEGRAM_IDS = (process.env.ADMIN_TELEGRAM_IDS || "")
@@ -310,7 +328,7 @@ type TelegramUserPayload = {
 };
 
 type TelegramAuthResult =
-  | { ok: true; user: TelegramUserPayload; authDate?: number }
+  | { ok: true; user: TelegramUserPayload; authDate?: number; startParam?: string }
   | { ok: false; error: string };
 
 function getTelegramInitData(request: express.Request) {
@@ -452,7 +470,7 @@ function validateTelegramInitData(initData: string): TelegramAuthResult {
       return { ok: false, error: "В Telegram initData нет user.id" };
     }
 
-    return { ok: true, user, authDate };
+    return { ok: true, user, authDate, startParam: params.get("start_param") || undefined };
   } catch {
     return { ok: false, error: "Не удалось прочитать Telegram-пользователя" };
   }
@@ -640,6 +658,22 @@ function toSuggestion(row: any): MarketSuggestion {
   };
 }
 
+function toReferral(row: any): Referral {
+  return {
+    id: row.id,
+    referrerUserId: row.referrer_user_id,
+    referrerName: row.referrer_name,
+    referredUserId: row.referred_user_id,
+    referredName: row.referred_name,
+    status: row.status,
+    rewardAmount: Number(row.reward_amount || REFERRAL_REWARD_AMOUNT),
+    welcomeAmount: Number(row.welcome_amount || REFERRAL_WELCOME_AMOUNT),
+    createdAt: formatDbDateTime(row.created_at),
+    qualifiedAt: row.qualified_at ? formatDbDateTime(row.qualified_at) : undefined,
+    rewardClaimedAt: row.reward_claimed_at ? formatDbDateTime(row.reward_claimed_at) : undefined,
+  };
+}
+
 type QueryRunner = {
   query: (text: string, params?: unknown[]) => Promise<{ rows: any[] }>;
 };
@@ -677,6 +711,111 @@ async function addBalanceTransaction(
 }
 
 
+function normalizeReferralUserId(value: unknown) {
+  const rawValue = decodeURIComponent(String(value || "").trim());
+  if (!rawValue) return "";
+
+  const withoutPrefix = rawValue.startsWith("ref_") ? rawValue.slice("ref_".length) : rawValue;
+  if (/^telegram-\d+$/.test(withoutPrefix)) return withoutPrefix;
+  if (/^\d+$/.test(withoutPrefix)) return `telegram-${withoutPrefix}`;
+  return "";
+}
+
+async function createReferralFromStartParam(
+  queryRunner: QueryRunner,
+  referredUserId: string,
+  referredName: string,
+  startParam?: string
+) {
+  const referrerUserId = normalizeReferralUserId(startParam);
+
+  if (!referrerUserId || referrerUserId === referredUserId) return null;
+
+  const referrerResult = await queryRunner.query("SELECT * FROM users WHERE id = $1", [referrerUserId]);
+  const referrerRow = referrerResult.rows[0];
+  if (!referrerRow) return null;
+
+  const referrer = toUser(referrerRow);
+  const referralId = createId();
+
+  await queryRunner.query(
+    `
+      INSERT INTO referrals (
+        id, referrer_user_id, referrer_name, referred_user_id, referred_name,
+        status, reward_amount, welcome_amount, created_at
+      )
+      VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7, NOW())
+      ON CONFLICT (referred_user_id) DO NOTHING
+    `,
+    [referralId, referrer.id, getUserDisplayName(referrer), referredUserId, referredName, REFERRAL_REWARD_AMOUNT, REFERRAL_WELCOME_AMOUNT]
+  );
+
+  return referralId;
+}
+
+async function maybeAwardReferralForFirstPrediction(queryRunner: QueryRunner, referredUserId: string, referredName: string) {
+  const referralResult = await queryRunner.query(
+    `
+      SELECT *
+      FROM referrals
+      WHERE referred_user_id = $1 AND status = 'pending'
+      FOR UPDATE
+    `,
+    [referredUserId]
+  );
+
+  const referral = referralResult.rows[0];
+  if (!referral) return null;
+
+  const referrerUserId = String(referral.referrer_user_id || "");
+  if (!referrerUserId || referrerUserId === referredUserId) return null;
+
+  const referrerResult = await queryRunner.query("SELECT * FROM users WHERE id = $1 FOR UPDATE", [referrerUserId]);
+  const referredResult = await queryRunner.query("SELECT * FROM users WHERE id = $1 FOR UPDATE", [referredUserId]);
+  const referrer = referrerResult.rows[0] ? toUser(referrerResult.rows[0]) : null;
+  const referred = referredResult.rows[0] ? toUser(referredResult.rows[0]) : null;
+  if (!referrer || !referred) return null;
+
+  const rewardAmount = Number(referral.reward_amount || REFERRAL_REWARD_AMOUNT);
+  const welcomeAmount = Number(referral.welcome_amount || REFERRAL_WELCOME_AMOUNT);
+
+  await queryRunner.query("UPDATE users SET balance = balance + $2 WHERE id = $1", [referrer.id, rewardAmount]);
+  await queryRunner.query("UPDATE users SET balance = balance + $2 WHERE id = $1", [referred.id, welcomeAmount]);
+
+  await addBalanceTransaction(queryRunner, {
+    userId: referrer.id,
+    type: "referral_bonus",
+    title: "Бонус за друга",
+    description: `${getUserDisplayName(referred)} сделал первый прогноз`,
+    amount: rewardAmount,
+  });
+
+  await addBalanceTransaction(queryRunner, {
+    userId: referred.id,
+    type: "welcome_bonus",
+    title: "Приветственный бонус",
+    description: `Бонус за вход по приглашению от ${getUserDisplayName(referrer)}`,
+    amount: welcomeAmount,
+  });
+
+  await queryRunner.query(
+    `
+      UPDATE referrals
+      SET status = 'qualified',
+          referred_name = $2,
+          reward_amount = $3,
+          welcome_amount = $4,
+          qualified_at = NOW(),
+          reward_claimed_at = NOW()
+      WHERE id = $1
+    `,
+    [referral.id, referredName || getUserDisplayName(referred), rewardAmount, welcomeAmount]
+  );
+
+  return { referrer, referred, rewardAmount, welcomeAmount };
+}
+
+
 function escapeTelegramHtml(value: unknown) {
   return String(value || "")
     .replace(/&/g, "&amp;")
@@ -697,15 +836,24 @@ function getTelegramChatIdFromUserId(userId: string) {
 }
 
 function getMarketAppUrl(marketId?: string) {
+  if (TELEGRAM_MINI_APP_URL) {
+    try {
+      const url = new URL(TELEGRAM_MINI_APP_URL);
+      if (marketId) url.searchParams.set("startapp", `market_${marketId}`);
+      return url.toString();
+    } catch {
+      const separator = TELEGRAM_MINI_APP_URL.includes("?") ? "&" : "?";
+      return marketId
+        ? `${TELEGRAM_MINI_APP_URL}${separator}startapp=market_${encodeURIComponent(marketId)}`
+        : TELEGRAM_MINI_APP_URL;
+    }
+  }
+
   if (!APP_PUBLIC_URL) return "";
 
   try {
     const url = new URL(APP_PUBLIC_URL);
-
-    if (marketId) {
-      url.searchParams.set("market", marketId);
-    }
-
+    if (marketId) url.searchParams.set("market", marketId);
     return url.toString();
   } catch {
     const separator = APP_PUBLIC_URL.includes("?") ? "&" : "?";
@@ -1394,6 +1542,21 @@ async function migrate() {
       reviewed_at TIMESTAMPTZ
     );
 
+    CREATE TABLE IF NOT EXISTS referrals (
+      id TEXT PRIMARY KEY,
+      referrer_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      referrer_name TEXT NOT NULL,
+      referred_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      referred_name TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      reward_amount INTEGER NOT NULL DEFAULT 1000,
+      welcome_amount INTEGER NOT NULL DEFAULT 500,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      qualified_at TIMESTAMPTZ,
+      reward_claimed_at TIMESTAMPTZ,
+      UNIQUE (referred_user_id)
+    );
+
     CREATE TABLE IF NOT EXISTS favorites (
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       market_id TEXT NOT NULL REFERENCES markets(id) ON DELETE CASCADE,
@@ -1430,6 +1593,9 @@ async function migrate() {
     CREATE INDEX IF NOT EXISTS transactions_created_at_idx ON transactions(created_at);
     CREATE INDEX IF NOT EXISTS market_suggestions_user_id_idx ON market_suggestions(user_id);
     CREATE INDEX IF NOT EXISTS market_suggestions_status_idx ON market_suggestions(status);
+    CREATE INDEX IF NOT EXISTS referrals_referrer_user_id_idx ON referrals(referrer_user_id);
+    CREATE INDEX IF NOT EXISTS referrals_referred_user_id_idx ON referrals(referred_user_id);
+    CREATE INDEX IF NOT EXISTS referrals_status_idx ON referrals(status);
     CREATE INDEX IF NOT EXISTS favorites_user_id_idx ON favorites(user_id);
     CREATE INDEX IF NOT EXISTS notification_events_user_id_idx ON notification_events(user_id);
     CREATE INDEX IF NOT EXISTS notification_events_market_id_idx ON notification_events(market_id);
@@ -1524,7 +1690,7 @@ async function closeExpiredMarkets(db: Pool | PoolClient = pool) {
 async function getSnapshot(): Promise<DatabaseSnapshot> {
   await closeExpiredMarkets();
 
-  const [usersResult, marketsResult, predictionsResult, commentsResult, transactionsResult, suggestionsResult, favoritesResult] =
+  const [usersResult, marketsResult, predictionsResult, commentsResult, transactionsResult, suggestionsResult, referralsResult, favoritesResult] =
     await Promise.all([
       pool.query("SELECT * FROM users ORDER BY name ASC"),
       pool.query("SELECT * FROM markets ORDER BY created_at DESC"),
@@ -1532,6 +1698,7 @@ async function getSnapshot(): Promise<DatabaseSnapshot> {
       pool.query("SELECT * FROM comments ORDER BY id DESC"),
       pool.query("SELECT * FROM transactions ORDER BY created_at DESC LIMIT 500"),
       pool.query("SELECT * FROM market_suggestions ORDER BY created_at DESC LIMIT 500"),
+      pool.query("SELECT * FROM referrals ORDER BY created_at DESC LIMIT 500"),
       pool.query("SELECT * FROM favorites ORDER BY user_id ASC, market_id ASC"),
     ]);
 
@@ -1558,6 +1725,7 @@ async function getSnapshot(): Promise<DatabaseSnapshot> {
     comments: commentsResult.rows.map(toComment),
     transactions: transactionsResult.rows.map(toTransaction),
     marketSuggestions: suggestionsResult.rows.map(toSuggestion),
+    referrals: referralsResult.rows.map(toReferral),
     favoriteMarketIdsByUser,
     adminUserIds: ADMIN_USER_IDS,
     polymarketImport: {
@@ -1635,8 +1803,12 @@ app.get("/api/health", async (_request, response) => {
     secureSessionAuthEnabled: true,
     telegramAuthMaxAgeSeconds: TELEGRAM_AUTH_MAX_AGE_SECONDS,
     appPublicUrlConfigured: Boolean(APP_PUBLIC_URL),
+    telegramMiniAppUrlConfigured: Boolean(TELEGRAM_MINI_APP_URL),
     dailyBonusAmount: DAILY_BONUS_AMOUNT,
     dailyBonusStreakAmounts: DAILY_BONUS_STREAK_AMOUNTS,
+    referralRewardAmount: REFERRAL_REWARD_AMOUNT,
+    referralWelcomeAmount: REFERRAL_WELCOME_AMOUNT,
+    referralSystemEnabled: true,
     strictTelegramUserActions: true,
     publicUserCreationDisabled: true,
     polymarketAutoImportEnabled: POLYMARKET_AUTO_IMPORT_ENABLED,
@@ -1714,6 +1886,8 @@ app.post("/api/telegram-user", async (request, response) => {
     description: "Начисление игровых баллов при первом входе через Telegram",
     amount: START_BALANCE,
   });
+
+  await createReferralFromStartParam(pool, user.id, user.name, telegramAuth.startParam);
 
   const session = await createAuthSession(user.id, telegramId);
   response.status(201).json({ user, ...session });
@@ -2362,6 +2536,9 @@ app.post("/api/markets/:marketId/predictions", async (request, response) => {
       return { error: "Недостаточно баллов" } as const;
     }
 
+    const previousPredictionCountResult = await client.query("SELECT COUNT(*)::int AS count FROM predictions WHERE user_id = $1", [user.id]);
+    const isFirstPrediction = Number(previousPredictionCountResult.rows[0]?.count || 0) === 0;
+
     const probability = getYesProbability(market);
 
     await client.query("UPDATE users SET balance = balance - $2 WHERE id = $1", [
@@ -2423,6 +2600,10 @@ app.post("/api/markets/:marketId/predictions", async (request, response) => {
         prediction.createdAt,
       ]
     );
+
+    if (isFirstPrediction) {
+      await maybeAwardReferralForFirstPrediction(client, user.id, getUserDisplayName(user));
+    }
 
     return { prediction } as const;
   });
@@ -2685,7 +2866,7 @@ app.post("/api/reset", async (request, response) => {
   }
 
   await withTransaction(async (client) => {
-    await client.query("TRUNCATE favorites, comments, predictions, transactions, market_suggestions, markets, users, app_settings RESTART IDENTITY CASCADE");
+    await client.query("TRUNCATE favorites, comments, predictions, transactions, market_suggestions, referrals, notification_events, auth_sessions, markets, users, app_settings RESTART IDENTITY CASCADE");
 
     for (const user of defaultUsers) {
       await client.query(
