@@ -8180,3 +8180,35 @@ button:disabled,
     display: none;
   }
 }
+.brandHero {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-bottom: 10px;
+}
+
+.brandHeroInner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 92px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, rgba(18, 44, 110, 0.08), rgba(32, 210, 196, 0.08));
+  border: 1px solid rgba(60, 90, 140, 0.08);
+  padding: 14px 18px;
+  overflow: hidden;
+}
+
+.brandHeroLogo {
+  display: block;
+  width: min(100%, 320px);
+  max-width: 320px;
+  height: auto;
+  object-fit: contain;
+}
+
+.legalBanner,
+.legalNote,
+.disclaimerBanner {
+  display: none !important;
+}

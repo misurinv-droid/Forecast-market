@@ -2612,9 +2612,15 @@ function App() {
             <div><b>2</b><span>Выбери Да или Нет</span></div>
             <div><b>3</b><span>Дождись расчёта</span></div>
           </div>
-          <div className="onboardingDisclaimer">
-            Игровые баллы не являются деньгами, не покупаются, не продаются, не передаются и не выводятся.
-          </div>
+          <div className="brandHero">
+  <div className="brandHeroInner">
+    <img
+      src="/forecast-market-logo.png"
+      alt="Forecast Market"
+      className="brandHeroLogo"
+    />
+  </div>
+</div>
           <div className="onboardingActions">
             <button className="secondaryButton" onClick={() => setIsRulesOpen(true)}>Правила</button>
             <button onClick={closeOnboarding}>Понятно, начать</button>
