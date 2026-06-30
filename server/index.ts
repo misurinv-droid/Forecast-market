@@ -505,29 +505,6 @@ function getNextDailyBonusAt(lastDailyBonusAt: unknown) {
   return new Date(last + DAILY_BONUS_INTERVAL_MS);
 }
 
-function requireAdmin(request: express.Request, response: express.Response) {
-  const telegramAuth = validateTelegramInitData(getTelegramInitData(request));
-
-  if (!telegramAuth.ok) {
-    response.status(401).json({
-      error: `Telegram-авторизация не пройдена: ${telegramAuth.error}`,
-    });
-    return false;
-  }
-
-  const telegramId = String(telegramAuth.user.id);
-  const userId = `telegram-${telegramId}`;
-
-  if (!isAdminUserId(telegramId) && !isAdminUserId(userId)) {
-    response.status(403).json({
-      error: "Недостаточно прав. Это действие доступно только администратору.",
-    });
-    return false;
-  }
-
-  return true;
-}
-
 async function withTransaction<T>(callback: (client: PoolClient) => Promise<T>) {
   const client = await pool.connect();
 
