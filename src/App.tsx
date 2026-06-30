@@ -4152,6 +4152,71 @@ function App() {
         <div className="connectionPill">{isTelegram ? "Telegram Mini App" : "Браузерная версия"}</div>
       </section>
 
+      <nav className="bottomTabBar" aria-label="Нижняя навигация">
+        <button
+          className={mainView === "markets" && !selectedMarket ? "activeBottomTab" : ""}
+          onClick={() => {
+            setSelectedMarketId(null);
+            setMainView("markets");
+          }}
+        >
+          <span>🏠</span>
+          <strong>Главная</strong>
+        </button>
+        <button
+          className={mainView === "search" && !selectedMarket ? "activeBottomTab" : ""}
+          onClick={() => {
+            setSelectedMarketId(null);
+            setMainView("search");
+          }}
+        >
+          <span>🔍</span>
+          <strong>Поиск</strong>
+        </button>
+        <button
+          className={mainView === "predictions" && !selectedMarket ? "activeBottomTab" : ""}
+          onClick={() => {
+            setSelectedMarketId(null);
+            setMainView("predictions");
+          }}
+        >
+          <span>🎯</span>
+          <strong>Мои</strong>
+        </button>
+        <button
+          className={mainView === "tournament" && !selectedMarket ? "activeBottomTab" : ""}
+          onClick={() => {
+            setSelectedMarketId(null);
+            setMainView("tournament");
+          }}
+        >
+          <span>🏆</span>
+          <strong>Турнир</strong>
+        </button>
+        <button
+          className={mainView === "profile" && !selectedMarket ? "activeBottomTab" : ""}
+          onClick={() => {
+            setSelectedMarketId(null);
+            setMainView("profile");
+          }}
+        >
+          <span>👤</span>
+          <strong>Профиль</strong>
+        </button>
+      </nav>
+
+      {isAdmin && (
+        <button
+          className={`mobileAdminFab ${(mainView === "admin" || mainView === "moderation" || mainView === "settlement") && !selectedMarket ? "activeMobileAdminFab" : ""}`}
+          onClick={() => {
+            setSelectedMarketId(null);
+            setMainView("admin");
+          }}
+        >
+          ⚙️ Админка {pendingSuggestions.length + closedMarketsCount > 0 ? `· ${pendingSuggestions.length + closedMarketsCount}` : ""}
+        </button>
+      )}
+
       {showDebugTools && (
         <section className="userPanel">
           <div>

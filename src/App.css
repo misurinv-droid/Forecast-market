@@ -9662,3 +9662,208 @@ button:disabled,
     flex-basis: 92%;
   }
 }
+
+
+/* Mobile / Telegram bottom navigation */
+.bottomTabBar,
+.mobileAdminFab {
+  display: none;
+}
+
+.telegramApp {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 92px) !important;
+}
+
+.telegramApp .productTopBar {
+  display: none !important;
+}
+
+.telegramApp .bottomTabBar {
+  position: fixed;
+  left: 10px;
+  right: 10px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+  z-index: 9500;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
+  padding: 7px;
+  border-radius: 24px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.90), rgba(238, 249, 255, 0.88));
+  border: 1px solid rgba(255, 255, 255, 0.92);
+  box-shadow: 0 20px 56px rgba(15, 23, 42, 0.22);
+  backdrop-filter: blur(18px);
+}
+
+.telegramApp .bottomTabBar button {
+  display: grid;
+  place-items: center;
+  gap: 3px;
+  min-width: 0;
+  min-height: 52px;
+  border: 0;
+  border-radius: 18px;
+  padding: 7px 4px;
+  color: #64748b;
+  background: transparent;
+  font-weight: 900;
+}
+
+.telegramApp .bottomTabBar button span {
+  display: block;
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.telegramApp .bottomTabBar button strong {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 0.64rem;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.telegramApp .bottomTabBar button.activeBottomTab {
+  color: #0f172a;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(20, 184, 166, 0.22), transparent 42%),
+    linear-gradient(135deg, rgba(219, 234, 254, 0.96), rgba(204, 251, 241, 0.94));
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.10), 0 10px 24px rgba(37, 99, 235, 0.14);
+}
+
+.telegramApp .mobileAdminFab {
+  position: fixed;
+  right: 14px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 76px);
+  z-index: 9490;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: calc(100% - 28px);
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 13px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #0f172a, #1d4ed8);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.22);
+  font-size: 0.78rem;
+  font-weight: 950;
+}
+
+.telegramApp .mobileAdminFab.activeMobileAdminFab {
+  background: linear-gradient(135deg, #0f766e, #2563eb);
+}
+
+.telegramApp .appToast {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 86px) !important;
+}
+
+.telegramApp .detailsPage {
+  padding-bottom: 14px;
+}
+
+@media (max-width: 760px) {
+  body {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 86px);
+  }
+
+  main:not(.telegramApp) {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 92px);
+  }
+
+  main:not(.telegramApp) .productTopBar {
+    display: none !important;
+  }
+
+  main:not(.telegramApp) .bottomTabBar {
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+    z-index: 9500;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 5px;
+    padding: 7px;
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(226, 232, 240, 0.95);
+    box-shadow: 0 20px 56px rgba(15, 23, 42, 0.18);
+    backdrop-filter: blur(18px);
+  }
+
+  main:not(.telegramApp) .bottomTabBar button {
+    display: grid;
+    place-items: center;
+    gap: 3px;
+    min-height: 52px;
+    border: 0;
+    border-radius: 18px;
+    padding: 7px 4px;
+    color: #64748b;
+    background: transparent;
+    font-weight: 900;
+  }
+
+  main:not(.telegramApp) .bottomTabBar button span {
+    font-size: 1.15rem;
+    line-height: 1;
+  }
+
+  main:not(.telegramApp) .bottomTabBar button strong {
+    overflow: hidden;
+    font-size: 0.64rem;
+    line-height: 1.05;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  main:not(.telegramApp) .bottomTabBar button.activeBottomTab {
+    color: #0f172a;
+    background: linear-gradient(135deg, rgba(219, 234, 254, 0.96), rgba(204, 251, 241, 0.94));
+    box-shadow: 0 10px 24px rgba(37, 99, 235, 0.14);
+  }
+
+  main:not(.telegramApp) .mobileAdminFab {
+    position: fixed;
+    right: 14px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 76px);
+    z-index: 9490;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 999px;
+    padding: 10px 13px;
+    color: #ffffff;
+    background: linear-gradient(135deg, #0f172a, #1d4ed8);
+    box-shadow: 0 16px 36px rgba(15, 23, 42, 0.22);
+    font-size: 0.78rem;
+    font-weight: 950;
+  }
+}
+
+@media (max-width: 370px) {
+  .telegramApp .bottomTabBar,
+  main:not(.telegramApp) .bottomTabBar {
+    left: 7px;
+    right: 7px;
+    gap: 3px;
+    padding: 6px;
+    border-radius: 21px;
+  }
+
+  .telegramApp .bottomTabBar button,
+  main:not(.telegramApp) .bottomTabBar button {
+    min-height: 48px;
+    border-radius: 16px;
+  }
+
+  .telegramApp .bottomTabBar button strong,
+  main:not(.telegramApp) .bottomTabBar button strong {
+    font-size: 0.58rem;
+  }
+}
