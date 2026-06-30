@@ -8,6 +8,7 @@ type SortMode = "newest" | "probability" | "trades" | "comments";
 type DetailsTab = "overview" | "trades" | "participants" | "chat";
 type MainView = "markets" | "imported" | "search" | "predictions" | "tournament" | "suggest" | "admin" | "moderation" | "settlement" | "profile";
 type MyPredictionTab = "active" | "settled" | "won" | "lost" | "all";
+type AdminPanelTab = "overview" | "users" | "markets" | "create" | "suggestions" | "settlement" | "polymarket" | "points" | "security";
 
 type DemoUser = {
   id: string;
@@ -780,7 +781,7 @@ function App() {
   const [commentDrafts, setCommentDrafts] = useState<Record<string, CommentDraft>>({});
   const [amountByMarket, setAmountByMarket] = useState<Record<string, string>>({});
 
-  const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [isAdminOpen, setIsAdminOpen] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState("Все");
   const [marketSearch, setMarketSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | MarketStatus>("all");
@@ -790,6 +791,10 @@ function App() {
   const [importedSearch, setImportedSearch] = useState("");
   const [isPolymarketImporting, setIsPolymarketImporting] = useState(false);
   const [adminAwardForm, setAdminAwardForm] = useState({ userId: "", amount: "1000", description: "Тестовое начисление баллов" });
+  const [adminTab, setAdminTab] = useState<AdminPanelTab>("overview");
+  const [adminUserSearch, setAdminUserSearch] = useState("");
+  const [adminMarketSearch, setAdminMarketSearch] = useState("");
+  const [adminMarketStatus, setAdminMarketStatus] = useState<"all" | "open" | "closed" | "resolved" | "polymarket">("all");
   const [mainView, setMainView] = useState<MainView>("markets");
   const [myPredictionTab, setMyPredictionTab] = useState<MyPredictionTab>("active");
 
@@ -3263,129 +3268,274 @@ function App() {
     const resolvedMarketsCount = markets.filter((market) => market.status === "resolved").length;
     const totalPredictionsCount = predictions.length;
     const totalUsersCount = users.length;
+    const totalBalance = users.reduce((sum, user) => sum + user.balance, 0);
+    const todaysPredictions = predictions.filter((prediction) => {
+      const date = new Date(prediction.createdAt);
+      const today = new Date();
+      return date.toDateString() === today.toDateString();
+    }).length;
+    const adminUserIdsSet = new Set(adminUserIds);
+    const selectedAwardUser = users.find((user) => user.id === adminAwardForm.userId) || users[0] || null;
+    const adminLogItems = transactions
+      .filter((transaction) => ["system", "refund", "payout", "daily_bonus", "referral_bonus", "welcome_bonus"].includes(transaction.type))
+      .slice(0, 12);
 
-    return (
-      <section className="adminCenterPage pageStack">
-        <section className="adminCenterHero">
-          <div>
-            <p className="eyebrow">Админка</p>
-            <h2>Центр управления Forecast Market</h2>
-            <p>Заявки, расчёт, импорт Polymarket и создание рынков собраны в одном месте. Редактирование и закрытие конкретного рынка остаются внутри карточки рынка.</p>
-          </div>
-          <div className="adminCenterStatus">
-            <span>Активная сессия</span>
-            <strong>{activeUser?.name}</strong>
-            <small>{authSessionToken ? "Защищённый вход через Telegram" : "Нет безопасной сессии"}</small>
-          </div>
-        </section>
+    const filteredAdminUsers = users
+      .filter((user) => {
+        const query = adminUserSearch.trim().toLowerCase();
+        if (!query) return true;
+        return `${user.name} ${user.id}`.toLowerCase().includes(query);
+      })
+      .sort((a, b) => b.balance - a.balance);
 
-        <section className="adminStatsGrid">
-          <div><span>Ждут расчёта</span><strong>{closedMarketsCount}</strong><small>рынков</small></div>
-          <div><span>Новые заявки</span><strong>{pendingSuggestions.length}</strong><small>на модерации</small></div>
-          <div><span>Открытые рынки</span><strong>{openMarketsCount}</strong><small>доступны участникам</small></div>
-          <div><span>Polymarket</span><strong>{totalImported}</strong><small>{importedOpenCount} открыто</small></div>
-          <div><span>Участники</span><strong>{totalUsersCount}</strong><small>{totalPredictionsCount} прогнозов</small></div>
-          <div><span>Рассчитано</span><strong>{resolvedMarketsCount}</strong><small>рынков</small></div>
-        </section>
+    const filteredAdminMarkets = markets
+      .filter((market) => {
+        const query = adminMarketSearch.trim().toLowerCase();
+        const matchesQuery = !query || `${market.question} ${market.category} ${market.source}`.toLowerCase().includes(query);
+        const matchesStatus = adminMarketStatus === "all"
+          || (adminMarketStatus === "polymarket" ? isPolymarketSource(market.source) : market.status === adminMarketStatus);
+        return matchesQuery && matchesStatus;
+      })
+      .sort((a, b) => getMarketStatusWeight(a.status) - getMarketStatusWeight(b.status));
 
-        <section className="adminQuickActionsPanel">
-          <button onClick={() => setIsAdminOpen((current) => !current)}>{isAdminOpen ? "Скрыть создание" : "Создать рынок"}</button>
-          <button className="secondaryButton" onClick={() => setMainView("settlement")}>Очередь расчёта</button>
-          <button className="secondaryButton" onClick={() => setMainView("moderation")}>Заявки</button>
-          <button className="secondaryButton" onClick={refreshPolymarketImport} disabled={isPolymarketImporting}>{isPolymarketImporting ? "Импортируем..." : "Подтянуть Polymarket"}</button>
-          <button className="secondaryButton" onClick={() => refreshData(activeUser?.id)}>Обновить данные</button>
-        </section>
+    function getUserAdminStats(userId: string) {
+      const userPredictions = predictions.filter((prediction) => prediction.userId === userId);
+      const wins = userPredictions.filter((prediction) => prediction.resolvedOutcome && prediction.resolvedOutcome === prediction.outcome).length;
+      const active = userPredictions.filter((prediction) => !prediction.resolvedOutcome).length;
+      const invested = userPredictions.reduce((sum, prediction) => sum + prediction.amount, 0);
+      const payout = userPredictions.reduce((sum, prediction) => sum + (prediction.payout || 0), 0);
+      const weekly = weeklyStandings.find((row) => row.user.id === userId);
+      return { total: userPredictions.length, wins, active, invested, payout, weeklyScore: weekly?.score || 0 };
+    }
 
+    function renderAdminInnerNav() {
+      const tabs: Array<{ id: AdminPanelTab; title: string; badge?: number | string }> = [
+        { id: "overview", title: "Обзор" },
+        { id: "users", title: "Пользователи", badge: totalUsersCount },
+        { id: "markets", title: "Рынки", badge: markets.length },
+        { id: "create", title: "Создать" },
+        { id: "suggestions", title: "Заявки", badge: pendingSuggestions.length || undefined },
+        { id: "settlement", title: "Расчёт", badge: closedMarketsCount || undefined },
+        { id: "polymarket", title: "Polymarket", badge: totalImported },
+        { id: "points", title: "Начисления" },
+        { id: "security", title: "Доступы" },
+      ];
 
+      return (
+        <div className="adminInnerNav">
+          {tabs.map((tab) => (
+            <button key={tab.id} className={adminTab === tab.id ? "activeAdminTab" : ""} onClick={() => setAdminTab(tab.id)}>
+              {tab.title}{tab.badge ? <span>{tab.badge}</span> : null}
+            </button>
+          ))}
+        </div>
+      );
+    }
 
-        <details className="adminCenterSection" open={false}>
-          <summary>
-            <div>
-              <strong>Ручное начисление баллов</strong>
-              <span>Тестовые начисления и корректировки баланса пользователей</span>
-            </div>
-            <b>⌄</b>
-          </summary>
-          <div className="adminForm compactAdminForm adminCenterForm manualPointsForm">
-            <label>
-              Пользователь
-              <select value={adminAwardForm.userId || activeUser?.id || users[0]?.id || ""} onChange={(event) => setAdminAwardForm((current) => ({ ...current, userId: event.target.value }))}>
-                {users.map((user) => (
-                  <option key={user.id} value={user.id}>{user.name} — {user.balance.toLocaleString("ru-RU")} б.</option>
+    function renderAdminOverview() {
+      return (
+        <div className="adminTabPanel">
+          <section className="adminStatsGrid adminOverviewStats">
+            <div><span>Пользователей</span><strong>{totalUsersCount}</strong><small>зарегистрировано</small></div>
+            <div><span>Прогнозов сегодня</span><strong>{todaysPredictions}</strong><small>{totalPredictionsCount} всего</small></div>
+            <div><span>Ждут расчёта</span><strong>{closedMarketsCount}</strong><small>рынков</small></div>
+            <div><span>Заявок</span><strong>{pendingSuggestions.length}</strong><small>{marketSuggestions.length} всего</small></div>
+            <div><span>Баллов в обороте</span><strong>{totalBalance.toLocaleString("ru-RU")}</strong><small>у пользователей</small></div>
+            <div><span>Турнир недели</span><strong>{weeklyStandings[0]?.user.name || "—"}</strong><small>{weeklyStandings[0]?.score ? `${weeklyStandings[0].score.toLocaleString("ru-RU")} б.` : "нет лидера"}</small></div>
+            <div><span>Рассчитано</span><strong>{resolvedMarketsCount}</strong><small>рынков</small></div>
+          </section>
+
+          <section className="adminOverviewGrid">
+            <article className="adminOverviewCard">
+              <div className="sectionHeader"><h2>Что требует внимания</h2></div>
+              <div className="adminTodoList">
+                <button onClick={() => setAdminTab("settlement")}><strong>{closedMarketsCount}</strong><span>рынков ждут расчёта</span></button>
+                <button onClick={() => setAdminTab("suggestions")}><strong>{pendingSuggestions.length}</strong><span>новых заявок</span></button>
+                <button onClick={() => setAdminTab("polymarket")}><strong>{totalImported}</strong><span>импортированных рынков</span></button>
+                <button onClick={() => setAdminTab("points")}><strong>±</strong><span>ручные начисления</span></button>
+              </div>
+            </article>
+
+            <article className="adminOverviewCard">
+              <div className="sectionHeader"><h2>Последние операции</h2><button onClick={() => setAdminTab("points")}>Открыть</button></div>
+              <div className="adminLogList compactAdminLogList">
+                {adminLogItems.length === 0 ? <div className="empty">Журнал пока пуст.</div> : adminLogItems.slice(0, 6).map((transaction) => (
+                  <div className="adminLogItem" key={transaction.id}>
+                    <div><strong>{transaction.title}</strong><span>{transaction.description}</span></div>
+                    <b className={transaction.amount >= 0 ? "positiveAmount" : "negativeAmount"}>{transaction.amount >= 0 ? "+" : ""}{transaction.amount.toLocaleString("ru-RU")}</b>
+                  </div>
                 ))}
+              </div>
+            </article>
+          </section>
+        </div>
+      );
+    }
+
+    function renderAdminUsers() {
+      return (
+        <div className="adminTabPanel">
+          <section className="adminToolbar">
+            <div>
+              <h2>Пользователи</h2>
+              <p>Баланс, активность и быстрые начисления. Роли админов пока задаются через ADMIN_TELEGRAM_IDS в Render.</p>
+            </div>
+            <input placeholder="Поиск по имени или ID" value={adminUserSearch} onChange={(event) => setAdminUserSearch(event.target.value)} />
+          </section>
+
+          <div className="adminTable adminUsersTable">
+            <div className="adminTableHead"><span>Пользователь</span><span>Баланс</span><span>Прогнозы</span><span>Турнир</span><span>Действия</span></div>
+            {filteredAdminUsers.map((user) => {
+              const stats = getUserAdminStats(user.id);
+              const userIsAdmin = adminUserIdsSet.has(user.id) || adminUserIdsSet.has(user.id.replace("telegram-", ""));
+              return (
+                <article className="adminTableRow" key={user.id}>
+                  <div className="adminUserCell"><div className="miniAvatar">{user.name.slice(0, 1).toUpperCase()}</div><div><strong>{user.name}</strong><small>{user.id}</small>{userIsAdmin ? <em>Админ</em> : null}</div></div>
+                  <div><strong>{user.balance.toLocaleString("ru-RU")}</strong><small>баллов</small></div>
+                  <div><strong>{stats.total}</strong><small>{stats.wins} побед · {stats.active} активн.</small></div>
+                  <div><strong>{stats.weeklyScore.toLocaleString("ru-RU")}</strong><small>за неделю</small></div>
+                  <div className="adminRowActions">
+                    <button onClick={() => { setAdminAwardForm((current) => ({ ...current, userId: user.id, amount: "1000", description: "Тестовое начисление баллов" })); setAdminTab("points"); }}>Начислить</button>
+                    <button className="secondaryButton" onClick={() => { setAdminAwardForm((current) => ({ ...current, userId: user.id, amount: "-500", description: "Тестовое списание баллов" })); setAdminTab("points"); }}>Списать</button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    function renderAdminCreate() {
+      return (
+        <div className="adminTabPanel">
+          <section className="adminToolbar">
+            <div>
+              <h2>Создать рынок</h2>
+              <p>Быстрая форма для своего события. После создания рынок сразу появится в ленте.</p>
+            </div>
+            <button className="secondaryButton" onClick={() => setIsAdminOpen((current) => !current)}>{isAdminOpen ? "Свернуть форму" : "Открыть форму"}</button>
+          </section>
+
+          {isAdminOpen ? (
+            <article className="adminFormCard adminCreateMarketCard">
+              <div className="adminForm compactAdminForm adminCenterForm">
+                <label className="wideField">Вопрос рынка<input placeholder="Например: Поедем ли мы компанией в отпуск в августе?" value={newMarket.question} onChange={(event) => setNewMarket((current) => ({ ...current, question: event.target.value }))} /></label>
+                <label>Категория<input placeholder="Друзья" value={newMarket.category} onChange={(event) => setNewMarket((current) => ({ ...current, category: event.target.value }))} /></label>
+                <label>Дата закрытия<input type="date" value={newMarket.closesAt} onChange={(event) => setNewMarket((current) => ({ ...current, closesAt: event.target.value }))} /></label>
+                <label className="wideField">Описание и правила расчета<textarea placeholder="Опиши, что должно произойти, чтобы рынок был рассчитан как «Да»." value={newMarket.description} onChange={(event) => setNewMarket((current) => ({ ...current, description: event.target.value }))} /></label>
+                <label className="wideField">Источник расчета<input placeholder="Например: официальный сайт / публичная новость / решение в чате" value={newMarket.source} onChange={(event) => setNewMarket((current) => ({ ...current, source: event.target.value }))} /></label>
+                <label>Начальная вероятность “Да”, %<input type="number" min="1" max="99" value={newMarket.yesProbability} onChange={(event) => setNewMarket((current) => ({ ...current, yesProbability: Number(event.target.value) }))} /></label>
+                <button className="createMarketButton" onClick={createMarket}>Создать рынок</button>
+              </div>
+            </article>
+          ) : (
+            <div className="empty">Форма создания свернута.</div>
+          )}
+        </div>
+      );
+    }
+
+    function renderAdminMarkets() {
+      return (
+        <div className="adminTabPanel">
+          <section className="adminToolbar adminMarketsToolbar">
+            <div>
+              <h2>Рынки</h2>
+              <p>Быстрый поиск и фильтры. Редактирование, расчёт и удаление остаются внутри карточки рынка.</p>
+            </div>
+            <div className="adminToolbarControls">
+              <input placeholder="Поиск по рынкам" value={adminMarketSearch} onChange={(event) => setAdminMarketSearch(event.target.value)} />
+              <select value={adminMarketStatus} onChange={(event) => setAdminMarketStatus(event.target.value as typeof adminMarketStatus)}>
+                <option value="all">Все</option>
+                <option value="open">Открытые</option>
+                <option value="closed">Ждут расчёта</option>
+                <option value="resolved">Рассчитанные</option>
+                <option value="polymarket">Polymarket</option>
               </select>
-            </label>
-            <label>
-              Сумма
-              <input inputMode="numeric" placeholder="Например 1000 или -500" value={adminAwardForm.amount} onChange={(event) => setAdminAwardForm((current) => ({ ...current, amount: event.target.value.replace(/[^0-9-]/g, "") }))} />
-            </label>
-            <label className="wideField">
-              Комментарий
-              <input placeholder="Например: тестовое начисление" value={adminAwardForm.description} onChange={(event) => setAdminAwardForm((current) => ({ ...current, description: event.target.value }))} />
-            </label>
-            <div className="quickAmountRow wideField">
-              {[500, 1000, 2500, 5000].map((amount) => <button key={amount} onClick={() => setAdminAwardForm((current) => ({ ...current, amount: String(amount) }))}>+{amount}</button>)}
-              <button className="secondaryButton" onClick={() => setAdminAwardForm((current) => ({ ...current, amount: "-500" }))}>−500</button>
             </div>
-            <button className="createMarketButton" onClick={awardUserPoints}>Применить корректировку</button>
-          </div>
-        </details>
+          </section>
 
-        <details className="adminCenterSection" open={isAdminOpen}>
-          <summary>
-            <div>
-              <strong>Создать рынок</strong>
-              <span>Быстрая форма для своего события</span>
-            </div>
-            <b>⌄</b>
-          </summary>
-          <div className="adminForm compactAdminForm adminCenterForm">
-            <label className="wideField">Вопрос рынка<input placeholder="Например: Поедем ли мы компанией в отпуск в августе?" value={newMarket.question} onChange={(event) => setNewMarket((current) => ({ ...current, question: event.target.value }))} /></label>
-            <label>Категория<input placeholder="Друзья" value={newMarket.category} onChange={(event) => setNewMarket((current) => ({ ...current, category: event.target.value }))} /></label>
-            <label>Дата закрытия<input type="date" value={newMarket.closesAt} onChange={(event) => setNewMarket((current) => ({ ...current, closesAt: event.target.value }))} /></label>
-            <label className="wideField">Описание и правила расчета<textarea placeholder="Опиши, что должно произойти, чтобы рынок был рассчитан как «Да»." value={newMarket.description} onChange={(event) => setNewMarket((current) => ({ ...current, description: event.target.value }))} /></label>
-            <label className="wideField">Источник расчета<input placeholder="Например: решение в общем чате / официальный сайт / публичная новость" value={newMarket.source} onChange={(event) => setNewMarket((current) => ({ ...current, source: event.target.value }))} /></label>
-            <label>Начальная вероятность “Да”, %<input type="number" min="1" max="99" value={newMarket.yesProbability} onChange={(event) => setNewMarket((current) => ({ ...current, yesProbability: Number(event.target.value) }))} /></label>
-            <button className="createMarketButton" onClick={createMarket}>Создать рынок</button>
+          <div className="adminTable adminMarketsTable">
+            <div className="adminTableHead"><span>Рынок</span><span>Статус</span><span>Активность</span><span>Дата</span><span>Действия</span></div>
+            {filteredAdminMarkets.slice(0, 80).map((market) => {
+              const marketPredictions = predictions.filter((prediction) => prediction.marketId === market.id);
+              const participants = new Set(marketPredictions.map((prediction) => prediction.userId)).size;
+              return (
+                <article className="adminTableRow" key={market.id}>
+                  <div><strong>{market.question}</strong><small>{market.category} · {isPolymarketSource(market.source) ? "Polymarket" : "Свой рынок"}</small></div>
+                  <div><span className={`statusBadge ${getMarketStatusClass(market)}`}>{getMarketStatusText(market)}</span></div>
+                  <div><strong>{marketPredictions.length}</strong><small>{participants} участников</small></div>
+                  <div><strong>{formatDateForDisplay(market.closesAt)}</strong><small>{market.status}</small></div>
+                  <div className="adminRowActions"><button onClick={() => openMarketDetails(market.id)}>Открыть</button>{isPolymarketSource(market.source) && market.status !== "resolved" ? <button className="secondaryButton" onClick={() => deleteMarket(market)}>Скрыть</button> : null}</div>
+                </article>
+              );
+            })}
           </div>
-        </details>
+        </div>
+      );
+    }
 
-        <details className="adminCenterSection" open={closedMarketsCount > 0}>
-          <summary>
-            <div>
-              <strong>Очередь расчёта</strong>
-              <span>{closedMarketsCount} рынков ждут решения</span>
-            </div>
-            <b>⌄</b>
-          </summary>
-          <div className="adminEmbeddedBlock">
-            {renderSettlementPage()}
-          </div>
-        </details>
+    function renderAdminPoints() {
+      return (
+        <div className="adminTabPanel">
+          <section className="adminTwoColumn">
+            <article className="adminFormCard">
+              <div className="sectionHeader"><h2>Ручное начисление баллов</h2></div>
+              <div className="adminForm compactAdminForm manualPointsForm">
+                <label>
+                  Пользователь
+                  <select value={adminAwardForm.userId || activeUser?.id || users[0]?.id || ""} onChange={(event) => setAdminAwardForm((current) => ({ ...current, userId: event.target.value }))}>
+                    {users.map((user) => (
+                      <option key={user.id} value={user.id}>{user.name} — {user.balance.toLocaleString("ru-RU")} б.</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Сумма
+                  <input inputMode="numeric" placeholder="Например 1000 или -500" value={adminAwardForm.amount} onChange={(event) => setAdminAwardForm((current) => ({ ...current, amount: event.target.value.replace(/(?!^-)[^0-9]/g, "") }))} />
+                </label>
+                <label className="wideField">
+                  Комментарий
+                  <input placeholder="Например: тестовое начисление" value={adminAwardForm.description} onChange={(event) => setAdminAwardForm((current) => ({ ...current, description: event.target.value }))} />
+                </label>
+                <div className="quickAmountRow wideField">
+                  {[500, 1000, 2500, 5000, 10000].map((amount) => <button key={amount} onClick={() => setAdminAwardForm((current) => ({ ...current, amount: String(amount) }))}>+{amount}</button>)}
+                  <button className="secondaryButton" onClick={() => setAdminAwardForm((current) => ({ ...current, amount: "-500" }))}>−500</button>
+                  <button className="secondaryButton" onClick={() => setAdminAwardForm((current) => ({ ...current, amount: "-1000" }))}>−1000</button>
+                </div>
+                <button className="createMarketButton" onClick={awardUserPoints}>Применить корректировку</button>
+              </div>
+              {selectedAwardUser ? <p className="adminHint">Выбран: {selectedAwardUser.name} · баланс {selectedAwardUser.balance.toLocaleString("ru-RU")} б.</p> : null}
+            </article>
 
-        <details className="adminCenterSection" open={pendingSuggestions.length > 0}>
-          <summary>
-            <div>
-              <strong>Заявки пользователей</strong>
-              <span>{pendingSuggestions.length} новых · {marketSuggestions.length} всего</span>
-            </div>
-            <b>⌄</b>
-          </summary>
-          <div className="adminEmbeddedBlock">
-            {renderSuggestionList(marketSuggestions, "admin")}
-          </div>
-        </details>
+            <article className="adminFormCard">
+              <div className="sectionHeader"><h2>Журнал баланса</h2></div>
+              <div className="adminLogList">
+                {adminLogItems.length === 0 ? <div className="empty">Пока нет операций.</div> : adminLogItems.map((transaction) => {
+                  const user = users.find((item) => item.id === transaction.userId);
+                  return (
+                    <div className="adminLogItem" key={transaction.id}>
+                      <div><strong>{transaction.title}</strong><span>{user?.name || transaction.userId} · {transaction.description}</span></div>
+                      <b className={transaction.amount >= 0 ? "positiveAmount" : "negativeAmount"}>{transaction.amount >= 0 ? "+" : ""}{transaction.amount.toLocaleString("ru-RU")}</b>
+                    </div>
+                  );
+                })}
+              </div>
+            </article>
+          </section>
+        </div>
+      );
+    }
 
-        <details className="adminCenterSection">
-          <summary>
+    function renderAdminPolymarket() {
+      return (
+        <div className="adminTabPanel">
+          <section className="adminImportBox upgradedAdminImportBox">
             <div>
-              <strong>Импорт Polymarket</strong>
-              <span>{totalImported} импортировано · {importedOpenCount} открыто</span>
+              <h2>Импорт Polymarket</h2>
+              <p>Polymarket используется только как источник идей. Внутри Forecast Market остаются игровые баллы без реальных ставок, кошельков и вывода.</p>
             </div>
-            <b>⌄</b>
-          </summary>
-          <div className="adminImportBox">
-            <p>Polymarket используется только как источник идей. Внутри Forecast Market остаются игровые баллы без реальных ставок, кошельков и вывода.</p>
             <div className="adminImportStats">
               <div><span>Всего</span><strong>{totalImported}</strong></div>
               <div><span>Открыто</span><strong>{importedOpenCount}</strong></div>
@@ -3395,24 +3545,55 @@ function App() {
               <button onClick={refreshPolymarketImport} disabled={isPolymarketImporting}>{isPolymarketImporting ? "Подтягиваем..." : "Подтянуть свежие события"}</button>
               <button className="secondaryButton" onClick={() => setMainView("imported")}>Открыть импортированные</button>
             </div>
-          </div>
-        </details>
+          </section>
+        </div>
+      );
+    }
 
-        <details className="adminCenterSection">
-          <summary>
-            <div>
-              <strong>Безопасность и доступы</strong>
-              <span>Проверка текущей сессии</span>
+    function renderAdminSecurity() {
+      return (
+        <div className="adminTabPanel">
+          <section className="adminSecurityCard">
+            <div className="sectionHeader"><h2>Безопасность и доступы</h2></div>
+            <div className="adminSecurityGrid upgradedSecurityGrid">
+              <div><span>Telegram</span><strong>{isTelegram ? "Да" : "Нет"}</strong><small>Mini App режим</small></div>
+              <div><span>Session token</span><strong>{authSessionToken ? "Есть" : "Нет"}</strong><small>Bearer-сессия</small></div>
+              <div><span>Роль</span><strong>{isAdmin ? "Админ" : "Участник"}</strong><small>{activeUser?.id}</small></div>
+              <div><span>Mini App URL</span><strong>{TELEGRAM_MINI_APP_URL ? "Настроен" : "Не настроен"}</strong><small>deep links</small></div>
+              <div><span>Админов</span><strong>{adminUserIds.length}</strong><small>из Render ENV</small></div>
+              <div><span>Публичный режим</span><strong>Только просмотр</strong><small>без действий</small></div>
             </div>
-            <b>⌄</b>
-          </summary>
-          <div className="adminSecurityGrid">
-            <div><span>Telegram</span><strong>{isTelegram ? "Да" : "Нет"}</strong></div>
-            <div><span>Session token</span><strong>{authSessionToken ? "Есть" : "Нет"}</strong></div>
-            <div><span>Роль</span><strong>{isAdmin ? "Админ" : "Участник"}</strong></div>
-            <div><span>Mini App URL</span><strong>{TELEGRAM_MINI_APP_URL ? "Настроен" : "Не настроен"}</strong></div>
+          </section>
+        </div>
+      );
+    }
+
+    return (
+      <section className="adminCenterPage pageStack upgradedAdminCenterPage">
+        <section className="adminCenterHero upgradedAdminHero">
+          <div>
+            <p className="eyebrow">Админка</p>
+            <h2>Панель управления</h2>
+            <p>Все рабочие инструменты собраны в одном месте: пользователи, рынки, заявки, расчёт, Polymarket и ручные начисления. Редактирование и закрытие конкретного рынка остаются внутри рынка.</p>
           </div>
-        </details>
+          <div className="adminCenterStatus">
+            <span>Текущая сессия</span>
+            <strong>{activeUser?.name}</strong>
+            <small>{authSessionToken ? "Защищённый вход через Telegram" : "Нет безопасной сессии"}</small>
+          </div>
+        </section>
+
+        {renderAdminInnerNav()}
+
+        {adminTab === "overview" && renderAdminOverview()}
+        {adminTab === "users" && renderAdminUsers()}
+        {adminTab === "markets" && renderAdminMarkets()}
+        {adminTab === "create" && renderAdminCreate()}
+        {adminTab === "suggestions" && <div className="adminTabPanel">{renderSuggestionList(marketSuggestions, "admin")}</div>}
+        {adminTab === "settlement" && <div className="adminTabPanel adminEmbeddedPanel">{renderSettlementPage()}</div>}
+        {adminTab === "polymarket" && renderAdminPolymarket()}
+        {adminTab === "points" && renderAdminPoints()}
+        {adminTab === "security" && renderAdminSecurity()}
       </section>
     );
   }

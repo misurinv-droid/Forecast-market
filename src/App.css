@@ -7684,3 +7684,405 @@ button:disabled,
     font-size: 20px !important;
   }
 }
+
+
+/* Admin center v2 */
+.upgradedAdminCenterPage {
+  gap: 18px;
+}
+
+.upgradedAdminHero {
+  border: 1px solid rgba(35, 90, 255, 0.14);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(35, 90, 255, 0.13), transparent 34%),
+    radial-gradient(circle at 88% 8%, rgba(7, 191, 168, 0.14), transparent 28%),
+    rgba(255, 255, 255, 0.92);
+}
+
+.adminInnerNav {
+  position: sticky;
+  top: calc(var(--safe-top, 0px) + 8px);
+  z-index: 6;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.08);
+  -webkit-overflow-scrolling: touch;
+}
+
+.adminInnerNav button {
+  border: 0;
+  border-radius: 18px;
+  padding: 11px 14px;
+  background: rgba(241, 245, 249, 0.95);
+  color: #334155;
+  font-weight: 900;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.adminInnerNav button span {
+  display: inline-flex;
+  min-width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+  font-size: 12px;
+}
+
+.adminInnerNav .activeAdminTab {
+  color: white;
+  background: linear-gradient(135deg, #172554, #2542ff 48%, #06b6d4);
+  box-shadow: 0 10px 24px rgba(37, 66, 255, 0.28);
+}
+
+.adminInnerNav .activeAdminTab span {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.adminTabPanel {
+  display: grid;
+  gap: 16px;
+}
+
+.adminOverviewStats {
+  margin: 0;
+}
+
+.adminOverviewGrid,
+.adminTwoColumn {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.adminOverviewCard,
+.adminFormCard,
+.adminSecurityCard {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 28px;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.07);
+}
+
+.adminTodoList {
+  display: grid;
+  gap: 10px;
+}
+
+.adminTodoList button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 20px;
+  padding: 14px;
+  background: linear-gradient(135deg, rgba(248, 250, 252, 0.95), rgba(239, 246, 255, 0.95));
+  color: #0f172a;
+  cursor: pointer;
+  text-align: left;
+}
+
+.adminTodoList button strong {
+  display: inline-flex;
+  min-width: 46px;
+  height: 46px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  background: #0f172a;
+  color: white;
+  font-size: 18px;
+}
+
+.adminTodoList button span {
+  flex: 1;
+  font-weight: 900;
+}
+
+.adminToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 28px;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.adminToolbar h2 {
+  margin: 0 0 4px;
+  font-size: 22px;
+}
+
+.adminToolbar p {
+  margin: 0;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.adminToolbar input,
+.adminToolbar select {
+  min-height: 46px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 18px;
+  padding: 0 14px;
+  background: white;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.adminToolbarControls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.adminTable {
+  display: grid;
+  gap: 8px;
+}
+
+.adminTableHead,
+.adminTableRow {
+  display: grid;
+  gap: 12px;
+  align-items: center;
+}
+
+.adminUsersTable .adminTableHead,
+.adminUsersTable .adminTableRow {
+  grid-template-columns: 1.7fr 0.8fr 0.9fr 0.8fr 1fr;
+}
+
+.adminMarketsTable .adminTableHead,
+.adminMarketsTable .adminTableRow {
+  grid-template-columns: 2fr 0.9fr 0.8fr 0.8fr 1fr;
+}
+
+.adminTableHead {
+  padding: 0 18px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.adminTableRow {
+  min-height: 82px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 24px;
+  padding: 14px 18px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.055);
+}
+
+.adminTableRow strong {
+  display: block;
+  color: #0f172a;
+  font-weight: 950;
+}
+
+.adminTableRow small {
+  display: block;
+  margin-top: 3px;
+  color: #64748b;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.adminUserCell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.miniAvatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #0f172a;
+  color: white;
+  font-weight: 950;
+  flex: 0 0 auto;
+}
+
+.adminUserCell em {
+  display: inline-flex;
+  margin-top: 5px;
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+  font-size: 11px;
+  font-weight: 950;
+  font-style: normal;
+}
+
+.adminRowActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.adminRowActions button,
+.adminImportActions button,
+.adminFormCard button,
+.adminOverviewCard button {
+  min-height: 40px;
+  border: 0;
+  border-radius: 15px;
+  padding: 0 12px;
+  background: linear-gradient(135deg, #172554, #2542ff 52%, #06b6d4);
+  color: white;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.adminRowActions .secondaryButton,
+.adminImportActions .secondaryButton,
+.adminFormCard .secondaryButton,
+.adminOverviewCard .secondaryButton {
+  background: rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+}
+
+.adminLogList {
+  display: grid;
+  gap: 10px;
+  max-height: 480px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.adminLogItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.07);
+  border-radius: 18px;
+  padding: 12px;
+  background: rgba(248, 250, 252, 0.86);
+}
+
+.adminLogItem span {
+  display: block;
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.positiveAmount {
+  color: #059669;
+}
+
+.negativeAmount {
+  color: #dc2626;
+}
+
+.adminHint {
+  margin: 10px 0 0;
+  color: #64748b;
+  font-weight: 800;
+}
+
+.upgradedAdminImportBox,
+.adminSecurityCard {
+  display: grid;
+  gap: 16px;
+}
+
+.upgradedSecurityGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.adminEmbeddedPanel .settlementPage,
+.adminEmbeddedPanel .moderationPage {
+  padding: 0;
+}
+
+@media (max-width: 860px) {
+  .adminOverviewGrid,
+  .adminTwoColumn {
+    grid-template-columns: 1fr;
+  }
+
+  .adminToolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .adminToolbarControls {
+    justify-content: stretch;
+  }
+
+  .adminToolbarControls input,
+  .adminToolbarControls select,
+  .adminToolbar input {
+    width: 100%;
+  }
+
+  .adminTableHead {
+    display: none;
+  }
+
+  .adminUsersTable .adminTableRow,
+  .adminMarketsTable .adminTableRow {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .adminRowActions button {
+    flex: 1;
+  }
+
+  .upgradedSecurityGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 540px) {
+  .adminInnerNav {
+    top: calc(var(--safe-top, 0px) + 4px);
+    border-radius: 20px;
+    padding: 6px;
+  }
+
+  .adminInnerNav button {
+    padding: 10px 12px;
+    border-radius: 16px;
+    font-size: 13px;
+  }
+
+  .adminOverviewCard,
+  .adminFormCard,
+  .adminSecurityCard,
+  .adminToolbar {
+    border-radius: 22px;
+    padding: 14px;
+  }
+
+  .adminTableRow {
+    border-radius: 20px;
+    padding: 14px;
+  }
+}
