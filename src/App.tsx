@@ -3309,25 +3309,43 @@ function App() {
     }
 
     function renderAdminInnerNav() {
-      const tabs: Array<{ id: AdminPanelTab; title: string; badge?: number | string }> = [
-        { id: "overview", title: "Обзор" },
-        { id: "users", title: "Пользователи", badge: totalUsersCount },
-        { id: "markets", title: "Рынки", badge: markets.length },
-        { id: "create", title: "Создать" },
-        { id: "suggestions", title: "Заявки", badge: pendingSuggestions.length || undefined },
-        { id: "settlement", title: "Расчёт", badge: closedMarketsCount || undefined },
-        { id: "polymarket", title: "Polymarket", badge: totalImported },
-        { id: "points", title: "Начисления" },
-        { id: "security", title: "Доступы" },
+      const tabs: Array<{ id: AdminPanelTab; title: string; shortTitle: string; icon: string; badge?: number | string }> = [
+        { id: "overview", title: "Обзор админки", shortTitle: "Обзор", icon: "◎" },
+        { id: "users", title: "Пользователи", shortTitle: "Люди", icon: "👥", badge: totalUsersCount },
+        { id: "markets", title: "Рынки", shortTitle: "Рынки", icon: "📊", badge: markets.length },
+        { id: "create", title: "Создать рынок", shortTitle: "Создать", icon: "＋" },
+        { id: "suggestions", title: "Заявки пользователей", shortTitle: "Заявки", icon: "✉️", badge: pendingSuggestions.length || undefined },
+        { id: "settlement", title: "Расчёт рынков", shortTitle: "Расчёт", icon: "⚖️", badge: closedMarketsCount || undefined },
+        { id: "polymarket", title: "Импорт Polymarket", shortTitle: "Импорт", icon: "◆", badge: totalImported },
+        { id: "points", title: "Начисления баллов", shortTitle: "Баллы", icon: "₽" },
+        { id: "security", title: "Доступы и безопасность", shortTitle: "Доступ", icon: "🔐" },
       ];
 
+      const currentTab = tabs.find((tab) => tab.id === adminTab);
+
       return (
-        <div className="adminInnerNav">
-          {tabs.map((tab) => (
-            <button key={tab.id} className={adminTab === tab.id ? "activeAdminTab" : ""} onClick={() => setAdminTab(tab.id)}>
-              {tab.title}{tab.badge ? <span>{tab.badge}</span> : null}
-            </button>
-          ))}
+        <div className="adminNavShell">
+          <label className="adminMobileNavSelect">
+            <span>Раздел админки</span>
+            <select value={adminTab} onChange={(event) => setAdminTab(event.target.value as AdminPanelTab)}>
+              {tabs.map((tab) => (
+                <option key={tab.id} value={tab.id}>
+                  {tab.title}{tab.badge ? ` · ${tab.badge}` : ""}
+                </option>
+              ))}
+            </select>
+            {currentTab ? <small>{currentTab.icon} {currentTab.title}</small> : null}
+          </label>
+
+          <div className="adminInnerNav" aria-label="Разделы админки">
+            {tabs.map((tab) => (
+              <button key={tab.id} className={adminTab === tab.id ? "activeAdminTab" : ""} onClick={() => setAdminTab(tab.id)} title={tab.title}>
+                <span className="adminNavIcon" aria-hidden="true">{tab.icon}</span>
+                <span className="adminNavText">{tab.shortTitle}</span>
+                {tab.badge ? <span className="adminNavBadge">{tab.badge}</span> : null}
+              </button>
+            ))}
+          </div>
         </div>
       );
     }
