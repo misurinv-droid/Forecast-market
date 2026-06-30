@@ -1090,6 +1090,59 @@ function App() {
       .slice(0, 4);
   }, [markets, predictions, activeUserOpenPredictions]);
 
+  const forYouMarkets = useMemo(() => {
+    const predictedMarketIds = new Set(activeUserOpenPredictions.map((prediction) => prediction.marketId));
+    const playedCategoryScores = activeUserPredictions.reduce<Record<string, number>>((acc, prediction) => {
+      const market = markets.find((item) => item.id === prediction.marketId);
+      if (!market) return acc;
+      const category = market.category || "Без категории";
+      acc[category] = (acc[category] || 0) + 1;
+      return acc;
+    }, {});
+
+    return [...markets]
+      .filter((market) => market.status === "open" && !predictedMarketIds.has(market.id))
+      .sort((a, b) => {
+        const aCategoryScore = playedCategoryScores[a.category || "Без категории"] || 0;
+        const bCategoryScore = playedCategoryScores[b.category || "Без категории"] || 0;
+        if (aCategoryScore !== bCategoryScore) return bCategoryScore - aCategoryScore;
+
+        const aPredictionCount = predictions.filter((prediction) => prediction.marketId === a.id).length;
+        const bPredictionCount = predictions.filter((prediction) => prediction.marketId === b.id).length;
+        if (aPredictionCount !== bPredictionCount) return bPredictionCount - aPredictionCount;
+
+        return Math.abs(50 - getYesProbability(a)) - Math.abs(50 - getYesProbability(b));
+      })
+      .slice(0, 5);
+  }, [markets, predictions, activeUserPredictions, activeUserOpenPredictions]);
+
+  const soonClosingMarkets = useMemo(() => {
+    const now = Date.now();
+    return [...markets]
+      .filter((market) => market.status === "open" && new Date(market.closesAt).getTime() > now)
+      .sort((a, b) => new Date(a.closesAt).getTime() - new Date(b.closesAt).getTime())
+      .slice(0, 5);
+  }, [markets]);
+
+  const newOpenMarkets = useMemo(() => {
+    return [...markets]
+      .filter((market) => market.status === "open")
+      .sort((a, b) => new Date(b.createdAt || b.closesAt || 0).getTime() - new Date(a.createdAt || a.closesAt || 0).getTime())
+      .slice(0, 5);
+  }, [markets]);
+
+  const polymarketPicks = useMemo(() => {
+    return [...markets]
+      .filter((market) => market.status === "open" && isPolymarketSource(market.source))
+      .sort((a, b) => {
+        const aPredictionCount = predictions.filter((prediction) => prediction.marketId === a.id).length;
+        const bPredictionCount = predictions.filter((prediction) => prediction.marketId === b.id).length;
+        if (aPredictionCount !== bPredictionCount) return bPredictionCount - aPredictionCount;
+        return new Date(b.createdAt || b.closesAt || 0).getTime() - new Date(a.createdAt || a.closesAt || 0).getTime();
+      })
+      .slice(0, 5);
+  }, [markets, predictions]);
+
   const categoryHubs = useMemo(() => {
     return Array.from(new Set(markets.map((market) => market.category || "Без категории")))
       .map((category) => {
@@ -2414,48 +2467,6 @@ function App() {
     );
   }
 
-  function renderFeaturedMarketTile(market: Market, index: number) {
-    const yesProbability = getYesProbability(market);
-    const marketPredictions = predictions.filter((prediction) => prediction.marketId === market.id);
-    const activePrediction = activeUserPredictions.find((prediction) => prediction.marketId === market.id && !prediction.settledAt);
-    const isImported = isPolymarketSource(market.source);
-
-    return (
-      <article className="featuredMarketTile" key={market.id}>
-        <div className="featuredTileHead">
-          <span className="tileNumber">#{index + 1}</span>
-          <span className="category">{market.category}</span>
-          {isImported && <span className="sourceBadge polymarketBadge">Polymarket</span>}
-        </div>
-        <button className="featuredQuestion" onClick={() => openMarketDetails(market.id)}>
-          {market.question}
-        </button>
-        <div className="featuredOddsRow">
-          <div>
-            <span>Да</span>
-            <strong>{yesProbability}%</strong>
-          </div>
-          <div>
-            <span>Нет</span>
-            <strong>{100 - yesProbability}%</strong>
-          </div>
-        </div>
-        {renderMarketSignal(market)}
-        <div className="featuredTileFoot">
-          <span>{marketPredictions.length} прогнозов</span>
-          <span>{getMarketCloseLabel(market)}</span>
-        </div>
-        {activePrediction ? (
-          <div className="featuredMyPosition">Ты выбрал {getOutcomeText(activePrediction.outcome)} · {activePrediction.amount.toLocaleString("ru-RU")} б.</div>
-        ) : (
-          <div className="featuredActions">
-            <button onClick={() => openMarketDetails(market.id)}>Сделать прогноз</button>
-            <button className="secondaryButton" onClick={() => void shareMarket(market)}>Поделиться</button>
-          </div>
-        )}
-      </article>
-    );
-  }
 
   function renderCategoryHub(group: { category: string; markets: Market[]; openCount: number; importedCount: number }, index: number) {
     const visibleMarkets = group.markets.slice(0, 4);
@@ -2489,6 +2500,37 @@ function App() {
           )}
         </div>
       </details>
+    );
+  }
+
+
+  function renderGameShelf(
+    title: string,
+    subtitle: string,
+    icon: string,
+    marketsToRender: Market[],
+    actionLabel: string,
+    onAction: () => void,
+    accent: "hot" | "soon" | "forYou" | "poly" | "new" = "hot",
+  ) {
+    if (marketsToRender.length === 0) return null;
+
+    return (
+      <section className={`gameShelf gameShelf-${accent}`}>
+        <div className="gameShelfHeader">
+          <div>
+            <span className="gameShelfIcon">{icon}</span>
+            <div>
+              <h2>{title}</h2>
+              <p>{subtitle}</p>
+            </div>
+          </div>
+          <button onClick={onAction}>{actionLabel}</button>
+        </div>
+        <div className="gameShelfList">
+          {marketsToRender.map((market) => renderMarketMiniRow(market, "compact"))}
+        </div>
+      </section>
     );
   }
 
@@ -2639,11 +2681,13 @@ function App() {
 
   function renderHomePage() {
     const topLeaderboard = leaderboard.slice(0, isTelegram ? 3 : 5);
-    const visiblePopularMarkets = popularMarkets.length > 0 ? popularMarkets : feedMarkets.slice(0, 6);
     const quickPredictions = activeUserOpenPredictions.slice(0, 3);
+    const hotMarkets = popularMarkets.length > 0 ? popularMarkets.slice(0, 4) : feedMarkets.filter((market) => market.status === "open").slice(0, 4);
+    const playNowMarkets = forYouMarkets.length > 0 ? forYouMarkets : recommendedMarkets;
+    const heroMarket = hotMarkets[0];
 
     return (
-      <section className="discoveryPage">
+      <section className="discoveryPage gameHomePage">
         {isAdmin && (
           <section className="adminHomeShortcut">
             <div>
@@ -2654,17 +2698,36 @@ function App() {
           </section>
         )}
 
-        <section className="discoveryHeroGrid">
-          <div className="discoveryHeroCard">
-            <p className="eyebrow">Главная лента</p>
-            <h2>Выбирай не из простыни, а из понятных подборок</h2>
-            <p>Сначала показываем популярные рынки и твои активные прогнозы. Остальные события спрятаны по категориям.</p>
-            <div className="discoveryHeroActions">
+        <section className="gameHomeHero">
+          <div className="gameHomeHeroText">
+            <span className="playBadge">🎮 Игровая лента</span>
+            <h2>Выбирай рынок по настроению</h2>
+            <p>Сначала показываем самые живые события, рынки для тебя и то, что скоро закроется. Всё остальное — в категориях и поиске.</p>
+            <div className="gameHomeActions">
               <button onClick={() => setMainView("search")}>Найти рынок</button>
-              <button className="secondaryButton" onClick={() => setMainView("imported")}>Polymarket</button>
+              <button className="secondaryButton" onClick={() => setMainView("tournament")}>Турнир недели</button>
             </div>
           </div>
 
+          {heroMarket ? (
+            <article className="heroPlayCard">
+              <div className="heroPlayTop">
+                <span>🔥 Горячий рынок</span>
+                <b>{getYesProbability(heroMarket)}% Да</b>
+              </div>
+              <button onClick={() => openMarketDetails(heroMarket.id)}>{heroMarket.question}</button>
+              {renderMarketSignal(heroMarket)}
+              <div className="heroPlayFooter">
+                <span>{heroMarket.category}</span>
+                <span>{getMarketCloseLabel(heroMarket)}</span>
+              </div>
+            </article>
+          ) : (
+            renderDailyBonusCard("home")
+          )}
+        </section>
+
+        <section className="gameQuickGrid">
           {renderDailyBonusCard("home")}
 
           <div className="quickPanel quickPanelPredictions">
@@ -2675,7 +2738,7 @@ function App() {
             {quickPredictions.length === 0 ? (
               <div className="miniEmptyState">
                 <strong>Активных прогнозов нет</strong>
-                <p>Открой популярный рынок и проверь интуицию.</p>
+                <p>Открой горячий рынок и проверь интуицию.</p>
               </div>
             ) : (
               <div className="quickPredictionStack">
@@ -2716,7 +2779,7 @@ function App() {
           </div>
         </section>
 
-        <section className="marketDashboardStrip redesignedDashboardStrip">
+        <section className="marketDashboardStrip redesignedDashboardStrip gameStatsStrip">
           <div><span>Открыто</span><strong>{openMarketsCount}</strong></div>
           <div><span>Ждут расчёта</span><strong>{closedMarketsCount}</strong></div>
           <div><span>Событий</span><strong>{markets.length}</strong></div>
@@ -2724,43 +2787,69 @@ function App() {
           <button onClick={() => setMainView("suggest")}>Предложить рынок</button>
         </section>
 
-        <section className="popularSection">
-          <div className="sectionHeader discoverySectionHeader">
-            <div>
-              <h2>Популярные сейчас</h2>
-              <p>Самые активные и свежие рынки — чтобы быстро войти в игру.</p>
-            </div>
-            <button onClick={() => setMainView("search")}>Расширенный поиск</button>
-          </div>
-          {visiblePopularMarkets.length === 0 ? (
-            <div className="empty">Открытых рынков пока нет.</div>
-          ) : (
-            <div className="featuredMarketRail">
-              {visiblePopularMarkets.map((market, index) => renderFeaturedMarketTile(market, index))}
-            </div>
+        <section className="gameFeedStack">
+          {renderGameShelf(
+            "Горячие рынки",
+            "Где уже есть движение, прогнозы и интерес",
+            "🔥",
+            hotMarkets,
+            "Все рынки",
+            () => setMainView("search"),
+            "hot",
+          )}
+
+          {renderGameShelf(
+            "Для тебя",
+            "События, где у тебя ещё нет прогноза",
+            "🎯",
+            playNowMarkets,
+            "Подобрать ещё",
+            () => setMainView("search"),
+            "forYou",
+          )}
+
+          {renderGameShelf(
+            "Закрываются скоро",
+            "Успей сделать прогноз до остановки рынка",
+            "⏳",
+            soonClosingMarkets,
+            "Смотреть",
+            () => {
+              setStatusFilter("open");
+              setSortMode("newest");
+              setMainView("search");
+            },
+            "soon",
+          )}
+
+          {renderGameShelf(
+            "Polymarket для фана",
+            "Импортированные события без реальных денег",
+            "🌍",
+            polymarketPicks,
+            "Открыть Polymarket",
+            () => setMainView("imported"),
+            "poly",
+          )}
+
+          {renderGameShelf(
+            "Новые рынки",
+            "Свежие события, которые только появились",
+            "✨",
+            newOpenMarkets,
+            "Все новые",
+            () => setMainView("search"),
+            "new",
           )}
         </section>
 
-        {recommendedMarkets.length > 0 && (
-          <section className="recommendedSection">
-            <div className="sectionHeader discoverySectionHeader">
-              <div>
-                <h2>Можно попробовать</h2>
-                <p>Открытые рынки, где у тебя ещё нет активного прогноза.</p>
-              </div>
-            </div>
-            <div className="miniMarketGrid">
-              {recommendedMarkets.map((market) => renderMarketMiniRow(market, "compact"))}
-            </div>
-          </section>
-        )}
-
-        <section className="categoryHubSection">
+        <section className="categoryHubSection gameCategoryHubSection">
           <div className="sectionHeader discoverySectionHeader">
             <div>
-              <h2>Категории</h2>
-              <p>Открой нужную тему, не пролистывая весь список рынков.</p>
+              <h2>Все категории</h2>
+              <p>Когда хочешь выбрать тему сам: политика, спорт, технологии, крипта и другое.</p>
             </div>
+            <button onClick={() => setMainView("search")}>Поиск по всем</button>
           </div>
           {categoryHubs.length === 0 ? (
             <div className="empty">Категорий пока нет.</div>

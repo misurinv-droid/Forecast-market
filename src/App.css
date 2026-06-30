@@ -8856,3 +8856,352 @@ button:disabled,
     font-size: 0.56rem !important;
   }
 }
+
+
+/* Game-first market discovery redesign */
+.gameHomePage {
+  display: grid;
+  gap: 18px;
+}
+
+.gameHomeHero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.gameHomeHeroText,
+.heroPlayCard,
+.gameShelf,
+.gameStatsStrip {
+  border: 1px solid rgba(255, 255, 255, 0.76);
+  background:
+    radial-gradient(circle at 10% 10%, rgba(37, 99, 235, 0.13), transparent 34%),
+    radial-gradient(circle at 88% 16%, rgba(20, 184, 166, 0.17), transparent 35%),
+    rgba(255, 255, 255, 0.78);
+  box-shadow: 0 18px 54px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(16px);
+}
+
+.gameHomeHeroText {
+  padding: 24px;
+  border-radius: 30px;
+  overflow: hidden;
+}
+
+.playBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(209, 250, 229, 0.86);
+  color: #0f766e;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.gameHomeHeroText h2 {
+  margin: 14px 0 8px;
+  color: #07132d;
+  font-size: clamp(1.55rem, 3vw, 2.55rem);
+  line-height: 1.03;
+  letter-spacing: -0.04em;
+}
+
+.gameHomeHeroText p {
+  margin: 0;
+  max-width: 680px;
+  color: #64748b;
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.gameHomeActions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+
+.gameHomeActions button,
+.gameShelfHeader button {
+  border: 0;
+  border-radius: 16px;
+  padding: 12px 16px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #162bdc, #07a9cf);
+  font-weight: 900;
+  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.18);
+}
+
+.gameHomeActions .secondaryButton {
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  box-shadow: none;
+}
+
+.heroPlayCard {
+  display: grid;
+  gap: 13px;
+  padding: 20px;
+  border-radius: 30px;
+}
+
+.heroPlayTop,
+.heroPlayFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.heroPlayTop span {
+  display: inline-flex;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(255, 237, 213, 0.92);
+  color: #c2410c;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.heroPlayTop b {
+  color: #059669;
+  font-size: 1.2rem;
+}
+
+.heroPlayCard > button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #0f172a;
+  text-align: left;
+  font-size: 1.18rem;
+  line-height: 1.24;
+  font-weight: 900;
+}
+
+.heroPlayFooter {
+  color: #64748b;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.gameQuickGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 0.85fr) minmax(0, 0.85fr);
+  gap: 14px;
+}
+
+.gameStatsStrip {
+  margin: 0;
+}
+
+.gameFeedStack {
+  display: grid;
+  gap: 16px;
+}
+
+.gameShelf {
+  border-radius: 30px;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.gameShelfHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.gameShelfHeader > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.gameShelfIcon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(20, 184, 166, 0.15));
+  font-size: 1.25rem;
+}
+
+.gameShelfHeader h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1.25rem;
+  letter-spacing: -0.02em;
+}
+
+.gameShelfHeader p {
+  margin: 3px 0 0;
+  color: #64748b;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.gameShelfList {
+  display: grid;
+  gap: 10px;
+}
+
+.gameShelf-hot {
+  background:
+    radial-gradient(circle at 10% 0%, rgba(249, 115, 22, 0.10), transparent 30%),
+    rgba(255, 255, 255, 0.82);
+}
+
+.gameShelf-soon {
+  background:
+    radial-gradient(circle at 10% 0%, rgba(245, 158, 11, 0.11), transparent 30%),
+    rgba(255, 255, 255, 0.82);
+}
+
+.gameShelf-forYou {
+  background:
+    radial-gradient(circle at 10% 0%, rgba(37, 99, 235, 0.11), transparent 30%),
+    rgba(255, 255, 255, 0.82);
+}
+
+.gameShelf-poly {
+  background:
+    radial-gradient(circle at 10% 0%, rgba(20, 184, 166, 0.13), transparent 30%),
+    rgba(255, 255, 255, 0.82);
+}
+
+.gameShelf-new {
+  background:
+    radial-gradient(circle at 10% 0%, rgba(168, 85, 247, 0.10), transparent 30%),
+    rgba(255, 255, 255, 0.82);
+}
+
+.gameCategoryHubSection {
+  margin-top: 0;
+}
+
+.telegramApp .gameHomePage {
+  gap: 12px;
+}
+
+.telegramApp .gameHomeHero {
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.telegramApp .gameHomeHeroText {
+  padding: 16px;
+  border-radius: 24px;
+}
+
+.telegramApp .gameHomeHeroText h2 {
+  font-size: 1.45rem;
+}
+
+.telegramApp .gameHomeHeroText p {
+  font-size: 0.86rem;
+}
+
+.telegramApp .playBadge {
+  font-size: 0.68rem;
+  padding: 6px 8px;
+}
+
+.telegramApp .gameHomeActions {
+  margin-top: 14px;
+}
+
+.telegramApp .gameHomeActions button {
+  flex: 1;
+  padding: 11px 12px;
+  font-size: 0.82rem;
+}
+
+.telegramApp .heroPlayCard {
+  padding: 15px;
+  border-radius: 24px;
+  gap: 10px;
+}
+
+.telegramApp .heroPlayCard > button {
+  font-size: 1rem;
+}
+
+.telegramApp .heroPlayTop b {
+  font-size: 1rem;
+}
+
+.telegramApp .gameQuickGrid {
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.telegramApp .gameShelf {
+  padding: 13px;
+  border-radius: 24px;
+}
+
+.telegramApp .gameShelfHeader {
+  align-items: stretch;
+  margin-bottom: 10px;
+}
+
+.telegramApp .gameShelfHeader h2 {
+  font-size: 1.05rem;
+}
+
+.telegramApp .gameShelfHeader p {
+  font-size: 0.76rem;
+}
+
+.telegramApp .gameShelfIcon {
+  width: 38px;
+  height: 38px;
+  border-radius: 14px;
+}
+
+.telegramApp .gameShelfHeader button {
+  align-self: center;
+  padding: 9px 10px;
+  border-radius: 13px;
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+
+.telegramApp .gameShelfList {
+  gap: 8px;
+}
+
+.telegramApp .marketMiniRowCompact {
+  border-radius: 18px;
+}
+
+@media (max-width: 980px) {
+  .gameHomeHero,
+  .gameQuickGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .gameShelfHeader {
+    display: grid;
+    grid-template-columns: 1fr auto;
+  }
+
+  .gameShelfHeader > div {
+    align-items: flex-start;
+  }
+}
