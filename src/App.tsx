@@ -564,10 +564,23 @@ async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
   });
 
   const text = await response.text();
-  const data = text ? JSON.parse(text) : null;
+  let data: unknown = null;
+
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      const isHtml = text.trim().startsWith("<");
+      const message = isHtml
+        ? "Сервер вернул HTML вместо JSON. Скорее всего backend ещё не задеплоен или упал с ошибкой. Проверь Render Logs."
+        : `Сервер вернул некорректный ответ: ${text.slice(0, 180)}`;
+      throw new Error(message);
+    }
+  }
 
   if (!response.ok) {
-    throw new Error(data?.error || "Ошибка запроса к серверу");
+    const errorMessage = typeof data === "object" && data && "error" in data ? String((data as { error?: unknown }).error) : "Ошибка запроса к серверу";
+    throw new Error(errorMessage);
   }
 
   return data as T;

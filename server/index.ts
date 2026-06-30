@@ -2554,7 +2554,8 @@ app.post("/api/markets/:marketId/predictions", async (request, response) => {
   const marketId = request.params.marketId;
   const userId = String(request.body?.userId || "");
   const outcome = normalizeOutcome(request.body?.outcome);
-  const amount = Number(request.body?.amount);
+  const rawAmount = Number(request.body?.amount);
+  const amount = Math.floor(rawAmount);
 
   if (!userId) {
     response.status(400).json({ error: "Не передан userId" });
