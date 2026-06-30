@@ -19,6 +19,10 @@ type DemoUser = {
   dailyBonusStreak?: number;
   bestDailyBonusStreak?: number;
   lastDailyBonusAmount?: number;
+  telegramNotifySettlement?: boolean;
+  telegramNotifyBonus?: boolean;
+  telegramNotifyClosing?: boolean;
+  telegramNotifyAdmin?: boolean;
 };
 
 type Market = {
@@ -579,6 +583,10 @@ function toUser(row: any): DemoUser {
     dailyBonusStreak: Number(row.daily_bonus_streak || 0),
     bestDailyBonusStreak: Number(row.best_daily_bonus_streak || 0),
     lastDailyBonusAmount: row.last_daily_bonus_amount ? Number(row.last_daily_bonus_amount) : undefined,
+    telegramNotifySettlement: row.telegram_notify_settlement !== false,
+    telegramNotifyBonus: row.telegram_notify_bonus !== false,
+    telegramNotifyClosing: row.telegram_notify_closing !== false,
+    telegramNotifyAdmin: row.telegram_notify_admin !== false,
   };
 }
 
@@ -1072,7 +1080,7 @@ async function sendSettlementNotifications(market: Market, outcome: Outcome, pay
   if (userIds.length === 0) return;
 
   const usersResult = await pool.query(
-    `SELECT id, name, balance FROM users WHERE id = ANY($1::text[])`,
+    `SELECT * FROM users WHERE id = ANY($1::text[])`,
     [userIds]
   );
 
@@ -1083,6 +1091,8 @@ async function sendSettlementNotifications(market: Market, outcome: Outcome, pay
     userIds.map(async (userId) => {
       const payout = payoutsByUser[userId] || 0;
       const user = usersById.get(userId);
+      if (user?.telegramNotifySettlement === false) return;
+
       const isWinner = payout > 0;
       const userName = user?.name || "участник";
       const balanceText = user ? `\nБаланс: <b>${user.balance.toLocaleString("ru-RU")} баллов</b>` : "";
@@ -1128,9 +1138,11 @@ async function sendClosingTodayReminders() {
         SELECT DISTINCT p.user_id, m.id AS market_id, m.question, m.closes_at
         FROM predictions p
         JOIN markets m ON m.id = p.market_id
+        JOIN users u ON u.id = p.user_id
         WHERE m.status = 'open'
           AND m.closes_at = CURRENT_DATE::TEXT
           AND p.settled_at IS NULL
+          AND u.telegram_notify_closing IS NOT FALSE
         LIMIT 100
       `
     );
@@ -1161,6 +1173,7 @@ async function sendDailyBonusReadyReminders() {
         SELECT id, name, balance, last_daily_bonus_at
         FROM users
         WHERE id LIKE 'telegram-%'
+          AND telegram_notify_bonus IS NOT FALSE
           AND (
             last_daily_bonus_at IS NULL
             OR last_daily_bonus_at <= NOW() - INTERVAL '24 hours'
@@ -1210,6 +1223,9 @@ async function sendAdminTaskReminders() {
 
     for (const telegramId of ADMIN_TELEGRAM_IDS) {
       const userId = `telegram-${telegramId}`;
+      const adminPreference = await pool.query("SELECT telegram_notify_admin FROM users WHERE id = $1", [userId]);
+      if (adminPreference.rows[0]?.telegram_notify_admin === false) continue;
+
       const inserted = await rememberNotificationEvent(pool, "admin_tasks", userId, null, notificationKey);
       if (!inserted) continue;
 
@@ -1731,7 +1747,11 @@ async function migrate() {
       last_daily_bonus_at TIMESTAMPTZ,
       daily_bonus_streak INTEGER NOT NULL DEFAULT 0,
       best_daily_bonus_streak INTEGER NOT NULL DEFAULT 0,
-      last_daily_bonus_amount INTEGER
+      last_daily_bonus_amount INTEGER,
+      telegram_notify_settlement BOOLEAN NOT NULL DEFAULT TRUE,
+      telegram_notify_bonus BOOLEAN NOT NULL DEFAULT TRUE,
+      telegram_notify_closing BOOLEAN NOT NULL DEFAULT TRUE,
+      telegram_notify_admin BOOLEAN NOT NULL DEFAULT TRUE
     );
 
     CREATE TABLE IF NOT EXISTS markets (
@@ -1870,6 +1890,10 @@ async function migrate() {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_bonus_streak INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS best_daily_bonus_streak INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS last_daily_bonus_amount INTEGER;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_notify_settlement BOOLEAN NOT NULL DEFAULT TRUE;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_notify_bonus BOOLEAN NOT NULL DEFAULT TRUE;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_notify_closing BOOLEAN NOT NULL DEFAULT TRUE;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_notify_admin BOOLEAN NOT NULL DEFAULT TRUE;
   `);
 }
 
@@ -2136,6 +2160,45 @@ app.post("/api/telegram/test-notification", async (request, response) => {
   }
 
   response.json({ ok: true });
+});
+
+app.patch("/api/users/:userId/telegram-notifications", async (request, response) => {
+  const userId = String(request.params.userId || "").trim();
+
+  if (!userId) {
+    response.status(400).json({ error: "Не указан пользователь" });
+    return;
+  }
+
+  if (!(await assertRequestMatchesUser(request, response, userId))) return;
+
+  const body = request.body || {};
+  const settlementEnabled = body.settlementEnabled !== false;
+  const bonusEnabled = body.bonusEnabled !== false;
+  const closingEnabled = body.closingEnabled !== false;
+  const adminEnabled = body.adminEnabled !== false;
+
+  const result = await pool.query(
+    `
+      UPDATE users
+      SET telegram_notify_settlement = $2,
+          telegram_notify_bonus = $3,
+          telegram_notify_closing = $4,
+          telegram_notify_admin = $5
+      WHERE id = $1
+      RETURNING *
+    `,
+    [userId, settlementEnabled, bonusEnabled, closingEnabled, adminEnabled]
+  );
+
+  const user = result.rows[0];
+
+  if (!user) {
+    response.status(404).json({ error: "Пользователь не найден" });
+    return;
+  }
+
+  response.json({ user: toUser(user) });
 });
 
 app.get("/api/bootstrap", async (_request, response) => {

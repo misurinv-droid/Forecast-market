@@ -26,6 +26,10 @@ type DemoUser = {
   dailyBonusStreak?: number;
   bestDailyBonusStreak?: number;
   lastDailyBonusAmount?: number;
+  telegramNotifySettlement?: boolean;
+  telegramNotifyBonus?: boolean;
+  telegramNotifyClosing?: boolean;
+  telegramNotifyAdmin?: boolean;
 };
 
 type TelegramAuthResponse = {
@@ -904,6 +908,7 @@ function App() {
   });
   const [isDailyBonusClaiming, setIsDailyBonusClaiming] = useState(false);
   const [isTestingTelegramNotification, setIsTestingTelegramNotification] = useState(false);
+  const [isSavingTelegramNotificationPrefs, setIsSavingTelegramNotificationPrefs] = useState(false);
   const [isRulesOpen, setIsRulesOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(() => {
     try {
@@ -1822,6 +1827,43 @@ function App() {
       alert(getErrorMessage(error));
     } finally {
       setIsTestingTelegramNotification(false);
+    }
+  }
+
+  async function updateTelegramNotificationPreference(
+    key: "settlement" | "bonus" | "closing" | "admin",
+    value: boolean,
+  ) {
+    if (!requireSafeSession() || !activeUser) return;
+
+    const currentPrefs = {
+      settlementEnabled: activeUser.telegramNotifySettlement !== false,
+      bonusEnabled: activeUser.telegramNotifyBonus !== false,
+      closingEnabled: activeUser.telegramNotifyClosing !== false,
+      adminEnabled: activeUser.telegramNotifyAdmin !== false,
+    };
+
+    const nextPrefs = {
+      ...currentPrefs,
+      [`${key}Enabled`]: value,
+    };
+
+    try {
+      setIsSavingTelegramNotificationPrefs(true);
+      const result = await apiRequest<{ user: DemoUser }>(`/users/${activeUser.id}/telegram-notifications`, {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify(nextPrefs),
+      });
+
+      setUsers((currentUsers) => currentUsers.map((user) => user.id === result.user.id ? result.user : user));
+      sendSuccess();
+      showToast("Настройки уведомлений сохранены");
+    } catch (error) {
+      sendError();
+      alert(getErrorMessage(error));
+    } finally {
+      setIsSavingTelegramNotificationPrefs(false);
     }
   }
 
@@ -4781,6 +4823,52 @@ function App() {
         ? "Нужно перезапустить Mini App"
         : "Открой через Telegram";
 
+    const notificationPrefs = {
+      settlement: activeUser?.telegramNotifySettlement !== false,
+      bonus: activeUser?.telegramNotifyBonus !== false,
+      closing: activeUser?.telegramNotifyClosing !== false,
+      admin: activeUser?.telegramNotifyAdmin !== false,
+    };
+
+    const notificationToggles: Array<{
+      key: "settlement" | "bonus" | "closing" | "admin";
+      icon: string;
+      title: string;
+      text: string;
+      enabled: boolean;
+      adminOnly?: boolean;
+    }> = [
+      {
+        key: "settlement",
+        icon: "🎯",
+        title: "Результаты прогнозов",
+        text: "Бот напишет, когда рынок рассчитан и прогноз сыграл или не сыграл.",
+        enabled: notificationPrefs.settlement,
+      },
+      {
+        key: "bonus",
+        icon: "🎁",
+        title: "Ежедневный бонус",
+        text: "Напоминание, когда можно забрать новый бонус и продолжить серию.",
+        enabled: notificationPrefs.bonus,
+      },
+      {
+        key: "closing",
+        icon: "⏳",
+        title: "Рынок закрывается",
+        text: "Напоминание по рынкам, где у тебя есть активный прогноз.",
+        enabled: notificationPrefs.closing,
+      },
+      {
+        key: "admin",
+        icon: "⚙️",
+        title: "Админские задачи",
+        text: "Заявки на рынки и рынки, которые ждут расчёта.",
+        enabled: notificationPrefs.admin,
+        adminOnly: true,
+      },
+    ];
+
     return (
       <article className="profileCard telegramNotificationCard">
         <div className="notificationCardGlow" aria-hidden="true" />
@@ -4795,15 +4883,29 @@ function App() {
         </div>
 
         <p>
-          Бот будет присылать важные игровые события: рассчитан прогноз, рынок скоро закрывается,
-          ежедневный бонус готов, а для админа — заявки и рынки на расчёт.
+          Выбери, какие уведомления присылать в Telegram. Настройки сохраняются на backend и
+          учитываются при автоматической рассылке.
         </p>
 
-        <div className="notificationFeatureGrid">
-          <div><span>🎯</span><strong>Результаты</strong><small>выиграл / проиграл</small></div>
-          <div><span>🎁</span><strong>Бонус</strong><small>можно забрать</small></div>
-          <div><span>⏳</span><strong>Дедлайны</strong><small>рынок закрывается</small></div>
-          <div><span>⚙️</span><strong>Админка</strong><small>задачи модерации</small></div>
+        <div className="notificationToggleList">
+          {notificationToggles
+            .filter((item) => !item.adminOnly || isAdmin)
+            .map((item) => (
+              <label className="notificationToggleItem" key={item.key}>
+                <span className="notificationToggleIcon">{item.icon}</span>
+                <span>
+                  <strong>{item.title}</strong>
+                  <small>{item.text}</small>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={item.enabled}
+                  disabled={!hasSafeSession || isSavingTelegramNotificationPrefs}
+                  onChange={(event) => void updateTelegramNotificationPreference(item.key, event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
+            ))}
         </div>
 
         <div className="notificationActionRow">
@@ -4817,7 +4919,7 @@ function App() {
 
         {!hasSafeSession && (
           <small className="notificationHint">
-            Для теста уведомления открой приложение именно через Telegram Mini App.
+            Для теста уведомления и изменения настроек открой приложение именно через Telegram Mini App.
           </small>
         )}
       </article>
