@@ -1809,6 +1809,8 @@ app.get("/api/health", async (_request, response) => {
     referralRewardAmount: REFERRAL_REWARD_AMOUNT,
     referralWelcomeAmount: REFERRAL_WELCOME_AMOUNT,
     referralSystemEnabled: true,
+    weeklyTournamentEnabled: true,
+    manualPointsEnabled: true,
     strictTelegramUserActions: true,
     publicUserCreationDisabled: true,
     polymarketAutoImportEnabled: POLYMARKET_AUTO_IMPORT_ENABLED,
@@ -1980,6 +1982,69 @@ app.get("/api/polymarket/import-status", async (_request, response) => {
     lastImportedCount: lastImportedCount ? Number(lastImportedCount) : 0,
     lastCheckedAt: lastCheckedAt ? Number(lastCheckedAt) : 0,
   });
+});
+
+
+app.post("/api/admin/users/:userId/points", async (request, response) => {
+  if (!(await requireAdmin(request, response))) return;
+
+  const userId = String(request.params.userId || "").trim();
+  const rawAmount = Number(request.body?.amount);
+  const amount = Math.floor(rawAmount);
+  const description = String(request.body?.description || "Ручная корректировка баланса").trim().slice(0, 300);
+
+  if (!userId) {
+    response.status(400).json({ error: "Не указан пользователь" });
+    return;
+  }
+
+  if (!Number.isFinite(amount) || amount === 0) {
+    response.status(400).json({ error: "Введите корректную сумму. Можно положительную или отрицательную." });
+    return;
+  }
+
+  const integerAmount = Math.trunc(amount);
+
+  try {
+    const result = await withTransaction(async (client) => {
+      const userResult = await client.query("SELECT * FROM users WHERE id = $1 FOR UPDATE", [userId]);
+      const userRow = userResult.rows[0];
+
+      if (!userRow) {
+        return { error: "Пользователь не найден" } as const;
+      }
+
+      const currentBalance = Number(userRow.balance || 0);
+      if (currentBalance + integerAmount < 0) {
+        return { error: "Нельзя списать больше баллов, чем есть у пользователя" } as const;
+      }
+
+      const updatedUserResult = await client.query(
+        "UPDATE users SET balance = balance + $2 WHERE id = $1 RETURNING *",
+        [userId, integerAmount]
+      );
+
+      const transaction = await addBalanceTransaction(client, {
+        userId,
+        type: "system",
+        title: integerAmount > 0 ? "Ручное начисление баллов" : "Ручное списание баллов",
+        description: description || "Ручная корректировка баланса администратором",
+        amount: integerAmount,
+      });
+
+      return { user: toUser(updatedUserResult.rows[0]), transaction };
+    });
+
+    if (!result || "error" in result) {
+      response.status(400).json({ error: result?.error || "Не удалось изменить баланс" });
+      return;
+    }
+
+    response.json(result);
+  } catch (error) {
+    console.error("manual points failed", error);
+    response.status(500).json({ error: "Не удалось изменить баланс пользователя" });
+  }
 });
 
 app.post("/api/polymarket/import", async (request, response) => {
@@ -2503,7 +2568,7 @@ app.post("/api/markets/:marketId/predictions", async (request, response) => {
     return;
   }
 
-  if (!Number.isFinite(amount) || amount <= 0) {
+  if (!Number.isFinite(rawAmount) || amount <= 0) {
     response.status(400).json({ error: "Введите корректную сумму" });
     return;
   }

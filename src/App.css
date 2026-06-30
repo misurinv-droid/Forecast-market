@@ -7418,3 +7418,269 @@ button:disabled,
     padding: 9px;
   }
 }
+
+
+/* Weekly tournament and manual admin points */
+.quickPanelTournament .weeklyMiniCard,
+.tournamentUserCard,
+.tournamentPeriodCard,
+.tournamentTableCard,
+.podiumCard {
+  border: 1px solid rgba(24, 42, 82, 0.08);
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 16px 42px rgba(20, 37, 72, 0.08);
+}
+
+.weeklyMiniCard {
+  border-radius: 22px;
+  padding: 16px;
+  background: linear-gradient(135deg, rgba(33, 47, 197, 0.08), rgba(15, 184, 154, 0.1));
+}
+
+.weeklyMiniCard strong {
+  display: block;
+  font-size: 20px;
+  color: #09142f;
+}
+
+.weeklyMiniCard p,
+.weeklyMiniCard span {
+  margin: 6px 0 0;
+  color: #6a7285;
+  font-weight: 700;
+}
+
+.tournamentPage {
+  gap: 18px;
+}
+
+.tournamentHero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(240px, 0.5fr);
+  gap: 18px;
+  align-items: stretch;
+  padding: 24px;
+  border-radius: 30px;
+  background: radial-gradient(circle at 10% 20%, rgba(40, 93, 255, 0.14), transparent 36%), linear-gradient(135deg, #ffffff, #f2f8ff);
+  border: 1px solid rgba(24, 42, 82, 0.08);
+}
+
+.tournamentHero h2 {
+  margin: 4px 0 8px;
+  font-size: clamp(26px, 4vw, 42px);
+  letter-spacing: -0.04em;
+}
+
+.tournamentHero p {
+  margin: 0;
+  color: #667085;
+  font-weight: 650;
+  line-height: 1.5;
+}
+
+.tournamentPeriodCard,
+.tournamentUserCard {
+  border-radius: 26px;
+  padding: 20px;
+}
+
+.tournamentPeriodCard span,
+.tournamentUserCard span,
+.tournamentScore span,
+.tournamentName span {
+  color: #667085;
+  font-weight: 750;
+}
+
+.tournamentPeriodCard strong,
+.tournamentUserCard strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 28px;
+  color: #061226;
+}
+
+.tournamentUserCard {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  background: linear-gradient(135deg, rgba(255,255,255,.9), rgba(231, 250, 246, .78));
+}
+
+.tournamentGap {
+  border-radius: 999px;
+  padding: 12px 16px;
+  background: #eef4ff;
+  color: #233b8f;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.tournamentGap.success {
+  background: #e9fbf3;
+  color: #087f5b;
+}
+
+.podiumGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.podiumCard {
+  border-radius: 28px;
+  padding: 20px;
+  overflow: hidden;
+  position: relative;
+}
+
+.podiumCard::after {
+  content: "";
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  right: -40px;
+  top: -40px;
+  border-radius: 50%;
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.podiumMedal {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: #081226;
+  color: white;
+  font-weight: 950;
+}
+
+.podiumCard h3 {
+  margin: 16px 0 6px;
+  font-size: 20px;
+}
+
+.podiumCard strong {
+  font-size: 30px;
+  color: #0a9b74;
+}
+
+.podiumCard p {
+  margin: 6px 0 0;
+  color: #667085;
+  font-weight: 750;
+}
+
+.podiumPlace1 {
+  background: linear-gradient(135deg, #fff8dd, #ffffff);
+}
+
+.podiumPlace2 {
+  background: linear-gradient(135deg, #eef4ff, #ffffff);
+}
+
+.podiumPlace3 {
+  background: linear-gradient(135deg, #fff0e7, #ffffff);
+}
+
+.activePodiumCard,
+.activeTournamentRow {
+  outline: 2px solid rgba(38, 85, 255, 0.25);
+}
+
+.tournamentTableCard {
+  border-radius: 28px;
+  padding: 20px;
+}
+
+.tournamentRows {
+  display: grid;
+  gap: 10px;
+}
+
+.tournamentRow {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 20px;
+  background: #f8fafc;
+  border: 1px solid rgba(16, 24, 40, 0.05);
+}
+
+.tournamentRank {
+  width: 44px;
+  height: 44px;
+  border-radius: 15px;
+  display: grid;
+  place-items: center;
+  background: #081226;
+  color: white;
+  font-weight: 950;
+}
+
+.tournamentName strong,
+.tournamentScore strong {
+  display: block;
+  color: #101828;
+}
+
+.tournamentScore {
+  text-align: right;
+}
+
+.stakeAmountInput {
+  font-size: 22px !important;
+  font-weight: 900 !important;
+  color: #0b1220 !important;
+  -webkit-text-fill-color: #0b1220;
+}
+
+.manualPointsForm select,
+.manualPointsForm input {
+  min-height: 48px;
+}
+
+@media (max-width: 760px) {
+  .tournamentHero,
+  .tournamentUserCard,
+  .podiumGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .tournamentHero,
+  .tournamentTableCard,
+  .tournamentUserCard {
+    padding: 16px;
+    border-radius: 24px;
+  }
+
+  .tournamentUserCard {
+    display: grid;
+  }
+
+  .tournamentPeriodCard strong,
+  .tournamentUserCard strong {
+    font-size: 24px;
+  }
+
+  .tournamentRow {
+    grid-template-columns: 44px minmax(0, 1fr);
+  }
+
+  .tournamentScore {
+    grid-column: 2;
+    text-align: left;
+  }
+
+  .podiumCard {
+    padding: 16px;
+  }
+
+  .stakeAmountInput {
+    font-size: 20px !important;
+  }
+}

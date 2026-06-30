@@ -6,7 +6,7 @@ type MarketStatus = "open" | "closed" | "resolved";
 type SuggestionStatus = "pending" | "approved" | "rejected";
 type SortMode = "newest" | "probability" | "trades" | "comments";
 type DetailsTab = "overview" | "trades" | "participants" | "chat";
-type MainView = "markets" | "imported" | "search" | "predictions" | "suggest" | "admin" | "moderation" | "settlement" | "profile";
+type MainView = "markets" | "imported" | "search" | "predictions" | "tournament" | "suggest" | "admin" | "moderation" | "settlement" | "profile";
 type MyPredictionTab = "active" | "settled" | "won" | "lost" | "all";
 
 type DemoUser = {
@@ -383,6 +383,15 @@ type Achievement = {
   progress: number;
 };
 
+type WeeklyStanding = {
+  user: DemoUser;
+  score: number;
+  spent: number;
+  payouts: number;
+  predictionsCount: number;
+  wins: number;
+};
+
 function makeAchievement(id: string, emoji: string, title: string, description: string, progress: number): Achievement {
   return {
     id,
@@ -439,6 +448,63 @@ function estimatePredictionPayout(market: Market | undefined, prediction: Predic
   const outcomePool = prediction.outcome === "yes" ? market.yesPool : market.noPool;
   if (outcomePool <= 0) return prediction.amount;
   return Math.max(prediction.amount, Math.round((prediction.amount / outcomePool) * totalPool));
+}
+
+
+function parseAppDate(value: string | undefined) {
+  if (!value) return null;
+
+  const direct = new Date(value);
+  if (Number.isFinite(direct.getTime())) return direct;
+
+  const match = value.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})(?:,?\s*(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if (!match) return null;
+
+  const [, day, month, year, hour = "0", minute = "0", second = "0"] = match;
+  const parsed = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
+  return Number.isFinite(parsed.getTime()) ? parsed : null;
+}
+
+function getWeekStart(date = new Date()) {
+  const start = new Date(date);
+  const day = start.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  start.setDate(start.getDate() + diff);
+  start.setHours(0, 0, 0, 0);
+  return start;
+}
+
+function getWeekEnd(date = new Date()) {
+  const end = getWeekStart(date);
+  end.setDate(end.getDate() + 7);
+  end.setMilliseconds(-1);
+  return end;
+}
+
+function getTournamentScoreTransactionAmount(transaction: BalanceTransaction) {
+  // В турнир недели считаем только игровой результат прогнозов: списания за прогнозы и выплаты.
+  // Бонусы, рефералка и ручные начисления не влияют на турнир, чтобы рейтинг был честнее.
+  if (transaction.type !== "prediction_buy" && transaction.type !== "payout") return 0;
+  return Number(transaction.amount || 0);
+}
+
+function formatShortDate(date: Date) {
+  return date.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
+}
+
+function getStakeInputValue(value: string | undefined) {
+  return value ?? "500";
+}
+
+function sanitizeStakeInput(value: string) {
+  const digitsOnly = value.replace(/[^0-9]/g, "");
+  if (digitsOnly.length > 9) return digitsOnly.slice(0, 9);
+  return digitsOnly;
+}
+
+function parseStakeAmount(value: string | undefined) {
+  const amount = Number(sanitizeStakeInput(value || ""));
+  return Number.isFinite(amount) && amount > 0 ? Math.floor(amount) : 0;
 }
 
 function getErrorMessage(error: unknown) {
@@ -699,7 +765,7 @@ function App() {
   const [adminUserIds, setAdminUserIds] = useState<string[]>([]);
 
   const [commentDrafts, setCommentDrafts] = useState<Record<string, CommentDraft>>({});
-  const [amountByMarket, setAmountByMarket] = useState<Record<string, number>>({});
+  const [amountByMarket, setAmountByMarket] = useState<Record<string, string>>({});
 
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("Все");
@@ -710,6 +776,7 @@ function App() {
   const [importedCategory, setImportedCategory] = useState("Все");
   const [importedSearch, setImportedSearch] = useState("");
   const [isPolymarketImporting, setIsPolymarketImporting] = useState(false);
+  const [adminAwardForm, setAdminAwardForm] = useState({ userId: "", amount: "1000", description: "Тестовое начисление баллов" });
   const [mainView, setMainView] = useState<MainView>("markets");
   const [myPredictionTab, setMyPredictionTab] = useState<MyPredictionTab>("active");
 
@@ -851,6 +918,50 @@ function App() {
   const leaderboard = useMemo(() => {
     return [...users].sort((a, b) => b.balance - a.balance);
   }, [users]);
+
+
+
+  const currentWeekStart = useMemo(() => getWeekStart(), []);
+  const currentWeekEnd = useMemo(() => getWeekEnd(), []);
+
+  const weeklyStandings = useMemo<WeeklyStanding[]>(() => {
+    const rows = users.map((user) => {
+      const userTransactions = transactions.filter((transaction) => {
+        if (transaction.userId !== user.id) return false;
+        const date = parseAppDate(transaction.createdAt);
+        return Boolean(date && date >= currentWeekStart && date <= currentWeekEnd);
+      });
+
+      const score = userTransactions.reduce((sum, transaction) => sum + getTournamentScoreTransactionAmount(transaction), 0);
+      const spent = Math.abs(userTransactions.filter((transaction) => transaction.type === "prediction_buy").reduce((sum, transaction) => sum + transaction.amount, 0));
+      const payouts = userTransactions.filter((transaction) => transaction.type === "payout").reduce((sum, transaction) => sum + Math.max(0, transaction.amount), 0);
+      const userPredictionsThisWeek = predictions.filter((prediction) => {
+        if (prediction.userId !== user.id) return false;
+        const date = parseAppDate(prediction.createdAt);
+        return Boolean(date && date >= currentWeekStart && date <= currentWeekEnd);
+      });
+      const wins = userPredictionsThisWeek.filter((prediction) => prediction.settledAt && prediction.outcome === prediction.resolvedOutcome).length;
+
+      return { user, score, spent, payouts, predictionsCount: userPredictionsThisWeek.length, wins };
+    });
+
+    return rows.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      return b.predictionsCount - a.predictionsCount;
+    });
+  }, [users, transactions, predictions, currentWeekStart, currentWeekEnd]);
+
+  const activeUserWeeklyRank = useMemo(() => {
+    if (!activeUser) return 0;
+    const index = weeklyStandings.findIndex((row) => row.user.id === activeUser.id);
+    return index >= 0 ? index + 1 : 0;
+  }, [weeklyStandings, activeUser]);
+
+  const activeUserWeeklyStanding = useMemo(() => {
+    if (!activeUser) return null;
+    return weeklyStandings.find((row) => row.user.id === activeUser.id) || null;
+  }, [weeklyStandings, activeUser]);
 
   const categories = useMemo(() => {
     return ["Все", ...Array.from(new Set(markets.map((market) => market.category)))];
@@ -1299,19 +1410,62 @@ function App() {
   }
 
   function setQuickAmount(marketId: string, amount: number) {
-    setAmountByMarket((currentAmounts) => ({ ...currentAmounts, [marketId]: amount }));
+    setAmountByMarket((currentAmounts) => ({ ...currentAmounts, [marketId]: String(Math.max(0, Math.floor(amount))) }));
+  }
+
+  function updateStakeAmount(marketId: string, value: string) {
+    setAmountByMarket((currentAmounts) => ({ ...currentAmounts, [marketId]: sanitizeStakeInput(value) }));
   }
 
   async function buyPrediction(market: Market, outcome: Outcome) {
     if (!requireSafeSession() || !activeUser) return;
 
+    const stakeAmount = parseStakeAmount(amountByMarket[market.id] ?? "500");
+
+    if (stakeAmount <= 0) {
+      alert("Введите сумму прогноза больше нуля.");
+      return;
+    }
+
     try {
       await apiRequest<Prediction>(`/markets/${market.id}/predictions`, {
         method: "POST",
         headers: adminHeaders(),
-        body: JSON.stringify({ userId: activeUser.id, outcome, amount: amountByMarket[market.id] || 500 }),
+        body: JSON.stringify({ userId: activeUser.id, outcome, amount: stakeAmount }),
       });
       await refreshData(activeUser.id);
+      sendSuccess();
+    } catch (error) {
+      sendError();
+      alert(getErrorMessage(error));
+    }
+  }
+
+
+  async function awardUserPoints() {
+    if (!requireClientAdmin()) return;
+
+    const userId = adminAwardForm.userId || users[0]?.id || "";
+    const amount = Number(adminAwardForm.amount);
+
+    if (!userId) {
+      alert("Выбери пользователя.");
+      return;
+    }
+
+    if (!Number.isFinite(amount) || amount === 0) {
+      alert("Введите сумму начисления или списания. Например: 1000 или -500.");
+      return;
+    }
+
+    try {
+      await apiRequest(`/admin/users/${userId}/points`, {
+        method: "POST",
+        headers: adminHeaders(),
+        body: JSON.stringify({ amount, description: adminAwardForm.description || "Ручная корректировка баланса" }),
+      });
+      await refreshData(activeUser?.id);
+      setAdminAwardForm((current) => ({ ...current, amount: "1000" }));
       sendSuccess();
     } catch (error) {
       sendError();
@@ -2051,6 +2205,74 @@ function App() {
     );
   }
 
+
+  function renderTournamentPage() {
+    const topThree = weeklyStandings.slice(0, 3);
+    const remainingRows = weeklyStandings.slice(3, 20);
+    const gapToTopThree = activeUserWeeklyRank > 3 && activeUserWeeklyStanding ? Math.max(0, (topThree[2]?.score || 0) - activeUserWeeklyStanding.score + 1) : 0;
+
+    return (
+      <section className="tournamentPage pageStack">
+        <section className="tournamentHero">
+          <div>
+            <p className="eyebrow">Недельный турнир</p>
+            <h2>Каждую неделю — новый шанс ворваться в топ</h2>
+            <p>В зачёт идут только игровые результаты прогнозов за текущую неделю: списания за прогнозы и выплаты по рассчитанным рынкам. Бонусы, рефералка и ручные начисления не влияют на турнир.</p>
+          </div>
+          <div className="tournamentPeriodCard">
+            <span>Период</span>
+            <strong>{formatShortDate(currentWeekStart)} — {formatShortDate(currentWeekEnd)}</strong>
+            <p>{activeUserWeeklyRank ? `Ты сейчас #${activeUserWeeklyRank}` : "Сделай прогноз, чтобы попасть в рейтинг"}</p>
+          </div>
+        </section>
+
+        <section className="tournamentUserCard">
+          <div>
+            <span>Твой результат недели</span>
+            <strong>{activeUserWeeklyStanding?.score ? `${activeUserWeeklyStanding.score > 0 ? "+" : ""}${activeUserWeeklyStanding.score.toLocaleString("ru-RU")}` : "0"} баллов</strong>
+            <p>{activeUserWeeklyStanding?.predictionsCount || 0} прогнозов · {activeUserWeeklyStanding?.wins || 0} выиграно · выплаты {(activeUserWeeklyStanding?.payouts || 0).toLocaleString("ru-RU")}</p>
+          </div>
+          {gapToTopThree > 0 ? (
+            <div className="tournamentGap">До топ-3: <b>{gapToTopThree.toLocaleString("ru-RU")}</b> баллов</div>
+          ) : activeUserWeeklyRank > 0 && activeUserWeeklyRank <= 3 ? (
+            <div className="tournamentGap success">Ты в топ-3 недели 🔥</div>
+          ) : (
+            <button onClick={() => setMainView("markets")}>Сделать прогноз</button>
+          )}
+        </section>
+
+        <section className="podiumGrid">
+          {topThree.length === 0 ? (
+            <div className="empty wideEmpty">Пока в турнире нет результатов. Первый рассчитанный прогноз запустит недельный топ.</div>
+          ) : topThree.map((row, index) => (
+            <article className={`podiumCard podiumPlace${index + 1} ${row.user.id === activeUser?.id ? "activePodiumCard" : ""}`} key={row.user.id}>
+              <div className="podiumMedal">#{index + 1}</div>
+              <h3>{row.user.name}</h3>
+              <strong>{row.score >= 0 ? "+" : ""}{row.score.toLocaleString("ru-RU")}</strong>
+              <p>{row.predictionsCount} прогнозов · {row.wins} побед</p>
+            </article>
+          ))}
+        </section>
+
+        <section className="tournamentTableCard">
+          <div className="sectionHeader">
+            <h2>Топ недели</h2>
+            <span>{weeklyStandings.length} участников</span>
+          </div>
+          <div className="tournamentRows">
+            {[...topThree, ...remainingRows].map((row, index) => (
+              <div className={`tournamentRow ${row.user.id === activeUser?.id ? "activeTournamentRow" : ""}`} key={row.user.id}>
+                <div className="tournamentRank">#{index + 1}</div>
+                <div className="tournamentName"><strong>{row.user.name}</strong><span>{row.predictionsCount} прогнозов · {row.wins} выиграно</span></div>
+                <div className="tournamentScore"><strong>{row.score >= 0 ? "+" : ""}{row.score.toLocaleString("ru-RU")}</strong><span>баллов</span></div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </section>
+    );
+  }
+
   function renderMyPredictionsPage() {
     if (!activeUser) {
       return <section className="myPredictionsPage"><div className="empty">Прогнозы пока не загружены.</div></section>;
@@ -2457,6 +2679,22 @@ function App() {
                 </div>
               ))}
             </div>
+          </div>
+
+          <div className="quickPanel quickPanelTournament">
+            <div className="sectionHeader">
+              <h2>Турнир недели</h2>
+              <button onClick={() => setMainView("tournament")}>Открыть</button>
+            </div>
+            {activeUserWeeklyStanding ? (
+              <div className="weeklyMiniCard">
+                <strong>Ты #{activeUserWeeklyRank || "—"}</strong>
+                <p>{activeUserWeeklyStanding.score >= 0 ? "+" : ""}{activeUserWeeklyStanding.score.toLocaleString("ru-RU")} баллов за неделю</p>
+                <span>{formatShortDate(currentWeekStart)} — {formatShortDate(currentWeekEnd)}</span>
+              </div>
+            ) : (
+              <div className="miniEmptyState"><strong>Турнир ждёт тебя</strong><p>Сделай прогноз и появись в недельном топе.</p></div>
+            )}
           </div>
         </section>
 
@@ -3045,6 +3283,41 @@ function App() {
           <button className="secondaryButton" onClick={() => refreshData(activeUser?.id)}>Обновить данные</button>
         </section>
 
+
+
+        <details className="adminCenterSection" open={false}>
+          <summary>
+            <div>
+              <strong>Ручное начисление баллов</strong>
+              <span>Тестовые начисления и корректировки баланса пользователей</span>
+            </div>
+            <b>⌄</b>
+          </summary>
+          <div className="adminForm compactAdminForm adminCenterForm manualPointsForm">
+            <label>
+              Пользователь
+              <select value={adminAwardForm.userId || activeUser?.id || users[0]?.id || ""} onChange={(event) => setAdminAwardForm((current) => ({ ...current, userId: event.target.value }))}>
+                {users.map((user) => (
+                  <option key={user.id} value={user.id}>{user.name} — {user.balance.toLocaleString("ru-RU")} б.</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Сумма
+              <input inputMode="numeric" placeholder="Например 1000 или -500" value={adminAwardForm.amount} onChange={(event) => setAdminAwardForm((current) => ({ ...current, amount: event.target.value.replace(/[^0-9-]/g, "") }))} />
+            </label>
+            <label className="wideField">
+              Комментарий
+              <input placeholder="Например: тестовое начисление" value={adminAwardForm.description} onChange={(event) => setAdminAwardForm((current) => ({ ...current, description: event.target.value }))} />
+            </label>
+            <div className="quickAmountRow wideField">
+              {[500, 1000, 2500, 5000].map((amount) => <button key={amount} onClick={() => setAdminAwardForm((current) => ({ ...current, amount: String(amount) }))}>+{amount}</button>)}
+              <button className="secondaryButton" onClick={() => setAdminAwardForm((current) => ({ ...current, amount: "-500" }))}>−500</button>
+            </div>
+            <button className="createMarketButton" onClick={awardUserPoints}>Применить корректировку</button>
+          </div>
+        </details>
+
         <details className="adminCenterSection" open={isAdminOpen}>
           <summary>
             <div>
@@ -3453,6 +3726,15 @@ function App() {
             Мои прогнозы
           </button>
           <button
+            className={mainView === "tournament" && !selectedMarket ? "activeProductNav" : ""}
+            onClick={() => {
+              setSelectedMarketId(null);
+              setMainView("tournament");
+            }}
+          >
+            Турнир
+          </button>
+          <button
             className={mainView === "suggest" && !selectedMarket ? "activeProductNav" : ""}
             onClick={() => {
               setSelectedMarketId(null);
@@ -3522,6 +3804,8 @@ function App() {
         renderProfilePage()
       ) : mainView === "predictions" && !selectedMarket ? (
         renderMyPredictionsPage()
+      ) : mainView === "tournament" && !selectedMarket ? (
+        renderTournamentPage()
       ) : mainView === "suggest" && !selectedMarket ? (
         renderSuggestionPage()
       ) : mainView === "admin" && !selectedMarket ? (
@@ -3649,12 +3933,15 @@ function App() {
                 <label>
                   Сумма прогноза
                   <input
-                    type="number"
-                    min="1"
-                    step="100"
-                    value={amountByMarket[selectedMarket.id] || 500}
+                    className="stakeAmountInput"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    placeholder="Любая сумма"
+                    value={getStakeInputValue(amountByMarket[selectedMarket.id])}
                     disabled={!isMarketTradable(selectedMarket)}
-                    onChange={(event) => setAmountByMarket((current) => ({ ...current, [selectedMarket.id]: Number(event.target.value) }))}
+                    onChange={(event) => updateStakeAmount(selectedMarket.id, event.target.value)}
+                    onFocus={(event) => event.currentTarget.select()}
                   />
                 </label>
 
