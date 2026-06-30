@@ -9205,3 +9205,208 @@ button:disabled,
     align-items: flex-start;
   }
 }
+
+
+/* Quick predictions from feed cards */
+.quickTradeMarketRow {
+  gap: 10px;
+}
+
+.quickBetPanel {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 9px;
+  padding: 10px;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(37, 99, 235, 0.08), transparent 34%),
+    rgba(248, 250, 252, 0.86);
+  border: 1px solid rgba(226, 232, 240, 0.86);
+}
+
+.quickBetAmountRow {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: 8px;
+  align-items: end;
+}
+
+.quickBetAmountRow label {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+}
+
+.quickBetAmountRow label span {
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.quickBetAmountRow input {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  border: 1px solid rgba(203, 213, 225, 0.95);
+  border-radius: 14px;
+  padding: 0 12px;
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.96);
+  font-weight: 900;
+  outline: none;
+}
+
+.quickBetAmountRow input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.quickBetChips {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.quickBetChips button {
+  height: 38px;
+  border: 1px solid rgba(203, 213, 225, 0.90);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.88);
+  color: #334155;
+  font-weight: 900;
+}
+
+.quickBetButtons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.quickBetButtons button {
+  min-height: 42px;
+  border: 0;
+  border-radius: 15px;
+  color: #ffffff;
+  font-weight: 950;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.10);
+}
+
+.quickYesButton {
+  background: linear-gradient(135deg, #12b76a, #039855);
+}
+
+.quickNoButton {
+  background: linear-gradient(135deg, #ef4444, #c92a2a);
+}
+
+.quickBetButtons button:disabled,
+.quickBetChips button:disabled {
+  opacity: 0.55;
+  filter: grayscale(0.15);
+}
+
+.quickBetAccepted,
+.quickBetClosed {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 9px 12px;
+  border-radius: 16px;
+  font-weight: 900;
+}
+
+.quickBetAccepted {
+  color: #047857;
+  background: rgba(209, 250, 229, 0.82);
+}
+
+.quickBetAccepted strong {
+  color: #065f46;
+}
+
+.quickBetClosed {
+  color: #64748b;
+  background: rgba(241, 245, 249, 0.9);
+}
+
+.appToast {
+  position: fixed;
+  left: 50%;
+  bottom: max(18px, env(safe-area-inset-bottom, 0px) + 16px);
+  z-index: 9999;
+  transform: translateX(-50%);
+  width: min(calc(100% - 32px), 420px);
+  padding: 13px 16px;
+  border-radius: 18px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #0f172a, #1d4ed8);
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.28);
+  text-align: center;
+  font-weight: 900;
+  animation: toastSlideUp 0.18s ease;
+}
+
+@keyframes toastSlideUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.telegramApp .quickBetPanel {
+  padding: 9px;
+  border-radius: 16px;
+}
+
+.telegramApp .quickBetAmountRow {
+  grid-template-columns: 1fr;
+  gap: 7px;
+}
+
+.telegramApp .quickBetAmountRow input,
+.telegramApp .quickBetChips button {
+  height: 34px;
+  border-radius: 12px;
+}
+
+.telegramApp .quickBetChips {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.telegramApp .quickBetChips button {
+  font-size: 0.74rem;
+  padding: 0 4px;
+}
+
+.telegramApp .quickBetButtons button {
+  min-height: 38px;
+  border-radius: 13px;
+  font-size: 0.82rem;
+}
+
+.telegramApp .quickBetAccepted,
+.telegramApp .quickBetClosed {
+  min-height: 38px;
+  border-radius: 14px;
+  font-size: 0.82rem;
+}
+
+@media (max-width: 560px) {
+  .quickBetAmountRow {
+    grid-template-columns: 1fr;
+  }
+
+  .quickBetChips {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

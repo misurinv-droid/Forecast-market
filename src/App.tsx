@@ -780,6 +780,8 @@ function App() {
 
   const [commentDrafts, setCommentDrafts] = useState<Record<string, CommentDraft>>({});
   const [amountByMarket, setAmountByMarket] = useState<Record<string, string>>({});
+  const [buyingPredictionKey, setBuyingPredictionKey] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState("");
 
   const [isAdminOpen, setIsAdminOpen] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState("Все");
@@ -1292,6 +1294,13 @@ function App() {
     getRealTelegramWebApp()?.HapticFeedback?.notificationOccurred?.("error");
   }
 
+  function showToast(message: string) {
+    setToastMessage(message);
+    window.setTimeout(() => {
+      setToastMessage((currentMessage) => currentMessage === message ? "" : currentMessage);
+    }, 2400);
+  }
+
   function closeOnboarding() {
     markOnboardingSeen();
     setIsOnboardingOpen(false);
@@ -1492,6 +1501,9 @@ function App() {
     if (!requireSafeSession() || !activeUser) return;
 
     const stakeAmount = parseStakeAmount(amountByMarket[market.id] ?? "500");
+    const actionKey = `${market.id}:${outcome}`;
+
+    if (buyingPredictionKey) return;
 
     if (stakeAmount <= 0) {
       alert("Введите сумму прогноза больше нуля.");
@@ -1499,6 +1511,7 @@ function App() {
     }
 
     try {
+      setBuyingPredictionKey(actionKey);
       await apiRequest<Prediction>(`/markets/${market.id}/predictions`, {
         method: "POST",
         headers: adminHeaders(),
@@ -1506,11 +1519,15 @@ function App() {
       });
       await refreshData(activeUser.id);
       sendSuccess();
+      showToast(`Прогноз принят: ${getOutcomeText(outcome)} · ${stakeAmount.toLocaleString("ru-RU")} б.`);
     } catch (error) {
       sendError();
       alert(getErrorMessage(error));
+    } finally {
+      setBuyingPredictionKey(null);
     }
   }
+
 
 
   async function awardUserPoints() {
@@ -2428,9 +2445,15 @@ function App() {
     const activePrediction = activeUserPredictions.find((prediction) => prediction.marketId === market.id && !prediction.settledAt);
     const isFavorite = favoriteMarketIds.includes(market.id);
     const isImported = isPolymarketSource(market.source);
+    const stakeValue = getStakeInputValue(amountByMarket[market.id]);
+    const stakeAmount = parseStakeAmount(stakeValue);
+    const isTradable = isMarketTradable(market);
+    const yesActionKey = `${market.id}:yes`;
+    const noActionKey = `${market.id}:no`;
+    const isBuyingThisMarket = buyingPredictionKey?.startsWith(`${market.id}:`) || false;
 
     return (
-      <article className={`marketMiniRow ${context === "compact" ? "marketMiniRowCompact" : ""}`} key={market.id}>
+      <article className={`marketMiniRow quickTradeMarketRow ${context === "compact" ? "marketMiniRowCompact" : ""}`} key={market.id}>
         <button className="marketMiniMain" onClick={() => openMarketDetails(market.id)}>
           <div className="marketMiniTop">
             <span className="miniCategory">{market.category}</span>
@@ -2446,6 +2469,7 @@ function App() {
           </div>
           {renderMarketSignal(market)}
         </button>
+
         <div className="marketMiniOdds">
           <button onClick={() => openMarketDetails(market.id)}>
             <span>Да</span>
@@ -2463,9 +2487,65 @@ function App() {
             {isFavorite ? "★" : "☆"}
           </button>
         </div>
+
+        {activePrediction ? (
+          <div className="quickBetAccepted">
+            <span>Ты выбрал {getOutcomeText(activePrediction.outcome)}</span>
+            <strong>{activePrediction.amount.toLocaleString("ru-RU")} б.</strong>
+          </div>
+        ) : isTradable ? (
+          <div className="quickBetPanel">
+            <div className="quickBetAmountRow">
+              <label>
+                <span>Сумма</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  placeholder="любая"
+                  value={stakeValue}
+                  onChange={(event) => updateStakeAmount(market.id, event.target.value)}
+                  onFocus={(event) => event.currentTarget.select()}
+                />
+              </label>
+              <div className="quickBetChips">
+                {[100, 500, 1000].map((amount) => (
+                  <button key={amount} type="button" onClick={() => setQuickAmount(market.id, amount)}>
+                    {amount}
+                  </button>
+                ))}
+                <button type="button" onClick={() => setQuickAmount(market.id, activeUser?.balance || 0)}>
+                  Всё
+                </button>
+              </div>
+            </div>
+
+            <div className="quickBetButtons">
+              <button
+                className="quickYesButton"
+                disabled={isBuyingThisMarket || stakeAmount <= 0}
+                onClick={() => buyPrediction(market, "yes")}
+              >
+                {buyingPredictionKey === yesActionKey ? "Покупаем..." : "Да"}
+              </button>
+              <button
+                className="quickNoButton"
+                disabled={isBuyingThisMarket || stakeAmount <= 0}
+                onClick={() => buyPrediction(market, "no")}
+              >
+                {buyingPredictionKey === noActionKey ? "Покупаем..." : "Нет"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="quickBetClosed">
+            {market.status === "closed" ? "Рынок ждёт расчёта" : "Рынок завершён"}
+          </div>
+        )}
       </article>
     );
   }
+
 
 
   function renderCategoryHub(group: { category: string; markets: Market[]; openCount: number; importedCount: number }, index: number) {
@@ -3951,6 +4031,8 @@ function App() {
 
   return (
     <main className={appClassName}>
+      {toastMessage && <div className="appToast" role="status">{toastMessage}</div>}
+
       {!activeUser && !isLoading && (
         <section className="authWarningCard securityModeCard">
           <div>
