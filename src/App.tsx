@@ -149,6 +149,12 @@ type Prediction = {
   settledAt?: string;
 };
 
+type PredictionConfirmationDraft = {
+  marketId: string;
+  outcome: Outcome;
+  amount: number;
+};
+
 type MarketComment = {
   id: string;
   marketId: string;
@@ -601,6 +607,15 @@ function estimatePredictionPayout(market: Market | undefined, prediction: Predic
   return Math.max(prediction.amount, Math.round((prediction.amount / outcomePool) * totalPool));
 }
 
+function estimateQuickPredictionPayout(market: Market | undefined, outcome: Outcome, amount: number) {
+  if (!market || amount <= 0) return 0;
+  const totalPoolAfter = market.yesPool + market.noPool + amount;
+  const outcomePoolBefore = outcome === "yes" ? market.yesPool : market.noPool;
+  const outcomePoolAfter = outcomePoolBefore + amount;
+  if (outcomePoolAfter <= 0) return amount;
+  return Math.max(amount, Math.round((amount / outcomePoolAfter) * totalPoolAfter));
+}
+
 
 function parseAppDate(value: string | undefined) {
   if (!value) return null;
@@ -991,6 +1006,7 @@ function App() {
   const [commentDrafts, setCommentDrafts] = useState<Record<string, CommentDraft>>({});
   const [amountByMarket, setAmountByMarket] = useState<Record<string, string>>({});
   const [buyingPredictionKey, setBuyingPredictionKey] = useState<string | null>(null);
+  const [predictionConfirmation, setPredictionConfirmation] = useState<PredictionConfirmationDraft | null>(null);
   const [toastMessage, setToastMessage] = useState("");
   const [isActivityOpen, setIsActivityOpen] = useState(false);
   const [dismissedActivityIds, setDismissedActivityIds] = useState<string[]>(() => {
@@ -2212,6 +2228,12 @@ function App() {
   }
 
   function closeActiveOverlay() {
+    if (predictionConfirmation) {
+      setPredictionConfirmation(null);
+      sendHaptic("light");
+      return true;
+    }
+
     if (isActivityOpen) {
       setIsActivityOpen(false);
       sendHaptic("light");
@@ -2876,10 +2898,40 @@ function App() {
     sendHaptic();
   }
 
-  async function buyPrediction(market: Market, outcome: Outcome) {
+  function openPredictionConfirmation(market: Market, outcome: Outcome) {
     if (!requireSafeSession() || !activeUser) return;
 
+    if (!isMarketTradable(market)) {
+      alert(market.status === "closed" ? "Прогнозы уже закрыты. Рынок ждёт расчёта." : "Этот рынок уже завершён.");
+      return;
+    }
+
+    const alreadyHasPrediction = activeUserPredictions.some((prediction) => prediction.marketId === market.id && !prediction.settledAt);
+    if (alreadyHasPrediction) {
+      alert("Ты уже участвуешь в этом рынке. Открой карточку, чтобы посмотреть свою позицию.");
+      return;
+    }
+
     const stakeAmount = parseStakeAmount(amountByMarket[market.id] ?? "500");
+
+    if (stakeAmount <= 0) {
+      alert("Введите сумму прогноза больше нуля.");
+      return;
+    }
+
+    if (stakeAmount > activeUser.balance) {
+      alert("Не хватает баллов для этого прогноза. Можно выбрать сумму меньше.");
+      return;
+    }
+
+    setPredictionConfirmation({ marketId: market.id, outcome, amount: stakeAmount });
+    sendHaptic("light");
+  }
+
+  async function buyPrediction(market: Market, outcome: Outcome, amountOverride?: number) {
+    if (!requireSafeSession() || !activeUser) return;
+
+    const stakeAmount = amountOverride ?? parseStakeAmount(amountByMarket[market.id] ?? "500");
     const actionKey = `${market.id}:${outcome}`;
 
     if (buyingPredictionKey) return;
@@ -2896,6 +2948,7 @@ function App() {
         headers: adminHeaders(),
         body: JSON.stringify({ userId: activeUser.id, outcome, amount: stakeAmount }),
       });
+      setPredictionConfirmation(null);
       await refreshData(activeUser.id);
       sendSuccess();
       showToast(`Прогноз принят: ${getOutcomeText(outcome)} · ${stakeAmount.toLocaleString("ru-RU")} б.`);
@@ -4321,18 +4374,24 @@ function App() {
               </div>
             </div>
 
+            <div className="quickBetPreviewRow">
+              <span>Потенциально</span>
+              <strong>{estimateQuickPredictionPayout(market, "yes", stakeAmount).toLocaleString("ru-RU")} б. за Да</strong>
+              <strong>{estimateQuickPredictionPayout(market, "no", stakeAmount).toLocaleString("ru-RU")} б. за Нет</strong>
+            </div>
+
             <div className="quickBetButtons">
               <button
                 className="quickYesButton"
                 disabled={isBuyingThisMarket || stakeAmount <= 0}
-                onClick={() => buyPrediction(market, "yes")}
+                onClick={() => openPredictionConfirmation(market, "yes")}
               >
                 {buyingPredictionKey === yesActionKey ? "Покупаем..." : "Да"}
               </button>
               <button
                 className="quickNoButton"
                 disabled={isBuyingThisMarket || stakeAmount <= 0}
-                onClick={() => buyPrediction(market, "no")}
+                onClick={() => openPredictionConfirmation(market, "no")}
               >
                 {buyingPredictionKey === noActionKey ? "Покупаем..." : "Нет"}
               </button>
@@ -4651,6 +4710,92 @@ function App() {
     setIsActivityOpen(false);
     sendHaptic("light");
     item.action();
+  }
+
+  function renderPredictionConfirmationModal() {
+    if (!predictionConfirmation || !activeUser) return null;
+
+    const market = markets.find((item) => item.id === predictionConfirmation.marketId);
+    if (!market) return null;
+
+    const selectedProbability = predictionConfirmation.outcome === "yes"
+      ? getYesProbability(market)
+      : 100 - getYesProbability(market);
+    const potentialPayout = estimateQuickPredictionPayout(market, predictionConfirmation.outcome, predictionConfirmation.amount);
+    const potentialProfit = potentialPayout - predictionConfirmation.amount;
+    const balanceAfter = Math.max(0, activeUser.balance - predictionConfirmation.amount);
+    const actionKey = `${market.id}:${predictionConfirmation.outcome}`;
+    const isConfirming = buyingPredictionKey === actionKey;
+
+    return (
+      <div className="predictionConfirmOverlay" role="dialog" aria-modal="true" aria-label="Подтверждение прогноза">
+        <button className="predictionConfirmBackdrop" aria-label="Отменить прогноз" onClick={() => setPredictionConfirmation(null)} />
+        <section className={`predictionConfirmPanel predictionConfirm-${predictionConfirmation.outcome}`}>
+          <div className="predictionConfirmHeader">
+            <div>
+              <p className="eyebrow">Подтверждение прогноза</p>
+              <h2>Проверь детали перед покупкой</h2>
+            </div>
+            <button className="predictionConfirmClose" onClick={() => setPredictionConfirmation(null)} aria-label="Закрыть">×</button>
+          </div>
+
+          <div className="predictionConfirmMarket">
+            <span>{market.category} · {getMarketCloseLabel(market)}</span>
+            <strong>{market.question}</strong>
+          </div>
+
+          <div className="predictionConfirmChoice">
+            <div className={predictionConfirmation.outcome === "yes" ? "confirmChoiceYes" : "confirmChoiceNo"}>
+              <span>Ты выбираешь</span>
+              <strong>{getOutcomeText(predictionConfirmation.outcome)}</strong>
+            </div>
+            <div>
+              <span>Текущая вероятность</span>
+              <strong>{selectedProbability}%</strong>
+            </div>
+          </div>
+
+          <div className="predictionConfirmStats">
+            <div>
+              <span>Сумма</span>
+              <strong>{predictionConfirmation.amount.toLocaleString("ru-RU")} б.</strong>
+            </div>
+            <div>
+              <span>Потенциальная выплата</span>
+              <strong>{potentialPayout.toLocaleString("ru-RU")} б.</strong>
+            </div>
+            <div>
+              <span>Потенциальная прибыль</span>
+              <strong className={potentialProfit >= 0 ? "positiveAmount" : "negativeAmount"}>
+                {potentialProfit >= 0 ? "+" : ""}{potentialProfit.toLocaleString("ru-RU")} б.
+              </strong>
+            </div>
+            <div>
+              <span>Баланс после покупки</span>
+              <strong>{balanceAfter.toLocaleString("ru-RU")} б.</strong>
+            </div>
+          </div>
+
+          <div className="predictionConfirmDisclaimer">
+            <span>ℹ️</span>
+            <p>Баллы игровые: они не являются деньгами, не покупаются, не продаются, не передаются и не выводятся.</p>
+          </div>
+
+          <div className="predictionConfirmActions">
+            <button
+              className={predictionConfirmation.outcome === "yes" ? "confirmPredictionYes" : "confirmPredictionNo"}
+              disabled={isConfirming}
+              onClick={() => void buyPrediction(market, predictionConfirmation.outcome, predictionConfirmation.amount)}
+            >
+              {isConfirming ? "Покупаем прогноз..." : "Подтвердить прогноз"}
+            </button>
+            <button className="secondaryButton" disabled={isConfirming} onClick={() => setPredictionConfirmation(null)}>
+              Отмена
+            </button>
+          </div>
+        </section>
+      </div>
+    );
   }
 
   function renderActivityCenter() {
@@ -7065,7 +7210,7 @@ function App() {
   }
 
   const appClassName = `app ${isTelegram ? "telegramApp" : ""}`;
-  const canShowBackButton = isActivityOpen || isRulesOpen || mainView !== "markets" || Boolean(selectedMarketId);
+  const canShowBackButton = Boolean(predictionConfirmation) || isActivityOpen || isRulesOpen || mainView !== "markets" || Boolean(selectedMarketId);
 
   if (isLoading) {
     return (
@@ -7111,6 +7256,7 @@ function App() {
   return (
     <main className={appClassName}>
       {toastMessage && <div className="appToast" role="status">{toastMessage}</div>}
+      {renderPredictionConfirmationModal()}
       {renderActivityCenter()}
 
       <button className="activityFloatingButton" onClick={() => setIsActivityOpen(true)} aria-label="Открыть центр событий">
@@ -7504,10 +7650,10 @@ function App() {
                 </div>
 
                 <div className="buttons">
-                  <button className="yesButton" disabled={!isMarketTradable(selectedMarket)} onClick={() => buyPrediction(selectedMarket, "yes")}>
+                  <button className="yesButton" disabled={!isMarketTradable(selectedMarket)} onClick={() => openPredictionConfirmation(selectedMarket, "yes")}>
                     Купить Да
                   </button>
-                  <button className="noButton" disabled={!isMarketTradable(selectedMarket)} onClick={() => buyPrediction(selectedMarket, "no")}>
+                  <button className="noButton" disabled={!isMarketTradable(selectedMarket)} onClick={() => openPredictionConfirmation(selectedMarket, "no")}>
                     Купить Нет
                   </button>
                 </div>
