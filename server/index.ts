@@ -94,6 +94,15 @@ type Referral = {
   rewardClaimedAt?: string;
 };
 
+type UserFollow = {
+  id: string;
+  followerUserId: string;
+  followerName: string;
+  followingUserId: string;
+  followingName: string;
+  createdAt: string;
+};
+
 type MarketSuggestion = {
   id: string;
   userId: string;
@@ -161,6 +170,7 @@ type DatabaseSnapshot = {
   transactions: BalanceTransaction[];
   marketSuggestions: MarketSuggestion[];
   referrals: Referral[];
+  userFollows: UserFollow[];
   dailyMissionClaims: DailyMissionClaim[];
   weeklyTournamentAwards: WeeklyTournamentAward[];
   shopItems: ShopItem[];
@@ -780,6 +790,17 @@ function toReferral(row: any): Referral {
     createdAt: formatDbDateTime(row.created_at),
     qualifiedAt: row.qualified_at ? formatDbDateTime(row.qualified_at) : undefined,
     rewardClaimedAt: row.reward_claimed_at ? formatDbDateTime(row.reward_claimed_at) : undefined,
+  };
+}
+
+function toUserFollow(row: any): UserFollow {
+  return {
+    id: row.id,
+    followerUserId: row.follower_user_id,
+    followerName: row.follower_name,
+    followingUserId: row.following_user_id,
+    followingName: row.following_name,
+    createdAt: formatDbDateTime(row.created_at),
   };
 }
 
@@ -2266,6 +2287,17 @@ async function migrate() {
       UNIQUE (referred_user_id)
     );
 
+    CREATE TABLE IF NOT EXISTS user_follows (
+      id TEXT PRIMARY KEY,
+      follower_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      follower_name TEXT NOT NULL,
+      following_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      following_name TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (follower_user_id, following_user_id),
+      CHECK (follower_user_id <> following_user_id)
+    );
+
     CREATE TABLE IF NOT EXISTS favorites (
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       market_id TEXT NOT NULL REFERENCES markets(id) ON DELETE CASCADE,
@@ -2354,6 +2386,8 @@ async function migrate() {
     CREATE INDEX IF NOT EXISTS referrals_referrer_user_id_idx ON referrals(referrer_user_id);
     CREATE INDEX IF NOT EXISTS referrals_referred_user_id_idx ON referrals(referred_user_id);
     CREATE INDEX IF NOT EXISTS referrals_status_idx ON referrals(status);
+    CREATE INDEX IF NOT EXISTS user_follows_follower_idx ON user_follows(follower_user_id);
+    CREATE INDEX IF NOT EXISTS user_follows_following_idx ON user_follows(following_user_id);
     CREATE INDEX IF NOT EXISTS favorites_user_id_idx ON favorites(user_id);
     CREATE INDEX IF NOT EXISTS daily_mission_claims_user_id_idx ON daily_mission_claims(user_id);
     CREATE INDEX IF NOT EXISTS daily_mission_claims_date_idx ON daily_mission_claims(mission_date);
@@ -2495,7 +2529,7 @@ async function closeExpiredMarkets(db: Pool | PoolClient = pool) {
 async function getSnapshot(): Promise<DatabaseSnapshot> {
   await closeExpiredMarkets();
 
-  const [usersResult, marketsResult, predictionsResult, commentsResult, transactionsResult, suggestionsResult, referralsResult, dailyMissionClaimsResult, weeklyTournamentAwardsResult, shopItemsResult, userInventoryResult, favoritesResult] =
+  const [usersResult, marketsResult, predictionsResult, commentsResult, transactionsResult, suggestionsResult, referralsResult, userFollowsResult, dailyMissionClaimsResult, weeklyTournamentAwardsResult, shopItemsResult, userInventoryResult, favoritesResult] =
     await Promise.all([
       pool.query("SELECT * FROM users ORDER BY name ASC"),
       pool.query("SELECT * FROM markets ORDER BY created_at DESC"),
@@ -2504,6 +2538,7 @@ async function getSnapshot(): Promise<DatabaseSnapshot> {
       pool.query("SELECT * FROM transactions ORDER BY created_at DESC LIMIT 500"),
       pool.query("SELECT * FROM market_suggestions ORDER BY created_at DESC LIMIT 500"),
       pool.query("SELECT * FROM referrals ORDER BY created_at DESC LIMIT 500"),
+      pool.query("SELECT * FROM user_follows ORDER BY created_at DESC LIMIT 2000"),
       pool.query("SELECT * FROM daily_mission_claims ORDER BY created_at DESC LIMIT 1000"),
       pool.query("SELECT * FROM weekly_tournament_awards ORDER BY created_at DESC LIMIT 500"),
       pool.query("SELECT * FROM shop_items WHERE is_active = TRUE ORDER BY type ASC, sort_order ASC, price ASC"),
@@ -2535,6 +2570,7 @@ async function getSnapshot(): Promise<DatabaseSnapshot> {
     transactions: transactionsResult.rows.map(toTransaction),
     marketSuggestions: suggestionsResult.rows.map(toSuggestion),
     referrals: referralsResult.rows.map(toReferral),
+    userFollows: userFollowsResult.rows.map(toUserFollow),
     dailyMissionClaims: dailyMissionClaimsResult.rows.map(toDailyMissionClaim),
     weeklyTournamentAwards: weeklyTournamentAwardsResult.rows.map(toWeeklyTournamentAward),
     shopItems: shopItemsResult.rows.map(toShopItem),
@@ -2819,6 +2855,90 @@ app.post("/api/users/:userId/shop/:itemId/buy", async (request, response) => {
   } catch (error) {
     console.error("shop buy failed", error);
     response.status(500).json({ error: "Не удалось купить предмет" });
+  }
+});
+
+app.post("/api/users/:userId/follow/:targetUserId", async (request, response) => {
+  const userId = String(request.params.userId || "").trim();
+  const targetUserId = String(request.params.targetUserId || "").trim();
+
+  if (!userId || !targetUserId) {
+    response.status(400).json({ error: "Не указан пользователь или цель подписки" });
+    return;
+  }
+
+  if (userId === targetUserId) {
+    response.status(400).json({ error: "Нельзя подписаться на себя" });
+    return;
+  }
+
+  if (!(await assertRequestMatchesUser(request, response, userId))) return;
+
+  try {
+    const result = await withTransaction(async (client) => {
+      const [followerResult, targetResult, existingResult] = await Promise.all([
+        client.query("SELECT * FROM users WHERE id = $1", [userId]),
+        client.query("SELECT * FROM users WHERE id = $1", [targetUserId]),
+        client.query("SELECT * FROM user_follows WHERE follower_user_id = $1 AND following_user_id = $2", [userId, targetUserId]),
+      ]);
+
+      const follower = followerResult.rows[0];
+      const target = targetResult.rows[0];
+
+      if (!follower) return { error: "Пользователь не найден" } as const;
+      if (!target) return { error: "Игрок для подписки не найден" } as const;
+
+      if (existingResult.rows[0]) {
+        return { follow: toUserFollow(existingResult.rows[0]), alreadyFollowing: true };
+      }
+
+      const followResult = await client.query(
+        `
+          INSERT INTO user_follows (
+            id, follower_user_id, follower_name, following_user_id, following_name, created_at
+          )
+          VALUES ($1, $2, $3, $4, $5, NOW())
+          RETURNING *
+        `,
+        [createId(), userId, getUserDisplayName(toUser(follower)), targetUserId, getUserDisplayName(toUser(target))]
+      );
+
+      return { follow: toUserFollow(followResult.rows[0]), alreadyFollowing: false };
+    });
+
+    if (!result || "error" in result) {
+      response.status(400).json({ error: result?.error || "Не удалось оформить подписку" });
+      return;
+    }
+
+    response.status(result.alreadyFollowing ? 200 : 201).json(result);
+  } catch (error) {
+    console.error("follow user failed", error);
+    response.status(500).json({ error: "Не удалось оформить подписку" });
+  }
+});
+
+app.delete("/api/users/:userId/follow/:targetUserId", async (request, response) => {
+  const userId = String(request.params.userId || "").trim();
+  const targetUserId = String(request.params.targetUserId || "").trim();
+
+  if (!userId || !targetUserId) {
+    response.status(400).json({ error: "Не указан пользователь или цель подписки" });
+    return;
+  }
+
+  if (!(await assertRequestMatchesUser(request, response, userId))) return;
+
+  try {
+    const result = await pool.query(
+      "DELETE FROM user_follows WHERE follower_user_id = $1 AND following_user_id = $2 RETURNING *",
+      [userId, targetUserId]
+    );
+
+    response.json({ ok: true, removed: Boolean(result.rows[0]) });
+  } catch (error) {
+    console.error("unfollow user failed", error);
+    response.status(500).json({ error: "Не удалось отменить подписку" });
   }
 });
 

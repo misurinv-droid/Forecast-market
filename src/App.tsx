@@ -185,6 +185,15 @@ type Referral = {
   rewardClaimedAt?: string;
 };
 
+type UserFollow = {
+  id: string;
+  followerUserId: string;
+  followerName: string;
+  followingUserId: string;
+  followingName: string;
+  createdAt: string;
+};
+
 type MarketSuggestion = {
   id: string;
   userId: string;
@@ -244,6 +253,7 @@ type BootstrapData = {
   transactions?: BalanceTransaction[];
   marketSuggestions?: MarketSuggestion[];
   referrals?: Referral[];
+  userFollows?: UserFollow[];
   dailyMissionClaims?: DailyMissionClaim[];
   weeklyTournamentAwards?: WeeklyTournamentAward[];
   shopItems?: ShopItem[];
@@ -956,6 +966,7 @@ function App() {
   const [transactions, setTransactions] = useState<BalanceTransaction[]>([]);
   const [marketSuggestions, setMarketSuggestions] = useState<MarketSuggestion[]>([]);
   const [referrals, setReferrals] = useState<Referral[]>([]);
+  const [userFollows, setUserFollows] = useState<UserFollow[]>([]);
   const [dailyMissionClaims, setDailyMissionClaims] = useState<DailyMissionClaim[]>([]);
   const [weeklyTournamentAwards, setWeeklyTournamentAwards] = useState<WeeklyTournamentAward[]>([]);
   const [shopItems, setShopItems] = useState<ShopItem[]>([]);
@@ -1040,6 +1051,7 @@ function App() {
   const [isDailyBonusClaiming, setIsDailyBonusClaiming] = useState(false);
   const [claimingDailyMissionId, setClaimingDailyMissionId] = useState<string | null>(null);
   const [isAwardingWeeklyTournament, setIsAwardingWeeklyTournament] = useState(false);
+  const [followingUserId, setFollowingUserId] = useState<string | null>(null);
   const [buyingShopItemId, setBuyingShopItemId] = useState<string | null>(null);
   const [equippingShopItemId, setEquippingShopItemId] = useState<string | null>(null);
   const [isTestingTelegramNotification, setIsTestingTelegramNotification] = useState(false);
@@ -1149,6 +1161,16 @@ function App() {
     if (!activeUser) return [];
     return referrals.filter((referral) => referral.referrerUserId === activeUser.id);
   }, [referrals, activeUser]);
+
+  const activeUserFollowing = useMemo(() => {
+    if (!activeUser) return [];
+    return userFollows.filter((follow) => follow.followerUserId === activeUser.id);
+  }, [userFollows, activeUser]);
+
+  const activeUserFollowers = useMemo(() => {
+    if (!activeUser) return [];
+    return userFollows.filter((follow) => follow.followingUserId === activeUser.id);
+  }, [userFollows, activeUser]);
 
   const activeUserComments = useMemo(() => {
     if (!activeUser) return [];
@@ -1705,6 +1727,18 @@ function App() {
         });
       });
 
+    activeUserFollowers.slice(0, 2).forEach((follow) => {
+      items.push({
+        id: `new-follower-${follow.id}`,
+        emoji: "🤝",
+        title: "Новый подписчик",
+        text: `${follow.followerName} подписался на твой профиль.`,
+        tone: "social",
+        actionLabel: "Открыть",
+        action: () => openPublicProfile(follow.followerUserId),
+      });
+    });
+
     const waitingPredictions = activeUserOpenPredictions.filter((prediction) => {
       const market = markets.find((item) => item.id === prediction.marketId);
       return market?.status === "closed";
@@ -1839,6 +1873,7 @@ function App() {
     activeUserPredictions,
     activeUserSuggestions,
     activeUserTransactions,
+    activeUserFollowers,
     markets,
     soonClosingMarkets,
     forYouMarkets,
@@ -1936,6 +1971,7 @@ function App() {
     setTransactions(data.transactions || []);
     setMarketSuggestions(data.marketSuggestions || []);
     setReferrals(data.referrals || []);
+    setUserFollows(data.userFollows || []);
     setDailyMissionClaims(data.dailyMissionClaims || []);
     setWeeklyTournamentAwards(data.weeklyTournamentAwards || []);
     setShopItems(data.shopItems || []);
@@ -2351,6 +2387,63 @@ function App() {
       alert(getErrorMessage(error));
     } finally {
       setEquippingShopItemId(null);
+    }
+  }
+
+  async function followUser(targetUserId: string) {
+    if (!requireSafeSession() || !activeUser) return;
+
+    if (targetUserId === activeUser.id) {
+      alert("На себя подписаться нельзя.");
+      return;
+    }
+
+    try {
+      setFollowingUserId(targetUserId);
+      const result = await apiRequest<{ follow: UserFollow; alreadyFollowing?: boolean }>(
+        `/users/${activeUser.id}/follow/${targetUserId}`,
+        {
+          method: "POST",
+          headers: authHeaders(),
+        },
+      );
+
+      setUserFollows((currentFollows) => (
+        currentFollows.some((follow) => follow.id === result.follow.id) ? currentFollows : [result.follow, ...currentFollows]
+      ));
+      sendSuccess();
+      showToast(result.alreadyFollowing ? "Ты уже подписан" : "Подписка оформлена");
+    } catch (error) {
+      sendError();
+      alert(getErrorMessage(error));
+    } finally {
+      setFollowingUserId(null);
+    }
+  }
+
+  async function unfollowUser(targetUserId: string) {
+    if (!requireSafeSession() || !activeUser) return;
+
+    try {
+      setFollowingUserId(targetUserId);
+      await apiRequest<{ ok: boolean; removed: boolean }>(
+        `/users/${activeUser.id}/follow/${targetUserId}`,
+        {
+          method: "DELETE",
+          headers: authHeaders(),
+        },
+      );
+
+      setUserFollows((currentFollows) => (
+        currentFollows.filter((follow) => !(follow.followerUserId === activeUser.id && follow.followingUserId === targetUserId))
+      ));
+      sendSuccess();
+      showToast("Подписка отменена");
+    } catch (error) {
+      sendError();
+      alert(getErrorMessage(error));
+    } finally {
+      setFollowingUserId(null);
     }
   }
 
@@ -6241,6 +6334,72 @@ function App() {
     );
   }
 
+  function renderFollowsCard() {
+    if (!activeUser) return null;
+
+    const followingUsers = activeUserFollowing
+      .map((follow) => users.find((user) => user.id === follow.followingUserId))
+      .filter((user): user is DemoUser => Boolean(user));
+    const followerUsers = activeUserFollowers
+      .map((follow) => users.find((user) => user.id === follow.followerUserId))
+      .filter((user): user is DemoUser => Boolean(user));
+
+    const renderFollowUser = (user: DemoUser, meta: string) => {
+      const title = getUserActiveTitle(user);
+      return (
+        <button className={`followUserItem clickableUserCard ${getUserFrameClass(user)}`} key={user.id} onClick={() => openPublicProfile(user.id)}>
+          <div className={`commentAvatar ${getUserFrameClass(user)}`}>{user.name.slice(0, 1).toUpperCase()}</div>
+          <div>
+            <strong>{user.name}</strong>
+            {title ? <span>{title.emoji} {title.name}</span> : null}
+            <small>{meta}</small>
+          </div>
+        </button>
+      );
+    };
+
+    return (
+      <article className="profileCard profileWideCard followCard">
+        <div className="sectionHeader">
+          <div>
+            <h2>Подписки</h2>
+            <p>Игроки, за которыми ты следишь, и те, кто следит за тобой.</p>
+          </div>
+          <span>{activeUserFollowing.length}/{activeUserFollowers.length}</span>
+        </div>
+
+        <div className="followStatsGrid">
+          <div><strong>{activeUserFollowing.length}</strong><span>подписок</span></div>
+          <div><strong>{activeUserFollowers.length}</strong><span>подписчиков</span></div>
+        </div>
+
+        <div className="followColumns">
+          <section>
+            <h3>Ты подписан</h3>
+            {followingUsers.length === 0 ? (
+              <div className="empty miniEmptyState">Открой публичный профиль игрока и подпишись на него.</div>
+            ) : (
+              <div className="followList">
+                {followingUsers.slice(0, 10).map((user) => renderFollowUser(user, "Открыть профиль"))}
+              </div>
+            )}
+          </section>
+
+          <section>
+            <h3>Подписчики</h3>
+            {followerUsers.length === 0 ? (
+              <div className="empty miniEmptyState">Подписчиков пока нет.</div>
+            ) : (
+              <div className="followList">
+                {followerUsers.slice(0, 10).map((user) => renderFollowUser(user, "Подписчик"))}
+              </div>
+            )}
+          </section>
+        </div>
+      </article>
+    );
+  }
+
   function renderPublicProfilePage() {
     const user = selectedPublicProfileUser || activeUser;
 
@@ -6265,6 +6424,10 @@ function App() {
     const weeklyRank = weeklyStanding ? weeklyStandings.findIndex((row) => row.user.id === user.id) + 1 : 0;
     const userSuggestions = marketSuggestions.filter((suggestion) => suggestion.userId === user.id);
     const userComments = comments.filter((comment) => comment.userId === user.id);
+    const userFollowers = userFollows.filter((follow) => follow.followingUserId === user.id);
+    const userFollowing = userFollows.filter((follow) => follow.followerUserId === user.id);
+    const isFollowingUser = Boolean(activeUser && userFollows.some((follow) => follow.followerUserId === activeUser.id && follow.followingUserId === user.id));
+    const isFollowBusy = followingUserId === user.id;
     const userStats = { predictionsCount: userPredictions.length, settledCount: userSettledPredictions.length, wins, winRate };
     const level = getUserLevel(userStats, userRank, user);
     const achievements = getUserAchievements({
@@ -6313,9 +6476,12 @@ function App() {
             <div className="profileHeroActions">
               {user.id === activeUser?.id ? (
                 <button onClick={() => { setSelectedPublicProfileUserId(null); setMainView("profile"); }}>Открыть мой профиль</button>
+              ) : isFollowingUser ? (
+                <button className="secondaryButton" disabled={isFollowBusy} onClick={() => void unfollowUser(user.id)}>{isFollowBusy ? "..." : "Отписаться"}</button>
               ) : (
-                <button onClick={() => setMainView("tournament")}>Открыть турнир</button>
+                <button disabled={isFollowBusy || !activeUser} onClick={() => void followUser(user.id)}>{isFollowBusy ? "..." : "Подписаться"}</button>
               )}
+              <button className="secondaryButton" onClick={() => setMainView("tournament")}>Турнир</button>
               <button className="secondaryButton" onClick={() => setMainView("markets")}>К рынкам</button>
             </div>
           </div>
@@ -6335,6 +6501,7 @@ function App() {
           <div><span>Winrate</span><strong>{winRate}%</strong><small>{wins}/{userSettledPredictions.length || 0} побед</small></div>
           <div><span>Лучший выигрыш</span><strong>{bestPayout.toLocaleString("ru-RU")}</strong><small>баллов</small></div>
           <div><span>Предметы</span><strong>{userInventoryItems.length}</strong><small>{unlockedCount}/{achievements.length} достиж.</small></div>
+          <div><span>Подписчики</span><strong>{userFollowers.length}</strong><small>{userFollowing.length} подписок</small></div>
         </section>
 
         <section className="publicProfileGrid">
@@ -6441,7 +6608,7 @@ function App() {
       { id: "style", icon: "🛍️", label: "Стиль", badge: activeUserInventory.length },
       { id: "achievements", icon: "🏅", label: "Достижения", badge: `${unlockedAchievementsCount}/${activeUserAchievements.length}` },
       { id: "predictions", icon: "🎯", label: "Прогнозы", badge: activeUserPredictions.length },
-      { id: "social", icon: "🤝", label: "Соц.", badge: activeUserReferrals.length },
+      { id: "social", icon: "🤝", label: "Соц.", badge: activeUserReferrals.length + activeUserFollowing.length + activeUserFollowers.length },
       { id: "history", icon: "💳", label: "Баллы", badge: activeUserTransactions.length },
     ];
 
@@ -6652,6 +6819,7 @@ function App() {
         {profileTab === "social" && (
           <section className="profileContentGrid profileSocialGrid">
             {renderReferralCard()}
+            {renderFollowsCard()}
 
             <div className="profileCard profileWideCard">
               <div className="sectionHeader">

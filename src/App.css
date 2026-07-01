@@ -13445,3 +13445,115 @@ button.participantCard:hover,
     flex-direction: column;
   }
 }
+
+
+/* User follows */
+.followCard {
+  display: grid;
+  gap: 13px;
+}
+
+.followStatsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.followStatsGrid div {
+  padding: 13px;
+  border-radius: 18px;
+  background: rgba(248, 250, 252, 0.86);
+  border: 1px solid rgba(226, 232, 240, 0.86);
+}
+
+.followStatsGrid strong {
+  display: block;
+  color: #0f172a;
+  font-size: 1.18rem;
+}
+
+.followStatsGrid span {
+  display: block;
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.followColumns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.followColumns h3 {
+  margin: 0 0 8px;
+  color: #0f172a;
+  font-size: 0.95rem;
+}
+
+.followList {
+  display: grid;
+  gap: 8px;
+}
+
+.followUserItem {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  width: 100%;
+  padding: 10px;
+  border-radius: 18px;
+  background: rgba(248, 250, 252, 0.86);
+  border: 1px solid rgba(226, 232, 240, 0.86);
+  text-align: left;
+}
+
+.followUserItem strong {
+  display: block;
+  color: #0f172a;
+  font-size: 0.86rem;
+}
+
+.followUserItem span {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 3px;
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: #1d4ed8;
+  background: rgba(219, 234, 254, 0.9);
+  font-size: 0.64rem;
+  font-weight: 950;
+}
+
+.followUserItem small {
+  display: block;
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.publicProfileStatsGrid {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.telegramApp .followColumns,
+.telegramApp .followStatsGrid {
+  grid-template-columns: 1fr;
+}
+
+@media (max-width: 1100px) {
+  .publicProfileStatsGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .followColumns,
+  .followStatsGrid {
+    grid-template-columns: 1fr;
+  }
+}
