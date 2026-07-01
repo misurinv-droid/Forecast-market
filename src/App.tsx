@@ -108,6 +108,7 @@ type DemoUser = {
   telegramNotifyBonus?: boolean;
   telegramNotifyClosing?: boolean;
   telegramNotifyAdmin?: boolean;
+  telegramNotifyFollowing?: boolean;
   activeTitleItemId?: string;
   activeFrameItemId?: string;
 };
@@ -2574,7 +2575,7 @@ function App() {
   }
 
   async function updateTelegramNotificationPreference(
-    key: "settlement" | "bonus" | "closing" | "admin",
+    key: "settlement" | "bonus" | "closing" | "admin" | "following",
     value: boolean,
   ) {
     if (!requireSafeSession() || !activeUser) return;
@@ -2584,6 +2585,7 @@ function App() {
       bonusEnabled: activeUser.telegramNotifyBonus !== false,
       closingEnabled: activeUser.telegramNotifyClosing !== false,
       adminEnabled: activeUser.telegramNotifyAdmin !== false,
+      followingEnabled: activeUser.telegramNotifyFollowing !== false,
     };
 
     const nextPrefs = {
@@ -6202,10 +6204,11 @@ function App() {
       bonus: activeUser?.telegramNotifyBonus !== false,
       closing: activeUser?.telegramNotifyClosing !== false,
       admin: activeUser?.telegramNotifyAdmin !== false,
+      following: activeUser?.telegramNotifyFollowing !== false,
     };
 
     const notificationToggles: Array<{
-      key: "settlement" | "bonus" | "closing" | "admin";
+      key: "settlement" | "bonus" | "closing" | "admin" | "following";
       icon: string;
       title: string;
       text: string;
@@ -6232,6 +6235,13 @@ function App() {
         title: "Рынок закрывается",
         text: "Напоминание по рынкам, где у тебя есть активный прогноз.",
         enabled: notificationPrefs.closing,
+      },
+      {
+        key: "following",
+        icon: "👥",
+        title: "Активность подписок",
+        text: "Бот напишет, когда игрок из твоих подписок сделает прогноз, комментарий, выиграет или откроет предмет.",
+        enabled: notificationPrefs.following,
       },
       {
         key: "admin",

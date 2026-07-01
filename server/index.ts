@@ -23,6 +23,7 @@ type DemoUser = {
   telegramNotifyBonus?: boolean;
   telegramNotifyClosing?: boolean;
   telegramNotifyAdmin?: boolean;
+  telegramNotifyFollowing?: boolean;
   activeTitleItemId?: string;
   activeFrameItemId?: string;
 };
@@ -689,6 +690,7 @@ function toUser(row: any): DemoUser {
     telegramNotifyBonus: row.telegram_notify_bonus !== false,
     telegramNotifyClosing: row.telegram_notify_closing !== false,
     telegramNotifyAdmin: row.telegram_notify_admin !== false,
+    telegramNotifyFollowing: row.telegram_notify_following !== false,
     activeTitleItemId: row.active_title_item_id || undefined,
     activeFrameItemId: row.active_frame_item_id || undefined,
   };
@@ -938,6 +940,15 @@ async function grantCosmeticReward(
     title: "Открыт предмет",
     description: `${item.emoji} ${item.name} · ${reason}`,
     amount: 0,
+  });
+
+  void sendFollowingActivityNotifications({
+    eventType: "following_cosmetic",
+    eventId: inventoryRow.id,
+    actorUserId: userId,
+    actorName: "Игрок",
+    title: "Игрок из подписок открыл предмет",
+    html: `🎁 <b>Игрок из твоих подписок открыл предмет</b>\n\n${escapeTelegramHtml(item.emoji)} <b>${escapeTelegramHtml(item.name)}</b>\n${escapeTelegramHtml(reason)}`,
   });
 
   return {
@@ -1552,6 +1563,72 @@ async function sendSettlementNotifications(market: Market, outcome: Outcome, pay
       await sendTelegramMessageToUser(userId, html, market.id);
     })
   );
+
+  await Promise.allSettled(
+    userIds
+      .filter((userId) => (payoutsByUser[userId] || 0) > 0)
+      .map(async (userId) => {
+        const user = usersById.get(userId);
+        await sendFollowingActivityNotifications({
+          eventType: "following_win",
+          eventId: `${market.id}:${userId}:${outcome}`,
+          actorUserId: userId,
+          actorName: user?.name || "Игрок",
+          marketId: market.id,
+          title: "Игрок из подписок выиграл прогноз",
+          html: `🏆 <b>${escapeTelegramHtml(user?.name || "Игрок")} выиграл прогноз</b>\n\nРынок: ${escapeTelegramHtml(market.question)}\nРезультат: <b>${resultText}</b>\nВыплата: <b>+${(payoutsByUser[userId] || 0).toLocaleString("ru-RU")} баллов</b>`,
+        });
+      })
+  );
+}
+
+type FollowingNotificationInput = {
+  eventType: "following_prediction" | "following_comment" | "following_win" | "following_cosmetic";
+  eventId: string;
+  actorUserId: string;
+  actorName: string;
+  marketId?: string;
+  title: string;
+  html: string;
+};
+
+async function sendFollowingActivityNotifications(input: FollowingNotificationInput) {
+  if (!BOT_TOKEN) return;
+
+  try {
+    const followersResult = await pool.query(
+      `
+        SELECT uf.follower_user_id
+        FROM user_follows uf
+        JOIN users u ON u.id = uf.follower_user_id
+        WHERE uf.following_user_id = $1
+          AND u.telegram_notify_following IS NOT FALSE
+        LIMIT 200
+      `,
+      [input.actorUserId]
+    );
+
+    await Promise.allSettled(
+      followersResult.rows.map(async (row) => {
+        const followerUserId = String(row.follower_user_id);
+        if (followerUserId === input.actorUserId) return;
+
+        const inserted = await rememberNotificationEvent(
+          pool,
+          input.eventType,
+          followerUserId,
+          input.marketId || null,
+          `${input.eventType}:${input.eventId}:${followerUserId}`
+        );
+
+        if (!inserted) return;
+
+        await sendTelegramMessageToUser(followerUserId, input.html, input.marketId);
+      })
+    );
+  } catch (error) {
+    console.warn(`Ошибка отправки уведомлений подписчикам (${input.eventType}):`, error);
+  }
 }
 
 async function rememberNotificationEvent(
@@ -2200,6 +2277,7 @@ async function migrate() {
       telegram_notify_bonus BOOLEAN NOT NULL DEFAULT TRUE,
       telegram_notify_closing BOOLEAN NOT NULL DEFAULT TRUE,
       telegram_notify_admin BOOLEAN NOT NULL DEFAULT TRUE,
+      telegram_notify_following BOOLEAN NOT NULL DEFAULT TRUE,
       active_title_item_id TEXT,
       active_frame_item_id TEXT
     );
@@ -2412,6 +2490,7 @@ async function migrate() {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_notify_bonus BOOLEAN NOT NULL DEFAULT TRUE;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_notify_closing BOOLEAN NOT NULL DEFAULT TRUE;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_notify_admin BOOLEAN NOT NULL DEFAULT TRUE;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_notify_following BOOLEAN NOT NULL DEFAULT TRUE;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS active_title_item_id TEXT;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS active_frame_item_id TEXT;
   `);
@@ -2742,6 +2821,7 @@ app.patch("/api/users/:userId/telegram-notifications", async (request, response)
   const bonusEnabled = body.bonusEnabled !== false;
   const closingEnabled = body.closingEnabled !== false;
   const adminEnabled = body.adminEnabled !== false;
+  const followingEnabled = body.followingEnabled !== false;
 
   const result = await pool.query(
     `
@@ -2749,11 +2829,12 @@ app.patch("/api/users/:userId/telegram-notifications", async (request, response)
       SET telegram_notify_settlement = $2,
           telegram_notify_bonus = $3,
           telegram_notify_closing = $4,
-          telegram_notify_admin = $5
+          telegram_notify_admin = $5,
+          telegram_notify_following = $6
       WHERE id = $1
       RETURNING *
     `,
-    [userId, settlementEnabled, bonusEnabled, closingEnabled, adminEnabled]
+    [userId, settlementEnabled, bonusEnabled, closingEnabled, adminEnabled, followingEnabled]
   );
 
   const user = result.rows[0];
@@ -4341,6 +4422,16 @@ app.post("/api/markets/:marketId/predictions", async (request, response) => {
     return;
   }
 
+  void sendFollowingActivityNotifications({
+    eventType: "following_prediction",
+    eventId: result.prediction.id,
+    actorUserId: result.prediction.userId,
+    actorName: result.prediction.userName,
+    marketId: result.prediction.marketId,
+    title: "Игрок из подписок сделал прогноз",
+    html: `🎯 <b>${escapeTelegramHtml(result.prediction.userName)} сделал прогноз</b>\n\n${escapeTelegramHtml(result.prediction.marketQuestion)}\n\nИсход: <b>${result.prediction.outcome === "yes" ? "Да" : "Нет"}</b>\nСумма: <b>${result.prediction.amount.toLocaleString("ru-RU")} баллов</b>`,
+  });
+
   response.status(201).json(result.prediction);
 });
 
@@ -4523,6 +4614,17 @@ app.post("/api/markets/:marketId/comments", async (request, response) => {
   );
 
   await maybeAwardProgressCosmetics(pool, user.id);
+
+  const market = toMarket(marketResult.rows[0]);
+  void sendFollowingActivityNotifications({
+    eventType: "following_comment",
+    eventId: comment.id,
+    actorUserId: comment.userId,
+    actorName: comment.userName,
+    marketId: comment.marketId,
+    title: "Игрок из подписок оставил комментарий",
+    html: `💬 <b>${escapeTelegramHtml(comment.userName)} оставил комментарий</b>\n\nРынок: ${escapeTelegramHtml(market.question)}\n\n${escapeTelegramHtml(comment.text || "Добавил вложение")}`,
+  });
 
   response.status(201).json(comment);
 });
