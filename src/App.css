@@ -12950,3 +12950,118 @@ body,
   padding: 8px 12px;
   border-radius: 12px;
 }
+
+
+/* Admin shop */
+.adminShopHero {
+  display: grid;
+  gap: 13px;
+}
+
+.adminShopGrid {
+  align-items: start;
+}
+
+.adminShopEditorCard,
+.adminShopGrantCard,
+.adminShopListCard {
+  position: relative;
+  overflow: hidden;
+}
+
+.toggleCheckboxLabel {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(248, 250, 252, 0.86);
+  border: 1px solid rgba(226, 232, 240, 0.86);
+  color: #0f172a;
+  font-weight: 900;
+}
+
+.toggleCheckboxLabel input {
+  width: auto !important;
+  min-height: auto !important;
+}
+
+.adminShopList {
+  display: grid;
+  gap: 10px;
+}
+
+.adminShopItemRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 22px;
+  background: rgba(248, 250, 252, 0.86);
+  border: 1px solid rgba(226, 232, 240, 0.86);
+}
+
+.adminShopItemRow strong {
+  display: block;
+  color: #0f172a;
+  font-size: 0.94rem;
+}
+
+.adminShopItemRow span {
+  display: block;
+  margin-top: 3px;
+  color: #334155;
+  font-size: 0.74rem;
+  font-weight: 850;
+}
+
+.adminShopItemRow p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 0.72rem;
+  line-height: 1.3;
+  font-weight: 760;
+}
+
+.adminShopItemRow small {
+  display: block;
+  margin-top: 6px;
+  color: #94a3b8;
+  font-size: 0.66rem;
+  font-weight: 800;
+}
+
+.inactiveAdminShopItem {
+  opacity: 0.62;
+  background: rgba(241, 245, 249, 0.72);
+}
+
+.adminShopRowActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.adminShopRowActions button {
+  border-radius: 14px;
+  padding: 9px 11px;
+}
+
+@media (max-width: 860px) {
+  .adminShopItemRow {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .adminShopRowActions {
+    grid-column: 1 / -1;
+    justify-content: stretch;
+  }
+
+  .adminShopRowActions button {
+    flex: 1;
+  }
+}

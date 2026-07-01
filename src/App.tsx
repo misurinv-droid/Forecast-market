@@ -69,9 +69,21 @@ type UserInventoryItem = {
   itemId: string;
   createdAt: string;
 };
+
+type AdminShopItemForm = {
+  id: string;
+  type: "title" | "frame";
+  name: string;
+  description: string;
+  price: string;
+  emoji: string;
+  styleKey: string;
+  sortOrder: string;
+  isActive: boolean;
+};
 type MyPredictionTab = "active" | "waiting" | "settled" | "won" | "lost" | "all";
 type ProfileTab = "overview" | "style" | "achievements" | "predictions" | "social" | "history";
-type AdminPanelTab = "overview" | "users" | "markets" | "create" | "suggestions" | "settlement" | "polymarket" | "points" | "tournament" | "security";
+type AdminPanelTab = "overview" | "users" | "markets" | "create" | "suggestions" | "settlement" | "polymarket" | "points" | "tournament" | "shop" | "security";
 
 type DemoUser = {
   id: string;
@@ -322,6 +334,18 @@ const emptyCommentDraft: CommentDraft = {
   text: "",
   mediaDataUrl: "",
   mediaName: "",
+};
+
+const emptyAdminShopItemForm: AdminShopItemForm = {
+  id: "",
+  type: "title",
+  name: "",
+  description: "",
+  price: "1000",
+  emoji: "✨",
+  styleKey: "custom",
+  sortOrder: "200",
+  isActive: true,
 };
 
 function getYesProbability(market: Pick<Market, "yesPool" | "noPool">) {
@@ -964,6 +988,11 @@ function App() {
   const [adminAwardForm, setAdminAwardForm] = useState({ userId: "", amount: "1000", description: "Тестовое начисление баллов" });
   const [adminBulkPointsForm, setAdminBulkPointsForm] = useState({ amount: "1000", description: "Массовая тестовая корректировка баланса" });
   const [isApplyingBulkPoints, setIsApplyingBulkPoints] = useState(false);
+  const [adminShopForm, setAdminShopForm] = useState<AdminShopItemForm>(emptyAdminShopItemForm);
+  const [editingShopItemId, setEditingShopItemId] = useState<string | null>(null);
+  const [adminShopGrantForm, setAdminShopGrantForm] = useState({ userId: "", itemId: "" });
+  const [savingAdminShopItemId, setSavingAdminShopItemId] = useState<string | null>(null);
+  const [grantingShopItemId, setGrantingShopItemId] = useState<string | null>(null);
   const [adminTab, setAdminTab] = useState<AdminPanelTab>("overview");
   const [adminUserSearch, setAdminUserSearch] = useState("");
   const [adminMarketSearch, setAdminMarketSearch] = useState("");
@@ -2648,6 +2677,148 @@ function App() {
       alert(getErrorMessage(error));
     } finally {
       setIsAwardingWeeklyTournament(false);
+    }
+  }
+
+  function startCreateShopItem(type: "title" | "frame" = "title") {
+    setEditingShopItemId(null);
+    setAdminShopForm({
+      ...emptyAdminShopItemForm,
+      type,
+      emoji: type === "title" ? "✨" : "💠",
+      styleKey: type === "title" ? "custom-title" : "custom-frame",
+      sortOrder: type === "title" ? "200" : "300",
+    });
+    setAdminTab("shop");
+  }
+
+  function startEditShopItem(item: ShopItem) {
+    setEditingShopItemId(item.id);
+    setAdminShopForm({
+      id: item.id,
+      type: item.type,
+      name: item.name,
+      description: item.description,
+      price: String(item.price),
+      emoji: item.emoji,
+      styleKey: item.styleKey,
+      sortOrder: String(item.sortOrder),
+      isActive: item.isActive,
+    });
+    setAdminTab("shop");
+  }
+
+  async function saveAdminShopItem() {
+    if (!requireClientAdmin()) return;
+
+    const price = Math.max(0, Math.trunc(Number(adminShopForm.price)));
+    const sortOrder = Math.trunc(Number(adminShopForm.sortOrder));
+
+    if (!adminShopForm.name.trim()) {
+      alert("Укажи название предмета.");
+      return;
+    }
+
+    if (!Number.isFinite(price)) {
+      alert("Укажи корректную цену.");
+      return;
+    }
+
+    if (!Number.isFinite(sortOrder)) {
+      alert("Укажи корректный порядок показа.");
+      return;
+    }
+
+    try {
+      setSavingAdminShopItemId(editingShopItemId || "new");
+      const payload = {
+        id: adminShopForm.id.trim(),
+        type: adminShopForm.type,
+        name: adminShopForm.name.trim(),
+        description: adminShopForm.description.trim(),
+        price,
+        emoji: adminShopForm.emoji.trim() || "✨",
+        styleKey: adminShopForm.styleKey.trim() || "custom",
+        sortOrder,
+        isActive: adminShopForm.isActive,
+      };
+
+      await apiRequest<{ item: ShopItem }>(
+        editingShopItemId ? `/admin/shop/items/${editingShopItemId}` : "/admin/shop/items",
+        {
+          method: editingShopItemId ? "PATCH" : "POST",
+          headers: adminHeaders(),
+          body: JSON.stringify(payload),
+        },
+      );
+
+      await refreshData(activeUser?.id);
+      setEditingShopItemId(null);
+      setAdminShopForm(emptyAdminShopItemForm);
+      sendSuccess();
+      showToast(editingShopItemId ? "Предмет обновлён" : "Предмет создан");
+    } catch (error) {
+      sendError();
+      alert(getErrorMessage(error));
+    } finally {
+      setSavingAdminShopItemId(null);
+    }
+  }
+
+  async function toggleAdminShopItem(item: ShopItem) {
+    if (!requireClientAdmin()) return;
+
+    try {
+      setSavingAdminShopItemId(item.id);
+      await apiRequest<{ item: ShopItem }>(`/admin/shop/items/${item.id}`, {
+        method: "PATCH",
+        headers: adminHeaders(),
+        body: JSON.stringify({ ...item, isActive: !item.isActive }),
+      });
+      await refreshData(activeUser?.id);
+      sendSuccess();
+      showToast(!item.isActive ? "Предмет включён" : "Предмет скрыт");
+    } catch (error) {
+      sendError();
+      alert(getErrorMessage(error));
+    } finally {
+      setSavingAdminShopItemId(null);
+    }
+  }
+
+  async function grantShopItemToUser(itemId?: string) {
+    if (!requireClientAdmin()) return;
+
+    const targetItemId = itemId || adminShopGrantForm.itemId;
+    const targetUserId = adminShopGrantForm.userId || activeUser?.id || users[0]?.id || "";
+
+    if (!targetUserId || !targetItemId) {
+      alert("Выбери игрока и предмет.");
+      return;
+    }
+
+    try {
+      setGrantingShopItemId(targetItemId);
+      const result = await apiRequest<{ inventoryItem: UserInventoryItem; alreadyOwned: boolean }>(
+        `/admin/shop/items/${targetItemId}/grant`,
+        {
+          method: "POST",
+          headers: adminHeaders(),
+          body: JSON.stringify({ userId: targetUserId }),
+        },
+      );
+
+      setUserInventory((currentInventory) => (
+        currentInventory.some((entry) => entry.id === result.inventoryItem.id) ? currentInventory : [result.inventoryItem, ...currentInventory]
+      ));
+      await refreshData(activeUser?.id);
+      sendSuccess();
+      showToast(result.alreadyOwned ? "Предмет уже был у игрока" : "Предмет выдан игроку");
+    } catch (error) {
+      sendError();
+      alert(getErrorMessage(error));
+    } finally {
+      setGrantingShopItemId(null);
     }
   }
 
@@ -5057,6 +5228,7 @@ function App() {
         { id: "polymarket", title: "Импорт Polymarket", shortTitle: "Импорт", icon: "◆", badge: totalImported },
         { id: "points", title: "Начисления баллов", shortTitle: "Баллы", icon: "₽" },
         { id: "tournament", title: "Награды турнира", shortTitle: "Турнир", icon: "🏆", badge: hasCurrentWeekAwards ? undefined : weeklyStandings.length || undefined },
+        { id: "shop", title: "Магазин профиля", shortTitle: "Магазин", icon: "🛍️", badge: effectiveShopItems.length || undefined },
         { id: "security", title: "Доступы и безопасность", shortTitle: "Доступ", icon: "🔐" },
       ];
 
@@ -5111,6 +5283,7 @@ function App() {
                 <button onClick={() => setAdminTab("polymarket")}><strong>{totalImported}</strong><span>импортированных рынков</span></button>
                 <button onClick={() => setAdminTab("points")}><strong>±</strong><span>ручные начисления</span></button>
                 <button onClick={() => setAdminTab("tournament")}><strong>🏆</strong><span>{hasCurrentWeekAwards ? "награды недели выданы" : "выдать награды недели"}</span></button>
+                <button onClick={() => setAdminTab("shop")}><strong>{effectiveShopItems.length}</strong><span>предметов магазина</span></button>
               </div>
             </article>
 
@@ -5412,6 +5585,186 @@ function App() {
       );
     }
 
+    function renderAdminShop() {
+      const adminShopItems = [...effectiveShopItems].sort((a, b) => {
+        if (a.type !== b.type) return a.type === "title" ? -1 : 1;
+        return a.sortOrder - b.sortOrder || a.price - b.price;
+      });
+      const selectedGrantUser = users.find((user) => user.id === (adminShopGrantForm.userId || activeUser?.id || users[0]?.id || ""));
+      const selectedGrantItem = adminShopItems.find((item) => item.id === (adminShopGrantForm.itemId || adminShopItems[0]?.id || ""));
+      const totalPurchases = userInventory.length;
+
+      return (
+        <div className="adminTabPanel">
+          <section className="adminShopHero adminTournamentRewardsCard">
+            <div className="sectionHeader">
+              <div>
+                <h2>Магазин профиля</h2>
+                <p>Создавай титулы и рамки, меняй цены, скрывай предметы и выдавай косметику игрокам вручную.</p>
+              </div>
+              <span className={isUsingFallbackShopItems ? "notificationStatusPending" : "notificationStatusReady"}>
+                {isUsingFallbackShopItems ? "Fallback" : "Backend"}
+              </span>
+            </div>
+
+            <div className="adminTournamentPeriod">
+              <div><span>Предметов</span><strong>{adminShopItems.length}</strong><small>в магазине</small></div>
+              <div><span>Активных</span><strong>{adminShopItems.filter((item) => item.isActive).length}</strong><small>видны игрокам</small></div>
+              <div><span>Покупок</span><strong>{totalPurchases}</strong><small>в инвентарях</small></div>
+              <div><span>Баланс</span><strong>{totalBalance.toLocaleString("ru-RU")}</strong><small>у игроков</small></div>
+            </div>
+          </section>
+
+          <section className="adminTwoColumn adminShopGrid">
+            <article className="adminFormCard adminShopEditorCard">
+              <div className="sectionHeader">
+                <div>
+                  <h2>{editingShopItemId ? "Редактировать предмет" : "Создать предмет"}</h2>
+                  <p>{editingShopItemId || "Новый титул или рамка появится в профиле игроков."}</p>
+                </div>
+                {editingShopItemId ? <button className="secondaryButton" onClick={() => { setEditingShopItemId(null); setAdminShopForm(emptyAdminShopItemForm); }}>Сбросить</button> : null}
+              </div>
+
+              <div className="adminForm compactAdminForm manualPointsForm">
+                <label>
+                  Тип
+                  <select value={adminShopForm.type} onChange={(event) => setAdminShopForm((current) => ({ ...current, type: event.target.value as "title" | "frame" }))}>
+                    <option value="title">Титул</option>
+                    <option value="frame">Рамка</option>
+                  </select>
+                </label>
+
+                <label>
+                  ID
+                  <input placeholder="Можно оставить пустым" value={adminShopForm.id} disabled={Boolean(editingShopItemId)} onChange={(event) => setAdminShopForm((current) => ({ ...current, id: event.target.value }))} />
+                </label>
+
+                <label>
+                  Название
+                  <input placeholder="Например: Чемпион недели" value={adminShopForm.name} onChange={(event) => setAdminShopForm((current) => ({ ...current, name: event.target.value }))} />
+                </label>
+
+                <label>
+                  Emoji
+                  <input placeholder="👑" value={adminShopForm.emoji} onChange={(event) => setAdminShopForm((current) => ({ ...current, emoji: event.target.value }))} />
+                </label>
+
+                <label>
+                  Цена
+                  <input inputMode="numeric" value={adminShopForm.price} onChange={(event) => setAdminShopForm((current) => ({ ...current, price: event.target.value.replace(/[^0-9]/g, "") }))} />
+                </label>
+
+                <label>
+                  Порядок
+                  <input inputMode="numeric" value={adminShopForm.sortOrder} onChange={(event) => setAdminShopForm((current) => ({ ...current, sortOrder: event.target.value.replace(/[^0-9-]/g, "") }))} />
+                </label>
+
+                <label>
+                  Style key
+                  <input placeholder="gold / neon / custom" value={adminShopForm.styleKey} onChange={(event) => setAdminShopForm((current) => ({ ...current, styleKey: event.target.value }))} />
+                </label>
+
+                <label className="toggleCheckboxLabel">
+                  <input type="checkbox" checked={adminShopForm.isActive} onChange={(event) => setAdminShopForm((current) => ({ ...current, isActive: event.target.checked }))} />
+                  <span>Активен</span>
+                </label>
+
+                <label className="wideField">
+                  Описание
+                  <textarea placeholder="Короткое описание предмета" value={adminShopForm.description} onChange={(event) => setAdminShopForm((current) => ({ ...current, description: event.target.value }))} />
+                </label>
+
+                <button className="createMarketButton wideField" onClick={saveAdminShopItem} disabled={Boolean(savingAdminShopItemId)}>
+                  {savingAdminShopItemId ? "Сохраняем..." : editingShopItemId ? "Сохранить изменения" : "Создать предмет"}
+                </button>
+
+                <div className="quickAmountRow wideField">
+                  <button className="secondaryButton" onClick={() => startCreateShopItem("title")}>Новый титул</button>
+                  <button className="secondaryButton" onClick={() => startCreateShopItem("frame")}>Новая рамка</button>
+                </div>
+              </div>
+            </article>
+
+            <article className="adminFormCard adminShopGrantCard">
+              <div className="sectionHeader">
+                <div>
+                  <h2>Выдать предмет</h2>
+                  <p>Для тестов, призов турнира или ручных наград.</p>
+                </div>
+              </div>
+
+              <div className="adminForm compactAdminForm manualPointsForm">
+                <label>
+                  Игрок
+                  <select value={adminShopGrantForm.userId || activeUser?.id || users[0]?.id || ""} onChange={(event) => setAdminShopGrantForm((current) => ({ ...current, userId: event.target.value }))}>
+                    {users.map((user) => (
+                      <option key={user.id} value={user.id}>{user.name} — {user.balance.toLocaleString("ru-RU")} б.</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  Предмет
+                  <select value={adminShopGrantForm.itemId || adminShopItems[0]?.id || ""} onChange={(event) => setAdminShopGrantForm((current) => ({ ...current, itemId: event.target.value }))}>
+                    {adminShopItems.map((item) => (
+                      <option key={item.id} value={item.id}>{item.emoji} {item.name}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <button className="createMarketButton wideField" onClick={() => void grantShopItemToUser()} disabled={!selectedGrantItem || !selectedGrantUser || Boolean(grantingShopItemId)}>
+                  {grantingShopItemId ? "Выдаём..." : "Выдать выбранный предмет"}
+                </button>
+
+                {selectedGrantUser && selectedGrantItem ? (
+                  <p className="adminHint wideField">
+                    Выдать «{selectedGrantItem.name}» игроку {selectedGrantUser.name}. Баллы не списываются.
+                  </p>
+                ) : null}
+              </div>
+            </article>
+          </section>
+
+          <section className="adminFormCard adminShopListCard">
+            <div className="sectionHeader">
+              <div>
+                <h2>Предметы магазина</h2>
+                <p>Покупки считаются по инвентарю игроков.</p>
+              </div>
+              <button className="secondaryButton" onClick={() => void refreshShopItems()}>Обновить магазин</button>
+            </div>
+
+            <div className="adminShopList">
+              {adminShopItems.map((item) => {
+                const buyerCount = userInventory.filter((entry) => entry.itemId === item.id).length;
+                const isBusy = savingAdminShopItemId === item.id || grantingShopItemId === item.id;
+                return (
+                  <article className={`adminShopItemRow ${item.isActive ? "" : "inactiveAdminShopItem"}`} key={item.id}>
+                    <div className={`shopItemIcon shopItemIcon-${item.styleKey}`}>{item.emoji}</div>
+                    <div>
+                      <strong>{item.name}</strong>
+                      <span>{item.type === "title" ? "Титул" : "Рамка"} · {item.price.toLocaleString("ru-RU")} б. · {buyerCount} владельцев</span>
+                      <p>{item.description || "Описание не задано"}</p>
+                      <small>{item.id} · {item.styleKey} · порядок {item.sortOrder}</small>
+                    </div>
+                    <div className="adminShopRowActions">
+                      <button onClick={() => startEditShopItem(item)}>Править</button>
+                      <button className="secondaryButton" onClick={() => toggleAdminShopItem(item)} disabled={isBusy}>
+                        {item.isActive ? "Скрыть" : "Включить"}
+                      </button>
+                      <button className="secondaryButton" onClick={() => { setAdminShopGrantForm((current) => ({ ...current, itemId: item.id })); void grantShopItemToUser(item.id); }} disabled={isBusy}>
+                        Выдать
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+      );
+    }
+
     function renderAdminSecurity() {
       return (
         <div className="adminTabPanel">
@@ -5456,6 +5809,7 @@ function App() {
         {adminTab === "polymarket" && renderAdminPolymarket()}
         {adminTab === "points" && renderAdminPoints()}
         {adminTab === "tournament" && renderAdminTournament()}
+        {adminTab === "shop" && renderAdminShop()}
         {adminTab === "security" && renderAdminSecurity()}
       </section>
     );

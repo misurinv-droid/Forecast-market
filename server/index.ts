@@ -879,6 +879,47 @@ async function ensureDefaultShopItems(queryRunner: QueryRunner = pool) {
   }
 }
 
+function normalizeShopItemPayload(body: any) {
+  const type = body?.type === "frame" ? "frame" : "title";
+  const name = String(body?.name || "").trim().slice(0, 80);
+  const description = String(body?.description || "").trim().slice(0, 240);
+  const price = Math.max(0, Math.trunc(Number(body?.price || 0)));
+  const emoji = String(body?.emoji || "✨").trim().slice(0, 12) || "✨";
+  const styleKey = String(body?.styleKey || body?.style_key || "custom")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 40) || "custom";
+  const sortOrder = Math.trunc(Number(body?.sortOrder ?? body?.sort_order ?? 200));
+  const isActive = body?.isActive !== false && body?.is_active !== false;
+
+  if (!name) {
+    return { error: "Укажи название предмета" } as const;
+  }
+
+  if (!Number.isFinite(price)) {
+    return { error: "Укажи корректную цену" } as const;
+  }
+
+  if (!Number.isFinite(sortOrder)) {
+    return { error: "Укажи корректный порядок показа" } as const;
+  }
+
+  return { type, name, description, price, emoji, styleKey, sortOrder, isActive } as const;
+}
+
+function normalizeShopItemId(value: unknown) {
+  const raw = String(value || "").trim().toLowerCase();
+  const normalized = raw
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 80);
+  return normalized;
+}
+
 async function addBalanceTransaction(
   queryRunner: QueryRunner,
   input: Omit<BalanceTransaction, "id" | "createdAt">
@@ -2756,6 +2797,163 @@ app.post("/api/users/:userId/profile-style", async (request, response) => {
   } catch (error) {
     console.error("profile style failed", error);
     response.status(500).json({ error: "Не удалось обновить стиль профиля" });
+  }
+});
+
+app.post("/api/admin/shop/items", async (request, response) => {
+  if (!(await requireAdmin(request, response))) return;
+
+  const payload = normalizeShopItemPayload(request.body || {});
+
+  if ("error" in payload) {
+    response.status(400).json({ error: payload.error });
+    return;
+  }
+
+  const requestedId = normalizeShopItemId(request.body?.id);
+  const itemId = requestedId || `custom-${createId()}`;
+
+  try {
+    const result = await pool.query(
+      `
+        INSERT INTO shop_items (id, type, name, description, price, emoji, style_key, sort_order, is_active, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+        RETURNING *
+      `,
+      [
+        itemId,
+        payload.type,
+        payload.name,
+        payload.description,
+        payload.price,
+        payload.emoji,
+        payload.styleKey,
+        payload.sortOrder,
+        payload.isActive,
+      ]
+    );
+
+    response.status(201).json({ item: toShopItem(result.rows[0]) });
+  } catch (error: any) {
+    if (error?.code === "23505") {
+      response.status(409).json({ error: "Предмет с таким ID уже существует" });
+      return;
+    }
+
+    console.error("admin shop create failed", error);
+    response.status(500).json({ error: "Не удалось создать предмет магазина" });
+  }
+});
+
+app.patch("/api/admin/shop/items/:itemId", async (request, response) => {
+  if (!(await requireAdmin(request, response))) return;
+
+  const itemId = String(request.params.itemId || "").trim();
+
+  if (!itemId) {
+    response.status(400).json({ error: "Не указан предмет" });
+    return;
+  }
+
+  const payload = normalizeShopItemPayload(request.body || {});
+
+  if ("error" in payload) {
+    response.status(400).json({ error: payload.error });
+    return;
+  }
+
+  try {
+    const result = await pool.query(
+      `
+        UPDATE shop_items
+        SET type = $2,
+            name = $3,
+            description = $4,
+            price = $5,
+            emoji = $6,
+            style_key = $7,
+            sort_order = $8,
+            is_active = $9
+        WHERE id = $1
+        RETURNING *
+      `,
+      [
+        itemId,
+        payload.type,
+        payload.name,
+        payload.description,
+        payload.price,
+        payload.emoji,
+        payload.styleKey,
+        payload.sortOrder,
+        payload.isActive,
+      ]
+    );
+
+    if (!result.rows[0]) {
+      response.status(404).json({ error: "Предмет не найден" });
+      return;
+    }
+
+    response.json({ item: toShopItem(result.rows[0]) });
+  } catch (error) {
+    console.error("admin shop update failed", error);
+    response.status(500).json({ error: "Не удалось обновить предмет магазина" });
+  }
+});
+
+app.post("/api/admin/shop/items/:itemId/grant", async (request, response) => {
+  if (!(await requireAdmin(request, response))) return;
+
+  const itemId = String(request.params.itemId || "").trim();
+  const userId = String(request.body?.userId || "").trim();
+
+  if (!itemId || !userId) {
+    response.status(400).json({ error: "Не указан предмет или игрок" });
+    return;
+  }
+
+  try {
+    const result = await withTransaction(async (client) => {
+      const [userResult, itemResult, ownedResult] = await Promise.all([
+        client.query("SELECT * FROM users WHERE id = $1", [userId]),
+        client.query("SELECT * FROM shop_items WHERE id = $1", [itemId]),
+        client.query("SELECT * FROM user_inventory WHERE user_id = $1 AND item_id = $2", [userId, itemId]),
+      ]);
+
+      if (!userResult.rows[0]) {
+        return { error: "Игрок не найден" } as const;
+      }
+
+      if (!itemResult.rows[0]) {
+        return { error: "Предмет не найден" } as const;
+      }
+
+      if (ownedResult.rows[0]) {
+        return { inventoryItem: toUserInventoryItem(ownedResult.rows[0]), alreadyOwned: true };
+      }
+
+      const inventoryResult = await client.query(
+        `
+          INSERT INTO user_inventory (id, user_id, item_id, created_at)
+          VALUES ($1, $2, $3, NOW())
+          RETURNING *
+        `,
+        [createId(), userId, itemId]
+      );
+
+      return { inventoryItem: toUserInventoryItem(inventoryResult.rows[0]), alreadyOwned: false };
+    });
+
+    if (!result || "error" in result) {
+      response.status(400).json({ error: result?.error || "Не удалось выдать предмет" });
+      return;
+    }
+
+    response.json(result);
+  } catch (error) {
+    console.error("admin shop grant failed", error);
+    response.status(500).json({ error: "Не удалось выдать предмет игроку" });
   }
 });
 
