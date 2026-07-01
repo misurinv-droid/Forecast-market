@@ -50,8 +50,27 @@ type WeeklyTournamentAward = {
   awardType: "top" | "participation";
   createdAt: string;
 };
+
+type ShopItem = {
+  id: string;
+  type: "title" | "frame";
+  name: string;
+  description: string;
+  price: number;
+  emoji: string;
+  styleKey: string;
+  sortOrder: number;
+  isActive: boolean;
+};
+
+type UserInventoryItem = {
+  id: string;
+  userId: string;
+  itemId: string;
+  createdAt: string;
+};
 type MyPredictionTab = "active" | "waiting" | "settled" | "won" | "lost" | "all";
-type ProfileTab = "overview" | "achievements" | "predictions" | "social" | "history";
+type ProfileTab = "overview" | "style" | "achievements" | "predictions" | "social" | "history";
 type AdminPanelTab = "overview" | "users" | "markets" | "create" | "suggestions" | "settlement" | "polymarket" | "points" | "tournament" | "security";
 
 type DemoUser = {
@@ -66,6 +85,8 @@ type DemoUser = {
   telegramNotifyBonus?: boolean;
   telegramNotifyClosing?: boolean;
   telegramNotifyAdmin?: boolean;
+  activeTitleItemId?: string;
+  activeFrameItemId?: string;
 };
 
 type TelegramAuthResponse = {
@@ -202,6 +223,8 @@ type BootstrapData = {
   referrals?: Referral[];
   dailyMissionClaims?: DailyMissionClaim[];
   weeklyTournamentAwards?: WeeklyTournamentAward[];
+  shopItems?: ShopItem[];
+  userInventory?: UserInventoryItem[];
   favoriteMarketIdsByUser: Record<string, string[]>;
   adminUserIds?: string[];
 };
@@ -888,6 +911,8 @@ function App() {
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [dailyMissionClaims, setDailyMissionClaims] = useState<DailyMissionClaim[]>([]);
   const [weeklyTournamentAwards, setWeeklyTournamentAwards] = useState<WeeklyTournamentAward[]>([]);
+  const [shopItems, setShopItems] = useState<ShopItem[]>([]);
+  const [userInventory, setUserInventory] = useState<UserInventoryItem[]>([]);
   const [favoriteMarketIdsByUser, setFavoriteMarketIdsByUser] = useState<Record<string, string[]>>({});
   const [adminUserIds, setAdminUserIds] = useState<string[]>([]);
 
@@ -962,6 +987,8 @@ function App() {
   const [isDailyBonusClaiming, setIsDailyBonusClaiming] = useState(false);
   const [claimingDailyMissionId, setClaimingDailyMissionId] = useState<string | null>(null);
   const [isAwardingWeeklyTournament, setIsAwardingWeeklyTournament] = useState(false);
+  const [buyingShopItemId, setBuyingShopItemId] = useState<string | null>(null);
+  const [equippingShopItemId, setEquippingShopItemId] = useState<string | null>(null);
   const [isTestingTelegramNotification, setIsTestingTelegramNotification] = useState(false);
   const [isSavingTelegramNotificationPrefs, setIsSavingTelegramNotificationPrefs] = useState(false);
   const [isRulesOpen, setIsRulesOpen] = useState(false);
@@ -980,6 +1007,31 @@ function App() {
   }, [users, activeUserId]);
 
   const isAdmin = Boolean(isTelegram && authSessionToken && activeUser && adminUserIds.includes(activeUser.id));
+
+  const activeUserInventory = useMemo(() => {
+    if (!activeUser) return [];
+    return userInventory.filter((item) => item.userId === activeUser.id);
+  }, [userInventory, activeUser]);
+
+  const activeUserOwnedItemIds = useMemo(() => {
+    return new Set(activeUserInventory.map((item) => item.itemId));
+  }, [activeUserInventory]);
+
+  const activeTitleItem = useMemo(() => {
+    return shopItems.find((item) => item.id === activeUser?.activeTitleItemId && item.type === "title") || null;
+  }, [shopItems, activeUser]);
+
+  const activeFrameItem = useMemo(() => {
+    return shopItems.find((item) => item.id === activeUser?.activeFrameItemId && item.type === "frame") || null;
+  }, [shopItems, activeUser]);
+
+  const titleShopItems = useMemo(() => {
+    return shopItems.filter((item) => item.type === "title" && item.isActive).sort((a, b) => a.sortOrder - b.sortOrder || a.price - b.price);
+  }, [shopItems]);
+
+  const frameShopItems = useMemo(() => {
+    return shopItems.filter((item) => item.type === "frame" && item.isActive).sort((a, b) => a.sortOrder - b.sortOrder || a.price - b.price);
+  }, [shopItems]);
 
   const dailyBonusInfo = useMemo(() => getDailyBonusInfo(activeUser), [activeUser]);
 
@@ -1717,6 +1769,8 @@ function App() {
     setReferrals(data.referrals || []);
     setDailyMissionClaims(data.dailyMissionClaims || []);
     setWeeklyTournamentAwards(data.weeklyTournamentAwards || []);
+    setShopItems(data.shopItems || []);
+    setUserInventory(data.userInventory || []);
     setFavoriteMarketIdsByUser(data.favoriteMarketIdsByUser || {});
     setAdminUserIds(data.adminUserIds || []);
 
@@ -1757,6 +1811,18 @@ function App() {
       return false;
     }
     return true;
+  }
+
+  function getUserActiveTitle(user: DemoUser | null | undefined) {
+    if (!user?.activeTitleItemId) return null;
+    return shopItems.find((item) => item.id === user.activeTitleItemId && item.type === "title") || null;
+  }
+
+  function getUserFrameClass(user: DemoUser | null | undefined) {
+    const frame = user?.activeFrameItemId
+      ? shopItems.find((item) => item.id === user.activeFrameItemId && item.type === "frame")
+      : null;
+    return frame ? `profileFrame-${frame.styleKey}` : "";
   }
 
   function sendHaptic(type: "light" | "medium" | "heavy" = "light") {
@@ -2021,6 +2087,77 @@ function App() {
       alert(getErrorMessage(error));
     } finally {
       setClaimingDailyMissionId(null);
+    }
+  }
+
+  async function buyShopItem(item: ShopItem) {
+    if (!requireSafeSession() || !activeUser) return;
+
+    if (activeUserOwnedItemIds.has(item.id)) {
+      void equipShopItem(item);
+      return;
+    }
+
+    if (activeUser.balance < item.price) {
+      alert(`Не хватает баллов. Нужно ${item.price.toLocaleString("ru-RU")} б., у тебя ${activeUser.balance.toLocaleString("ru-RU")} б.`);
+      return;
+    }
+
+    try {
+      setBuyingShopItemId(item.id);
+      const result = await apiRequest<{ user: DemoUser; inventoryItem: UserInventoryItem; transaction: BalanceTransaction }>(
+        `/users/${activeUser.id}/shop/${item.id}/buy`,
+        {
+          method: "POST",
+          headers: authHeaders(),
+        },
+      );
+
+      setUsers((currentUsers) => currentUsers.map((user) => user.id === result.user.id ? result.user : user));
+      setUserInventory((currentInventory) => (
+        currentInventory.some((entry) => entry.id === result.inventoryItem.id) ? currentInventory : [result.inventoryItem, ...currentInventory]
+      ));
+      setTransactions((currentTransactions) => [result.transaction, ...currentTransactions].slice(0, 500));
+      sendSuccess();
+      showToast(`Покупка готова: ${item.name}`);
+    } catch (error) {
+      sendError();
+      alert(getErrorMessage(error));
+    } finally {
+      setBuyingShopItemId(null);
+    }
+  }
+
+  async function equipShopItem(item: ShopItem | null, typeOverride?: "title" | "frame") {
+    if (!requireSafeSession() || !activeUser) return;
+
+    const itemType = item?.type || typeOverride;
+    if (!itemType) return;
+
+    if (item && !activeUserOwnedItemIds.has(item.id)) {
+      alert("Сначала купи этот предмет.");
+      return;
+    }
+
+    try {
+      setEquippingShopItemId(item?.id || `empty-${itemType}`);
+      const result = await apiRequest<{ user: DemoUser }>(`/users/${activeUser.id}/profile-style`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          titleItemId: itemType === "title" ? item?.id || null : activeUser.activeTitleItemId || null,
+          frameItemId: itemType === "frame" ? item?.id || null : activeUser.activeFrameItemId || null,
+        }),
+      });
+
+      setUsers((currentUsers) => currentUsers.map((user) => user.id === result.user.id ? result.user : user));
+      sendSuccess();
+      showToast(item ? `Активировано: ${item.name}` : "Стиль сброшен");
+    } catch (error) {
+      sendError();
+      alert(getErrorMessage(error));
+    } finally {
+      setEquippingShopItemId(null);
     }
   }
 
@@ -3011,12 +3148,16 @@ function App() {
           <div className="emptyChat">Пока комментариев нет. Начни обсуждение первым.</div>
         ) : (
           <div className="commentList">
-            {marketComments.map((comment) => (
-              <div className="commentItem" key={comment.id}>
-                <div className="commentAvatar">{comment.userName.slice(0, 1).toUpperCase()}</div>
+            {marketComments.map((comment) => {
+              const commentUser = users.find((user) => user.id === comment.userId);
+              const commentTitle = getUserActiveTitle(commentUser);
+              return (
+              <div className={`commentItem ${getUserFrameClass(commentUser)}`} key={comment.id}>
+                <div className={`commentAvatar ${getUserFrameClass(commentUser)}`}>{comment.userName.slice(0, 1).toUpperCase()}</div>
                 <div className="commentBody">
                   <div className="commentMeta">
                     <strong>{comment.userName}</strong>
+                    {commentTitle ? <em className="commentUserTitle">{commentTitle.emoji} {commentTitle.name}</em> : null}
                     <span>{comment.createdAt}</span>
                     {isAdmin && (
                       <button className="commentDeleteButton" onClick={() => deleteComment(comment.id)}>
@@ -3028,7 +3169,8 @@ function App() {
                   {comment.mediaDataUrl && <img className="commentMedia" src={comment.mediaDataUrl} alt={comment.mediaName || "Вложение"} />}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
@@ -4227,9 +4369,9 @@ function App() {
             </div>
             <div className="leaderboardList compactLeaderboardList">
               {topLeaderboard.map((user, index) => (
-                <div className={`leaderboardItem ${user.id === activeUser?.id ? "activeLeaderboardItem" : ""}`} key={user.id}>
+                <div className={`leaderboardItem ${user.id === activeUser?.id ? "activeLeaderboardItem" : ""} ${getUserFrameClass(user)}`} key={user.id}>
                   <div className="place">#{index + 1}</div>
-                  <div><strong>{user.name}</strong><p>{user.balance.toLocaleString("ru-RU")} баллов</p></div>
+                  <div><strong>{user.name}</strong>{getUserActiveTitle(user) ? <span className="leaderboardTitle">{getUserActiveTitle(user)?.emoji} {getUserActiveTitle(user)?.name}</span> : null}<p>{user.balance.toLocaleString("ru-RU")} баллов</p></div>
                 </div>
               ))}
             </div>
@@ -5420,6 +5562,92 @@ function App() {
     );
   }
 
+  function renderProfileShopPage() {
+    if (!activeUser) return null;
+
+    const renderShopItem = (item: ShopItem) => {
+      const owned = activeUserOwnedItemIds.has(item.id);
+      const equipped = activeUser.activeTitleItemId === item.id || activeUser.activeFrameItemId === item.id;
+      const busy = buyingShopItemId === item.id || equippingShopItemId === item.id;
+
+      return (
+        <article className={`shopItemCard shopItem-${item.type} ${owned ? "ownedShopItem" : ""} ${equipped ? "equippedShopItem" : ""}`} key={item.id}>
+          <div className={`shopItemIcon shopItemIcon-${item.styleKey}`}>{item.emoji}</div>
+          <div>
+            <strong>{item.name}</strong>
+            <p>{item.description}</p>
+            <small>{owned ? equipped ? "Активно" : "В инвентаре" : `${item.price.toLocaleString("ru-RU")} баллов`}</small>
+          </div>
+          <button
+            disabled={busy || equipped}
+            onClick={() => {
+              if (owned) void equipShopItem(item);
+              else void buyShopItem(item);
+            }}
+          >
+            {busy ? "..." : equipped ? "Выбрано" : owned ? "Выбрать" : "Купить"}
+          </button>
+        </article>
+      );
+    };
+
+    return (
+      <section className="profileStylePage profileContentGrid">
+        <article className={`profileCard stylePreviewCard ${getUserFrameClass(activeUser)}`}>
+          <div className="sectionHeader">
+            <div>
+              <p className="eyebrow">Мой стиль</p>
+              <h2>Косметика за игровые баллы</h2>
+            </div>
+            <span>{activeUserInventory.length} предметов</span>
+          </div>
+
+          <div className="stylePreviewHero">
+            <div className={`profileAvatar gameProfileAvatar styledProfileAvatar ${getUserFrameClass(activeUser)}`}>{activeUser.name.slice(0, 1).toUpperCase()}</div>
+            <div>
+              <strong>{activeUser.name}</strong>
+              {activeTitleItem ? <span className={`activeProfileTitle titleStyle-${activeTitleItem.styleKey}`}>{activeTitleItem.emoji} {activeTitleItem.name}</span> : <span className="emptyProfileTitle">Без титула</span>}
+              <small>{activeFrameItem ? `Рамка: ${activeFrameItem.name}` : "Рамка не выбрана"}</small>
+            </div>
+          </div>
+
+          <div className="styleResetRow">
+            <button className="secondaryButton" onClick={() => void equipShopItem(null, "title")} disabled={!activeUser.activeTitleItemId || Boolean(equippingShopItemId)}>Снять титул</button>
+            <button className="secondaryButton" onClick={() => void equipShopItem(null, "frame")} disabled={!activeUser.activeFrameItemId || Boolean(equippingShopItemId)}>Снять рамку</button>
+          </div>
+
+          <p className="styleLegalHint">Предметы — только внутриигровая косметика. Они не имеют денежной или имущественной ценности.</p>
+        </article>
+
+        <article className="profileCard shopSectionCard profileWideCard">
+          <div className="sectionHeader">
+            <div>
+              <h2>Титулы</h2>
+              <p>Показываются в профиле и рядом с именем.</p>
+            </div>
+            <span>{titleShopItems.length}</span>
+          </div>
+          <div className="shopGrid">
+            {titleShopItems.map(renderShopItem)}
+          </div>
+        </article>
+
+        <article className="profileCard shopSectionCard profileWideCard">
+          <div className="sectionHeader">
+            <div>
+              <h2>Рамки профиля</h2>
+              <p>Выделяют аватар и профиль.</p>
+            </div>
+            <span>{frameShopItems.length}</span>
+          </div>
+          <div className="shopGrid">
+            {frameShopItems.map(renderShopItem)}
+          </div>
+        </article>
+      </section>
+    );
+  }
+
   function renderProfilePage() {
     if (!activeUser) {
       return <section className="profilePage"><div className="empty">Профиль пока не загружен.</div></section>;
@@ -5437,6 +5665,7 @@ function App() {
     const nextLevelHint = level.nextTitle === "Максимум" ? "Максимальный уровень" : `До «${level.nextTitle}»`;
     const profileTabs: { id: ProfileTab; icon: string; label: string; badge?: number | string }[] = [
       { id: "overview", icon: "🏠", label: "Обзор" },
+      { id: "style", icon: "🛍️", label: "Стиль", badge: activeUserInventory.length },
       { id: "achievements", icon: "🏅", label: "Достижения", badge: `${unlockedAchievementsCount}/${activeUserAchievements.length}` },
       { id: "predictions", icon: "🎯", label: "Прогнозы", badge: activeUserPredictions.length },
       { id: "social", icon: "🤝", label: "Соц.", badge: activeUserReferrals.length },
@@ -5445,9 +5674,9 @@ function App() {
 
     return (
       <section className="profilePage gameProfilePage">
-        <article className="profileHeroCard gameProfileHeroCard">
+        <article className={`profileHeroCard gameProfileHeroCard styledProfileHero ${getUserFrameClass(activeUser)}`}>
           <div className="profileHeroGlow" aria-hidden="true" />
-          <div className="profileAvatar gameProfileAvatar">{displayInitial}</div>
+          <div className={`profileAvatar gameProfileAvatar styledProfileAvatar ${getUserFrameClass(activeUser)}`}>{displayInitial}</div>
 
           <div className="profileMainInfo gameProfileMainInfo">
             <div className="profileRoleRow">
@@ -5455,6 +5684,7 @@ function App() {
               <span className="profileLevelBadge">{level.emoji} Уровень {level.level} · {level.title}</span>
             </div>
             <h2>{activeUser.name}</h2>
+            {activeTitleItem ? <span className={`activeProfileTitle titleStyle-${activeTitleItem.styleKey}`}>{activeTitleItem.emoji} {activeTitleItem.name}</span> : null}
             <p>{level.description}</p>
 
             <div className="levelProgressBlock gameLevelProgressBlock">
@@ -5558,6 +5788,8 @@ function App() {
             </div>
           </section>
         )}
+
+        {profileTab === "style" && renderProfileShopPage()}
 
         {profileTab === "achievements" && (
           <section className="profileCard achievementsCard profileWideCard">

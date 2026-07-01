@@ -23,6 +23,8 @@ type DemoUser = {
   telegramNotifyBonus?: boolean;
   telegramNotifyClosing?: boolean;
   telegramNotifyAdmin?: boolean;
+  activeTitleItemId?: string;
+  activeFrameItemId?: string;
 };
 
 type Market = {
@@ -132,6 +134,25 @@ type WeeklyTournamentAward = {
   createdAt: string;
 };
 
+type ShopItem = {
+  id: string;
+  type: "title" | "frame";
+  name: string;
+  description: string;
+  price: number;
+  emoji: string;
+  styleKey: string;
+  sortOrder: number;
+  isActive: boolean;
+};
+
+type UserInventoryItem = {
+  id: string;
+  userId: string;
+  itemId: string;
+  createdAt: string;
+};
+
 type DatabaseSnapshot = {
   users: DemoUser[];
   markets: Market[];
@@ -142,6 +163,8 @@ type DatabaseSnapshot = {
   referrals: Referral[];
   dailyMissionClaims: DailyMissionClaim[];
   weeklyTournamentAwards: WeeklyTournamentAward[];
+  shopItems: ShopItem[];
+  userInventory: UserInventoryItem[];
   favoriteMarketIdsByUser: Record<string, string[]>;
   adminUserIds: string[];
   polymarketImport?: {
@@ -656,6 +679,8 @@ function toUser(row: any): DemoUser {
     telegramNotifyBonus: row.telegram_notify_bonus !== false,
     telegramNotifyClosing: row.telegram_notify_closing !== false,
     telegramNotifyAdmin: row.telegram_notify_admin !== false,
+    activeTitleItemId: row.active_title_item_id || undefined,
+    activeFrameItemId: row.active_frame_item_id || undefined,
   };
 }
 
@@ -790,6 +815,29 @@ function toWeeklyTournamentAward(row: any): WeeklyTournamentAward {
     wins: Number(row.wins || 0),
     rewardAmount: Number(row.reward_amount || 0),
     awardType: row.award_type === "participation" ? "participation" : "top",
+    createdAt: formatDbDateTime(row.created_at),
+  };
+}
+
+function toShopItem(row: any): ShopItem {
+  return {
+    id: row.id,
+    type: row.type === "frame" ? "frame" : "title",
+    name: row.name,
+    description: row.description || "",
+    price: Number(row.price || 0),
+    emoji: row.emoji || "✨",
+    styleKey: row.style_key || "default",
+    sortOrder: Number(row.sort_order || 0),
+    isActive: row.is_active !== false,
+  };
+}
+
+function toUserInventoryItem(row: any): UserInventoryItem {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    itemId: row.item_id,
     createdAt: formatDbDateTime(row.created_at),
   };
 }
@@ -1966,7 +2014,9 @@ async function migrate() {
       telegram_notify_settlement BOOLEAN NOT NULL DEFAULT TRUE,
       telegram_notify_bonus BOOLEAN NOT NULL DEFAULT TRUE,
       telegram_notify_closing BOOLEAN NOT NULL DEFAULT TRUE,
-      telegram_notify_admin BOOLEAN NOT NULL DEFAULT TRUE
+      telegram_notify_admin BOOLEAN NOT NULL DEFAULT TRUE,
+      active_title_item_id TEXT,
+      active_frame_item_id TEXT
     );
 
     CREATE TABLE IF NOT EXISTS markets (
@@ -2109,6 +2159,27 @@ async function migrate() {
       UNIQUE (week_key, user_id, award_type)
     );
 
+    CREATE TABLE IF NOT EXISTS shop_items (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      price INTEGER NOT NULL,
+      emoji TEXT NOT NULL DEFAULT '✨',
+      style_key TEXT NOT NULL DEFAULT 'default',
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS user_inventory (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      item_id TEXT NOT NULL REFERENCES shop_items(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (user_id, item_id)
+    );
+
     CREATE INDEX IF NOT EXISTS predictions_market_id_idx ON predictions(market_id);
     CREATE INDEX IF NOT EXISTS predictions_user_id_idx ON predictions(user_id);
     CREATE INDEX IF NOT EXISTS comments_market_id_idx ON comments(market_id);
@@ -2124,6 +2195,9 @@ async function migrate() {
     CREATE INDEX IF NOT EXISTS daily_mission_claims_date_idx ON daily_mission_claims(mission_date);
     CREATE INDEX IF NOT EXISTS weekly_tournament_awards_week_key_idx ON weekly_tournament_awards(week_key);
     CREATE INDEX IF NOT EXISTS weekly_tournament_awards_user_id_idx ON weekly_tournament_awards(user_id);
+    CREATE INDEX IF NOT EXISTS shop_items_type_idx ON shop_items(type);
+    CREATE INDEX IF NOT EXISTS user_inventory_user_id_idx ON user_inventory(user_id);
+    CREATE INDEX IF NOT EXISTS user_inventory_item_id_idx ON user_inventory(item_id);
     ALTER TABLE notification_events ADD COLUMN IF NOT EXISTS notification_key TEXT NOT NULL DEFAULT '';
     UPDATE notification_events SET notification_key = COALESCE(NULLIF(notification_key, ''), COALESCE(market_id, ''));
     CREATE INDEX IF NOT EXISTS notification_events_user_id_idx ON notification_events(user_id);
@@ -2140,7 +2214,40 @@ async function migrate() {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_notify_bonus BOOLEAN NOT NULL DEFAULT TRUE;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_notify_closing BOOLEAN NOT NULL DEFAULT TRUE;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_notify_admin BOOLEAN NOT NULL DEFAULT TRUE;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS active_title_item_id TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS active_frame_item_id TEXT;
   `);
+
+  const defaultShopItems = [
+    ["title-oracle", "title", "Оракул", "Предсказывает рынки на холодную голову.", 1500, "🔮", "oracle", 10],
+    ["title-insider", "title", "Инсайдер", "Всегда знает, где движуха.", 1200, "🕵️", "insider", 20],
+    ["title-risk-manager", "title", "Риск-менеджер", "Ставит аккуратно и считает вероятности.", 1000, "🛡️", "risk", 30],
+    ["title-market-shark", "title", "Акула рынка", "Для тех, кто не боится спорных исходов.", 1800, "🦈", "shark", 40],
+    ["title-week-king", "title", "Король недели", "Титул для охотника за турнирами.", 2500, "👑", "king", 50],
+    ["frame-gold", "frame", "Золотая рамка", "Тёплая рамка для профиля победителя.", 3000, "🏆", "gold", 110],
+    ["frame-neon", "frame", "Неоновая рамка", "Яркая подсветка в стиле игровой арены.", 2500, "💠", "neon", 120],
+    ["frame-cyber", "frame", "Кибер рамка", "Холодная технологичная рамка для профиля.", 2200, "🤖", "cyber", 130],
+    ["frame-emerald", "frame", "Изумрудная рамка", "Спокойная зелёная рамка для уверенной игры.", 1800, "💚", "emerald", 140],
+  ];
+
+  for (const item of defaultShopItems) {
+    await pool.query(
+      `
+        INSERT INTO shop_items (id, type, name, description, price, emoji, style_key, sort_order, is_active)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE)
+        ON CONFLICT (id) DO UPDATE
+        SET type = EXCLUDED.type,
+            name = EXCLUDED.name,
+            description = EXCLUDED.description,
+            price = EXCLUDED.price,
+            emoji = EXCLUDED.emoji,
+            style_key = EXCLUDED.style_key,
+            sort_order = EXCLUDED.sort_order,
+            is_active = TRUE
+      `,
+      item
+    );
+  }
 }
 
 async function seedIfEmpty() {
@@ -2224,7 +2331,7 @@ async function closeExpiredMarkets(db: Pool | PoolClient = pool) {
 async function getSnapshot(): Promise<DatabaseSnapshot> {
   await closeExpiredMarkets();
 
-  const [usersResult, marketsResult, predictionsResult, commentsResult, transactionsResult, suggestionsResult, referralsResult, dailyMissionClaimsResult, weeklyTournamentAwardsResult, favoritesResult] =
+  const [usersResult, marketsResult, predictionsResult, commentsResult, transactionsResult, suggestionsResult, referralsResult, dailyMissionClaimsResult, weeklyTournamentAwardsResult, shopItemsResult, userInventoryResult, favoritesResult] =
     await Promise.all([
       pool.query("SELECT * FROM users ORDER BY name ASC"),
       pool.query("SELECT * FROM markets ORDER BY created_at DESC"),
@@ -2235,6 +2342,8 @@ async function getSnapshot(): Promise<DatabaseSnapshot> {
       pool.query("SELECT * FROM referrals ORDER BY created_at DESC LIMIT 500"),
       pool.query("SELECT * FROM daily_mission_claims ORDER BY created_at DESC LIMIT 1000"),
       pool.query("SELECT * FROM weekly_tournament_awards ORDER BY created_at DESC LIMIT 500"),
+      pool.query("SELECT * FROM shop_items WHERE is_active = TRUE ORDER BY type ASC, sort_order ASC, price ASC"),
+      pool.query("SELECT * FROM user_inventory ORDER BY created_at DESC LIMIT 2000"),
       pool.query("SELECT * FROM favorites ORDER BY user_id ASC, market_id ASC"),
     ]);
 
@@ -2264,6 +2373,8 @@ async function getSnapshot(): Promise<DatabaseSnapshot> {
     referrals: referralsResult.rows.map(toReferral),
     dailyMissionClaims: dailyMissionClaimsResult.rows.map(toDailyMissionClaim),
     weeklyTournamentAwards: weeklyTournamentAwardsResult.rows.map(toWeeklyTournamentAward),
+    shopItems: shopItemsResult.rows.map(toShopItem),
+    userInventory: userInventoryResult.rows.map(toUserInventoryItem),
     favoriteMarketIdsByUser,
     adminUserIds: ADMIN_USER_IDS,
     polymarketImport: {
@@ -2449,6 +2560,148 @@ app.patch("/api/users/:userId/telegram-notifications", async (request, response)
   }
 
   response.json({ user: toUser(user) });
+});
+
+app.post("/api/users/:userId/shop/:itemId/buy", async (request, response) => {
+  const userId = String(request.params.userId || "").trim();
+  const itemId = String(request.params.itemId || "").trim();
+
+  if (!userId || !itemId) {
+    response.status(400).json({ error: "Не указан пользователь или предмет" });
+    return;
+  }
+
+  if (!(await assertRequestMatchesUser(request, response, userId))) return;
+
+  try {
+    const result = await withTransaction(async (client) => {
+      const [userResult, itemResult, ownedResult] = await Promise.all([
+        client.query("SELECT * FROM users WHERE id = $1 FOR UPDATE", [userId]),
+        client.query("SELECT * FROM shop_items WHERE id = $1 AND is_active = TRUE", [itemId]),
+        client.query("SELECT * FROM user_inventory WHERE user_id = $1 AND item_id = $2", [userId, itemId]),
+      ]);
+
+      const userRow = userResult.rows[0];
+      const itemRow = itemResult.rows[0];
+
+      if (!userRow) return { error: "Пользователь не найден" } as const;
+      if (!itemRow) return { error: "Предмет не найден" } as const;
+      if (ownedResult.rows[0]) return { error: "Этот предмет уже куплен" } as const;
+
+      const item = toShopItem(itemRow);
+      const currentBalance = Number(userRow.balance || 0);
+
+      if (currentBalance < item.price) {
+        return { error: "Не хватает игровых баллов для покупки" } as const;
+      }
+
+      const inventoryResult = await client.query(
+        `
+          INSERT INTO user_inventory (id, user_id, item_id, created_at)
+          VALUES ($1, $2, $3, NOW())
+          RETURNING *
+        `,
+        [createId(), userId, item.id]
+      );
+
+      const updatedUserResult = await client.query(
+        "UPDATE users SET balance = balance - $2 WHERE id = $1 RETURNING *",
+        [userId, item.price]
+      );
+
+      const transaction = await addBalanceTransaction(client, {
+        userId,
+        type: "system",
+        title: "Покупка в магазине",
+        description: `${item.emoji} ${item.name}`,
+        amount: -item.price,
+      });
+
+      return {
+        user: toUser(updatedUserResult.rows[0]),
+        inventoryItem: toUserInventoryItem(inventoryResult.rows[0]),
+        transaction,
+      };
+    });
+
+    if (!result || "error" in result) {
+      response.status(400).json({ error: result?.error || "Не удалось купить предмет" });
+      return;
+    }
+
+    response.json(result);
+  } catch (error) {
+    console.error("shop buy failed", error);
+    response.status(500).json({ error: "Не удалось купить предмет" });
+  }
+});
+
+app.post("/api/users/:userId/profile-style", async (request, response) => {
+  const userId = String(request.params.userId || "").trim();
+
+  if (!userId) {
+    response.status(400).json({ error: "Не указан пользователь" });
+    return;
+  }
+
+  if (!(await assertRequestMatchesUser(request, response, userId))) return;
+
+  const titleItemId = request.body?.titleItemId ? String(request.body.titleItemId) : null;
+  const frameItemId = request.body?.frameItemId ? String(request.body.frameItemId) : null;
+
+  try {
+    const result = await withTransaction(async (client) => {
+      const userResult = await client.query("SELECT * FROM users WHERE id = $1 FOR UPDATE", [userId]);
+      if (!userResult.rows[0]) return { error: "Пользователь не найден" } as const;
+
+      async function assertOwnedItem(itemId: string | null, expectedType: "title" | "frame") {
+        if (!itemId) return true;
+
+        const ownedResult = await client.query(
+          `
+            SELECT si.*
+            FROM user_inventory ui
+            JOIN shop_items si ON si.id = ui.item_id
+            WHERE ui.user_id = $1 AND ui.item_id = $2 AND si.type = $3 AND si.is_active = TRUE
+          `,
+          [userId, itemId, expectedType]
+        );
+
+        return Boolean(ownedResult.rows[0]);
+      }
+
+      if (!(await assertOwnedItem(titleItemId, "title"))) {
+        return { error: "Титул не найден в инвентаре" } as const;
+      }
+
+      if (!(await assertOwnedItem(frameItemId, "frame"))) {
+        return { error: "Рамка не найдена в инвентаре" } as const;
+      }
+
+      const updatedUserResult = await client.query(
+        `
+          UPDATE users
+          SET active_title_item_id = $2,
+              active_frame_item_id = $3
+          WHERE id = $1
+          RETURNING *
+        `,
+        [userId, titleItemId, frameItemId]
+      );
+
+      return { user: toUser(updatedUserResult.rows[0]) };
+    });
+
+    if (!result || "error" in result) {
+      response.status(400).json({ error: result?.error || "Не удалось обновить стиль профиля" });
+      return;
+    }
+
+    response.json(result);
+  } catch (error) {
+    console.error("profile style failed", error);
+    response.status(500).json({ error: "Не удалось обновить стиль профиля" });
+  }
 });
 
 app.get("/api/bootstrap", async (_request, response) => {

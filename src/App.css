@@ -12611,3 +12611,290 @@ body,
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Profile shop and cosmetic inventory */
+.styledProfileHero.profileFrame-gold,
+.profileFrame-gold.leaderboardItem,
+.profileFrame-gold.commentItem,
+.stylePreviewCard.profileFrame-gold {
+  border-color: rgba(245, 158, 11, 0.58) !important;
+  box-shadow: 0 18px 48px rgba(245, 158, 11, 0.14), 0 18px 46px rgba(15, 23, 42, 0.08) !important;
+}
+
+.styledProfileHero.profileFrame-neon,
+.profileFrame-neon.leaderboardItem,
+.profileFrame-neon.commentItem,
+.stylePreviewCard.profileFrame-neon {
+  border-color: rgba(6, 182, 212, 0.64) !important;
+  box-shadow: 0 18px 48px rgba(6, 182, 212, 0.16), 0 18px 46px rgba(15, 23, 42, 0.08) !important;
+}
+
+.styledProfileHero.profileFrame-cyber,
+.profileFrame-cyber.leaderboardItem,
+.profileFrame-cyber.commentItem,
+.stylePreviewCard.profileFrame-cyber {
+  border-color: rgba(99, 102, 241, 0.62) !important;
+  box-shadow: 0 18px 48px rgba(99, 102, 241, 0.16), 0 18px 46px rgba(15, 23, 42, 0.08) !important;
+}
+
+.styledProfileHero.profileFrame-emerald,
+.profileFrame-emerald.leaderboardItem,
+.profileFrame-emerald.commentItem,
+.stylePreviewCard.profileFrame-emerald {
+  border-color: rgba(16, 185, 129, 0.62) !important;
+  box-shadow: 0 18px 48px rgba(16, 185, 129, 0.15), 0 18px 46px rgba(15, 23, 42, 0.08) !important;
+}
+
+.styledProfileAvatar.profileFrame-gold,
+.commentAvatar.profileFrame-gold {
+  background: linear-gradient(135deg, #f59e0b, #fde68a) !important;
+}
+
+.styledProfileAvatar.profileFrame-neon,
+.commentAvatar.profileFrame-neon {
+  background: linear-gradient(135deg, #06b6d4, #2563eb) !important;
+}
+
+.styledProfileAvatar.profileFrame-cyber,
+.commentAvatar.profileFrame-cyber {
+  background: linear-gradient(135deg, #6366f1, #111827) !important;
+}
+
+.styledProfileAvatar.profileFrame-emerald,
+.commentAvatar.profileFrame-emerald {
+  background: linear-gradient(135deg, #10b981, #065f46) !important;
+}
+
+.activeProfileTitle,
+.leaderboardTitle,
+.commentUserTitle,
+.emptyProfileTitle {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 5px;
+  margin: 3px 0 6px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: #1d4ed8;
+  background: rgba(219, 234, 254, 0.92);
+  font-size: 0.72rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.emptyProfileTitle {
+  color: #64748b;
+  background: rgba(241, 245, 249, 0.92);
+}
+
+.leaderboardTitle {
+  margin: 3px 0 0;
+  font-size: 0.65rem;
+}
+
+.commentUserTitle {
+  margin: 0;
+  font-style: normal;
+  font-size: 0.64rem;
+}
+
+.titleStyle-king,
+.titleStyle-shark {
+  color: #92400e;
+  background: rgba(254, 243, 199, 0.95);
+}
+
+.titleStyle-oracle,
+.titleStyle-insider {
+  color: #5b21b6;
+  background: rgba(237, 233, 254, 0.95);
+}
+
+.titleStyle-risk {
+  color: #047857;
+  background: rgba(209, 250, 229, 0.95);
+}
+
+.profileStylePage {
+  align-items: stretch;
+}
+
+.stylePreviewCard,
+.shopSectionCard {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  gap: 14px;
+}
+
+.stylePreviewHero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px;
+  border-radius: 22px;
+  background: rgba(248, 250, 252, 0.82);
+  border: 1px solid rgba(226, 232, 240, 0.86);
+}
+
+.stylePreviewHero strong {
+  display: block;
+  color: #0f172a;
+  font-size: 1.05rem;
+}
+
+.stylePreviewHero small {
+  display: block;
+  margin-top: 5px;
+  color: #64748b;
+  font-weight: 800;
+}
+
+.styleResetRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.styleResetRow button {
+  border-radius: 15px;
+  padding: 10px;
+}
+
+.styleLegalHint {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  font-weight: 780;
+}
+
+.shopGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.shopItemCard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 13px;
+  border-radius: 22px;
+  background: rgba(248, 250, 252, 0.82);
+  border: 1px solid rgba(226, 232, 240, 0.88);
+}
+
+.shopItemIcon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 17px;
+  background: rgba(219, 234, 254, 0.9);
+  font-size: 1.22rem;
+}
+
+.shopItemIcon-gold,
+.shopItemIcon-king {
+  background: rgba(254, 243, 199, 0.95);
+}
+
+.shopItemIcon-neon,
+.shopItemIcon-oracle {
+  background: rgba(219, 234, 254, 0.95);
+}
+
+.shopItemIcon-cyber,
+.shopItemIcon-insider {
+  background: rgba(237, 233, 254, 0.95);
+}
+
+.shopItemIcon-emerald,
+.shopItemIcon-risk {
+  background: rgba(209, 250, 229, 0.95);
+}
+
+.shopItemIcon-shark {
+  background: rgba(224, 242, 254, 0.95);
+}
+
+.shopItemCard strong {
+  display: block;
+  color: #0f172a;
+  font-size: 0.9rem;
+  line-height: 1.15;
+}
+
+.shopItemCard p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 0.72rem;
+  line-height: 1.28;
+  font-weight: 760;
+}
+
+.shopItemCard small {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 8px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: #047857;
+  background: rgba(209, 250, 229, 0.86);
+  font-size: 0.66rem;
+  font-weight: 950;
+}
+
+.shopItemCard button {
+  grid-column: 1 / -1;
+  border: 0;
+  border-radius: 15px;
+  padding: 10px 12px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #162bdc, #07a9cf);
+  font-weight: 950;
+}
+
+.shopItemCard button:disabled {
+  cursor: default;
+  color: #64748b;
+  background: rgba(226, 232, 240, 0.92);
+  box-shadow: none;
+}
+
+.ownedShopItem {
+  background: rgba(240, 253, 244, 0.78);
+  border-color: rgba(134, 239, 172, 0.65);
+}
+
+.equippedShopItem {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(34, 197, 94, 0.13), transparent 36%),
+    rgba(240, 253, 244, 0.9);
+}
+
+.telegramApp .shopGrid {
+  grid-template-columns: 1fr;
+}
+
+.telegramApp .stylePreviewHero {
+  align-items: flex-start;
+}
+
+.telegramApp .styleResetRow {
+  grid-template-columns: 1fr;
+}
+
+@media (max-width: 760px) {
+  .shopGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .styleResetRow {
+    grid-template-columns: 1fr;
+  }
+}
