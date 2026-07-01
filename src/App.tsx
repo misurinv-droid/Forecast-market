@@ -2057,6 +2057,11 @@ function App() {
     return comments.filter((comment) => comment.marketId === selectedMarket.id);
   }, [comments, selectedMarket]);
 
+  const selectedMarketUserPrediction = useMemo(() => {
+    if (!selectedMarket || !activeUser) return null;
+    return activeUserPredictions.find((prediction) => prediction.marketId === selectedMarket.id) || null;
+  }, [selectedMarket, activeUser, activeUserPredictions]);
+
   const selectedMarketParticipants = useMemo(() => {
     const grouped: Record<
       string,
@@ -3743,7 +3748,10 @@ function App() {
         </div>
 
         {marketComments.length === 0 ? (
-          <div className="emptyChat">Пока комментариев нет. Начни обсуждение первым.</div>
+          <div className="emptyChat detailEmptyState">
+            <strong>Комментариев пока нет</strong>
+            <p>Напиши первым, почему ты веришь в один из исходов.</p>
+          </div>
         ) : (
           <div className="commentList">
             {marketComments.map((comment) => {
@@ -3775,6 +3783,177 @@ function App() {
     );
   }
 
+
+  function renderDetailTradeBox(market: Market) {
+    const userPrediction = selectedMarketUserPrediction;
+    const stakeValue = getStakeInputValue(amountByMarket[market.id]);
+    const stakeAmount = parseStakeAmount(stakeValue);
+    const isTradable = isMarketTradable(market);
+
+    if (userPrediction) {
+      const currentProbability = userPrediction.outcome === "yes" ? getYesProbability(market) : 100 - getYesProbability(market);
+      const probabilityDiff = currentProbability - userPrediction.probabilityAtPurchase;
+      const estimatedPayout = estimatePredictionPayout(market, userPrediction);
+      const resultAmount = userPrediction.settledAt ? (userPrediction.payout || 0) - userPrediction.amount : estimatedPayout - userPrediction.amount;
+      const isWinner = Boolean(userPrediction.settledAt && userPrediction.outcome === userPrediction.resolvedOutcome);
+
+      return (
+        <section className={`detailTradeCard detailMyPositionCard ${userPrediction.settledAt ? isWinner ? "detailMyPositionWin" : "detailMyPositionLoss" : "detailMyPositionLive"}`}>
+          <div className="detailTradeHeader">
+            <div>
+              <p className="eyebrow">{userPrediction.settledAt ? "Результат" : "Моя позиция"}</p>
+              <h3>{userPrediction.settledAt ? "Прогноз рассчитан" : "Ты участвуешь в рынке"}</h3>
+            </div>
+            <span>{getOutcomeText(userPrediction.outcome)}</span>
+          </div>
+
+          <div className="detailPositionHero">
+            <div className={userPrediction.outcome === "yes" ? "positionOutcomeYes" : "positionOutcomeNo"}>
+              <span>Твой прогноз</span>
+              <strong>{getOutcomeText(userPrediction.outcome)}</strong>
+            </div>
+            <div>
+              <span>Сумма</span>
+              <strong>{userPrediction.amount.toLocaleString("ru-RU")} б.</strong>
+            </div>
+          </div>
+
+          <div className="detailPositionStats">
+            <div><span>При покупке</span><strong>{userPrediction.probabilityAtPurchase}%</strong></div>
+            <div><span>Сейчас</span><strong>{currentProbability}%</strong></div>
+            <div><span>{userPrediction.settledAt ? "Выплата" : "Потенциально"}</span><strong>{estimatedPayout.toLocaleString("ru-RU")} б.</strong></div>
+            <div>
+              <span>{userPrediction.settledAt ? "Итог" : "Потенц. итог"}</span>
+              <strong className={resultAmount >= 0 ? "positiveAmount" : "negativeAmount"}>
+                {resultAmount >= 0 ? "+" : ""}{resultAmount.toLocaleString("ru-RU")} б.
+              </strong>
+            </div>
+          </div>
+
+          <div className="detailProbabilityDelta">
+            <span>Изменение вероятности</span>
+            <strong className={probabilityDiff >= 0 ? "positiveAmount" : "negativeAmount"}>
+              {probabilityDiff >= 0 ? "+" : ""}{probabilityDiff} п.п.
+            </strong>
+          </div>
+
+          {userPrediction.settledAt ? (
+            <p className={isWinner ? "detailPositionNote winText" : "detailPositionNote lossText"}>
+              {isWinner ? "Прогноз сыграл, выплата начислена." : "Этот прогноз не сыграл."}
+            </p>
+          ) : market.status === "closed" ? (
+            <p className="detailPositionNote waitingPredictionText">Прогнозы закрыты. Осталось дождаться расчёта администратора.</p>
+          ) : (
+            <p className="detailPositionNote activePrediction">Рынок ещё открыт. Следи за вероятностью и обсуждением.</p>
+          )}
+
+          <button className="secondaryButton fullWidthButton" onClick={() => setMainView("predictions")}>
+            Открыть мои прогнозы
+          </button>
+
+          {isAdmin && market.status !== "resolved" && (
+            <div className="resolveBox detailResolveBox">
+              <span>Админ-расчёт</span>
+              <div>
+                <button className="resolveYesButton" onClick={() => resolveMarket(market, "yes")}>Да</button>
+                <button className="resolveNoButton" onClick={() => resolveMarket(market, "no")}>Нет</button>
+              </div>
+            </div>
+          )}
+
+          {market.status === "resolved" && (
+            <div className="resolvedBox">
+              Рынок рассчитан как <b>{getOutcomeText(market.resolvedOutcome)}</b>
+              {market.resolvedAt ? ` · ${market.resolvedAt}` : ""}
+            </div>
+          )}
+        </section>
+      );
+    }
+
+    return (
+      <section className="detailTradeCard detailTradeCardPolished">
+        <div className="detailTradeHeader">
+          <div>
+            <p className="eyebrow">Прогноз</p>
+            <h3>{isTradable ? "Сделать прогноз" : "Прогнозы закрыты"}</h3>
+          </div>
+          <span>{getYesProbability(market)}% Да</span>
+        </div>
+
+        {market.status === "closed" && (
+          <div className="marketClosedNotice">Рынок закрыт и ждёт расчёта. Новые прогнозы уже не принимаются.</div>
+        )}
+
+        {market.status === "resolved" && (
+          <div className="resolvedBox">
+            Рынок рассчитан как <b>{getOutcomeText(market.resolvedOutcome)}</b>
+            {market.resolvedAt ? ` · ${market.resolvedAt}` : ""}
+          </div>
+        )}
+
+        <label className="detailStakeLabel">
+          <span>Сумма прогноза</span>
+          <input
+            className="stakeAmountInput"
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            placeholder="Любая сумма"
+            value={stakeValue}
+            disabled={!isTradable}
+            onChange={(event) => updateStakeAmount(market.id, event.target.value)}
+            onFocus={(event) => event.currentTarget.select()}
+          />
+        </label>
+
+        <div className="quickAmountRow detailQuickAmountRow">
+          {[100, 500, 1000, 2500].map((amount) => (
+            <button key={amount} disabled={!isTradable} onClick={() => setQuickAmount(market.id, amount)}>
+              {amount}
+            </button>
+          ))}
+          <button disabled={!isTradable} onClick={() => setQuickAmount(market.id, activeUser?.balance || 0)}>
+            Всё
+          </button>
+        </div>
+
+        <div className="detailPayoutPreview">
+          <div>
+            <span>Да</span>
+            <strong>{estimateQuickPredictionPayout(market, "yes", stakeAmount).toLocaleString("ru-RU")} б.</strong>
+          </div>
+          <div>
+            <span>Нет</span>
+            <strong>{estimateQuickPredictionPayout(market, "no", stakeAmount).toLocaleString("ru-RU")} б.</strong>
+          </div>
+        </div>
+
+        <div className="buttons detailBuyButtons">
+          <button className="yesButton" disabled={!isTradable || stakeAmount <= 0} onClick={() => openPredictionConfirmation(market, "yes")}>
+            Купить Да
+          </button>
+          <button className="noButton" disabled={!isTradable || stakeAmount <= 0} onClick={() => openPredictionConfirmation(market, "no")}>
+            Купить Нет
+          </button>
+        </div>
+
+        <div className="detailTradeDisclaimer">
+          Баллы игровые: не являются деньгами и не выводятся.
+        </div>
+
+        {isAdmin && market.status !== "resolved" && (
+          <div className="resolveBox detailResolveBox">
+            <span>Админ-расчёт</span>
+            <div>
+              <button className="resolveYesButton" onClick={() => resolveMarket(market, "yes")}>Да</button>
+              <button className="resolveNoButton" onClick={() => resolveMarket(market, "no")}>Нет</button>
+            </div>
+          </div>
+        )}
+      </section>
+    );
+  }
 
   function clearMarketFilters() {
     setMarketSearch("");
@@ -7544,17 +7723,32 @@ function App() {
                     <strong>{100 - getYesProbability(selectedMarket)}%</strong>
                   </div>
                 </div>
-                <div className="bar">
+                <div className="bar detailHeroBar">
                   <div style={{ width: `${getYesProbability(selectedMarket)}%` }} />
                 </div>
+
+                <div className="detailHeroStats">
+                  <div><span>Закрытие</span><strong>{formatDateForDisplay(selectedMarket.closesAt)}</strong></div>
+                  <div><span>Участники</span><strong>{selectedMarketParticipants.length}</strong></div>
+                  <div><span>Прогнозы</span><strong>{selectedMarketPredictions.length}</strong></div>
+                  <div><span>Комментарии</span><strong>{selectedMarketComments.length}</strong></div>
+                </div>
+
+                {selectedMarketUserPrediction && (
+                  <div className="detailHeroMyPrediction">
+                    <span>Ты участвуешь</span>
+                    <strong>{getOutcomeText(selectedMarketUserPrediction.outcome)} · {selectedMarketUserPrediction.amount.toLocaleString("ru-RU")} б.</strong>
+                    <button onClick={() => setDetailsTab("trades")}>К истории</button>
+                  </div>
+                )}
               </article>
 
               <div className="detailsTabs">
                 {([
                   ["overview", "Обзор"],
-                  ["trades", "Сделки"],
-                  ["participants", "Участники"],
-                  ["chat", "Чат"],
+                  ["trades", "История"],
+                  ["participants", "Игроки"],
+                  ["chat", "Обсуждение"],
                 ] as [DetailsTab, string][]).map(([tabId, title]) => (
                   <button key={tabId} className={detailsTab === tabId ? "activeDetailTab" : "detailTab"} onClick={() => setDetailsTab(tabId)}>
                     {title}
@@ -7566,8 +7760,8 @@ function App() {
                 <>
                   <section className="detailSection compactRulesSection">
                     <div className="detailSectionHeader">
-                      <h3>{isPolymarketSource(selectedMarket.source) ? "О событии" : "Условия расчёта"}</h3>
-                      <span>Источник: {getMarketSourceLabel(selectedMarket.source)}</span>
+                      <h3>{isPolymarketSource(selectedMarket.source) ? "О событии" : "Правила расчёта"}</h3>
+                      <span>{getMarketSourceLabel(selectedMarket.source)}</span>
                     </div>
                     <div className="rulesBox">
                       <p>{getMarketDescription(selectedMarket)}</p>
@@ -7618,63 +7812,7 @@ function App() {
             </div>
 
             <aside className="detailsSide">
-              <section className="detailTradeCard">
-                <h3>Сделать прогноз</h3>
-                {selectedMarket.status === "closed" && (
-                  <div className="marketClosedNotice">Рынок закрыт и ждёт расчёта. Новые прогнозы уже не принимаются.</div>
-                )}
-                <label>
-                  Сумма прогноза
-                  <input
-                    className="stakeAmountInput"
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    placeholder="Любая сумма"
-                    value={getStakeInputValue(amountByMarket[selectedMarket.id])}
-                    disabled={!isMarketTradable(selectedMarket)}
-                    onChange={(event) => updateStakeAmount(selectedMarket.id, event.target.value)}
-                    onFocus={(event) => event.currentTarget.select()}
-                  />
-                </label>
-
-                <div className="quickAmountRow">
-                  {[100, 500, 1000, 2500].map((amount) => (
-                    <button key={amount} disabled={!isMarketTradable(selectedMarket)} onClick={() => setQuickAmount(selectedMarket.id, amount)}>
-                      {amount}
-                    </button>
-                  ))}
-                  <button disabled={!isMarketTradable(selectedMarket)} onClick={() => setQuickAmount(selectedMarket.id, activeUser?.balance || 0)}>
-                    Всё
-                  </button>
-                </div>
-
-                <div className="buttons">
-                  <button className="yesButton" disabled={!isMarketTradable(selectedMarket)} onClick={() => openPredictionConfirmation(selectedMarket, "yes")}>
-                    Купить Да
-                  </button>
-                  <button className="noButton" disabled={!isMarketTradable(selectedMarket)} onClick={() => openPredictionConfirmation(selectedMarket, "no")}>
-                    Купить Нет
-                  </button>
-                </div>
-
-                {isAdmin && selectedMarket.status !== "resolved" && (
-                  <div className="resolveBox detailResolveBox">
-                    <span>Админ-расчет</span>
-                    <div>
-                      <button className="resolveYesButton" onClick={() => resolveMarket(selectedMarket, "yes")}>Да</button>
-                      <button className="resolveNoButton" onClick={() => resolveMarket(selectedMarket, "no")}>Нет</button>
-                    </div>
-                  </div>
-                )}
-
-                {selectedMarket.status === "resolved" && (
-                  <div className="resolvedBox">
-                    Рынок рассчитан как <b>{getOutcomeText(selectedMarket.resolvedOutcome)}</b>
-                    {selectedMarket.resolvedAt ? ` · ${selectedMarket.resolvedAt}` : ""}
-                  </div>
-                )}
-              </section>
+              {renderDetailTradeBox(selectedMarket)}
 
               <section className="detailsShareCard">
                 <div>
