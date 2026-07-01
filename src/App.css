@@ -13750,3 +13750,627 @@ button.participantCard:hover,
     flex: 1;
   }
 }
+
+
+/* UX/UI Polish v1 — calmer homepage, unified cards, mobile-first readability */
+:root {
+  --fm-radius-xl: 28px;
+  --fm-radius-lg: 22px;
+  --fm-radius-md: 16px;
+  --fm-border-soft: rgba(226, 232, 240, 0.88);
+  --fm-card-bg: rgba(255, 255, 255, 0.88);
+  --fm-card-bg-strong: rgba(255, 255, 255, 0.96);
+  --fm-text-main: #0f172a;
+  --fm-text-muted: #64748b;
+  --fm-shadow-soft: 0 18px 45px rgba(15, 23, 42, 0.08);
+  --fm-shadow-card: 0 10px 28px rgba(15, 23, 42, 0.07);
+}
+
+.gameHomePage {
+  gap: 18px;
+}
+
+.gameHomeHero,
+.todayInGameCard,
+.dailyMissionsCard,
+.followingFeedCard,
+.interestPickerSection,
+.quickPanel,
+.gameShelf,
+.categoryHubSection,
+.marketDashboardStrip,
+.profileCard,
+.marketAccordionGroup,
+.marketCard,
+.marketMiniRow {
+  border-color: var(--fm-border-soft);
+  box-shadow: var(--fm-shadow-card);
+}
+
+.gameHomeHero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(280px, 0.92fr);
+  align-items: stretch;
+  gap: 16px;
+  padding: 18px;
+  border-radius: var(--fm-radius-xl);
+  background:
+    radial-gradient(circle at 14% 12%, rgba(59, 130, 246, 0.13), transparent 34%),
+    radial-gradient(circle at 92% 0%, rgba(16, 185, 129, 0.11), transparent 32%),
+    var(--fm-card-bg-strong);
+}
+
+.gameHomeHeroText {
+  justify-content: center;
+  gap: 11px;
+  min-height: 230px;
+  padding: 20px;
+}
+
+.gameHomeHeroText h2 {
+  max-width: 720px;
+  margin: 0;
+  color: var(--fm-text-main);
+  font-size: clamp(1.8rem, 4vw, 3.1rem);
+  letter-spacing: -0.055em;
+  line-height: 0.98;
+}
+
+.gameHomeHeroText p {
+  max-width: 620px;
+  color: #475569;
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+
+.playBadge,
+.todayEyebrow,
+.eyebrow {
+  letter-spacing: 0.08em;
+}
+
+.gameHomeActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 6px;
+}
+
+.gameHomeActions button,
+.homePrimaryActionCard,
+.todayInGameHeader button,
+.gameShelfHeader button,
+.sectionHeader button {
+  min-height: 42px;
+}
+
+.heroPlayCard {
+  min-height: 230px;
+  padding: 18px;
+  border-radius: 24px;
+  background:
+    linear-gradient(145deg, rgba(15, 23, 42, 0.94), rgba(30, 64, 175, 0.88)),
+    #0f172a;
+}
+
+.heroPlayCard > button {
+  color: #ffffff;
+  font-size: clamp(1.18rem, 2vw, 1.65rem);
+  line-height: 1.12;
+  letter-spacing: -0.035em;
+}
+
+.heroPlayTop,
+.heroPlayFooter {
+  opacity: 0.96;
+}
+
+.todayInGameCard {
+  padding: 16px;
+  border-radius: var(--fm-radius-xl);
+  background: var(--fm-card-bg-strong);
+}
+
+.todayInGameHeader {
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.todayInGameHeader h2 {
+  margin-bottom: 3px;
+  color: var(--fm-text-main);
+  font-size: clamp(1.16rem, 2vw, 1.55rem);
+  letter-spacing: -0.035em;
+}
+
+.todayInGameHeader p {
+  margin: 0;
+  color: var(--fm-text-muted);
+  font-size: 0.82rem;
+}
+
+.todayInGameGrid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.todayInGameItem {
+  min-height: 118px;
+  border-radius: 22px;
+  background: rgba(248, 250, 252, 0.86);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.todayInGameItem:hover,
+.homePrimaryActionCard:hover,
+.marketMiniRow:hover,
+.marketCard:hover {
+  transform: translateY(-2px);
+}
+
+.todayInGameItem strong {
+  font-size: clamp(1.25rem, 2vw, 1.75rem);
+  letter-spacing: -0.045em;
+}
+
+.homePrimaryActionStrip {
+  display: grid;
+  grid-template-columns: 1.35fr repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.homePrimaryActionCard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 10px;
+  width: 100%;
+  padding: 13px 14px;
+  border: 1px solid var(--fm-border-soft);
+  border-radius: 22px;
+  color: var(--fm-text-main);
+  background: var(--fm-card-bg-strong);
+  text-align: left;
+  box-shadow: var(--fm-shadow-card);
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.homePrimaryActionCard span {
+  display: grid;
+  grid-row: span 2;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 16px;
+  background: rgba(219, 234, 254, 0.86);
+  font-size: 1.2rem;
+}
+
+.homePrimaryActionCard strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fm-text-main);
+  font-size: 0.98rem;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.homePrimaryActionCard small {
+  color: var(--fm-text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.homePrimaryActionCard-main {
+  background:
+    linear-gradient(135deg, rgba(37, 99, 235, 0.98), rgba(14, 165, 233, 0.92));
+  color: #ffffff;
+}
+
+.homePrimaryActionCard-main strong,
+.homePrimaryActionCard-main small {
+  color: #ffffff;
+}
+
+.homePrimaryActionCard-main span {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.dailyMissionsCard-home,
+.followingFeedCardHome,
+.interestPickerSection {
+  border-radius: var(--fm-radius-xl);
+}
+
+.dailyMissionsHeader h2,
+.followingFeedCard h2,
+.interestPickerSection h2,
+.gameShelfHeader h2,
+.sectionHeader h2 {
+  color: var(--fm-text-main);
+  letter-spacing: -0.025em;
+}
+
+.dailyMissionItem {
+  border-radius: 18px;
+}
+
+.gameQuickGrid {
+  gap: 12px;
+}
+
+.quickPanel {
+  border-radius: var(--fm-radius-xl);
+  background: var(--fm-card-bg-strong);
+}
+
+.miniEmptyState,
+.empty,
+.followingFeedEmpty {
+  border-radius: 20px;
+}
+
+.gameStatsStrip {
+  align-items: center;
+  border-radius: var(--fm-radius-xl);
+  background: var(--fm-card-bg-strong);
+}
+
+.gameFeedStack {
+  gap: 16px;
+}
+
+.gameShelf {
+  padding: 15px;
+  border-radius: var(--fm-radius-xl);
+  background: var(--fm-card-bg-strong);
+}
+
+.gameShelfHeader {
+  margin-bottom: 10px;
+}
+
+.gameShelfHeader p {
+  color: var(--fm-text-muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.gameShelfList {
+  gap: 12px;
+  padding-bottom: 4px;
+  scroll-padding-inline: 14px;
+}
+
+.marketMiniRow {
+  display: grid;
+  grid-template-columns: minmax(250px, 1fr) 112px;
+  gap: 12px;
+  min-width: min(88vw, 430px);
+  padding: 13px;
+  border-radius: 24px;
+  background: var(--fm-card-bg-strong);
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.marketMiniRowCompact {
+  min-width: min(86vw, 405px);
+}
+
+.marketMiniMain {
+  gap: 8px;
+}
+
+.marketMiniMain > strong {
+  display: -webkit-box;
+  overflow: hidden;
+  min-height: 2.55em;
+  color: var(--fm-text-main);
+  font-size: 1rem;
+  line-height: 1.28;
+  letter-spacing: -0.025em;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.marketMiniTop,
+.miniMetaLine,
+.marketBadgeRow {
+  gap: 5px;
+}
+
+.miniCategory,
+.miniSource,
+.miniStatus,
+.marketMoodBadge,
+.marketActionHint,
+.marketChipsRow span,
+.statusBadge,
+.sourceBadge,
+.category {
+  border-radius: 999px;
+}
+
+.marketActionHint {
+  margin-top: 0;
+  color: #2563eb;
+  background: rgba(219, 234, 254, 0.75);
+  font-size: 0.68rem;
+}
+
+.signalBar,
+.bar,
+.marketMiniBar,
+.predictionProbabilityTrack {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(226, 232, 240, 0.86);
+}
+
+.marketMiniOdds {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+
+.marketMiniOdds button {
+  min-height: 46px;
+  border-radius: 18px;
+}
+
+.quickBetPanel {
+  grid-column: 1 / -1;
+  padding: 11px;
+  border: 1px solid rgba(219, 234, 254, 0.9);
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(239, 246, 255, 0.82));
+}
+
+.quickBetAmountRow {
+  align-items: end;
+  gap: 10px;
+}
+
+.quickBetAmountRow label {
+  min-width: 118px;
+}
+
+.quickBetAmountRow input {
+  min-height: 40px;
+  border-radius: 14px;
+}
+
+.quickBetChips {
+  gap: 6px;
+}
+
+.quickBetChips button {
+  min-height: 34px;
+  border-radius: 999px;
+}
+
+.quickBetButtons {
+  gap: 8px;
+}
+
+.quickBetButtons button {
+  min-height: 44px;
+  border-radius: 16px;
+  font-weight: 950;
+}
+
+.quickBetAccepted,
+.quickBetClosed {
+  grid-column: 1 / -1;
+  border-radius: 18px;
+}
+
+.marketCard {
+  border-radius: var(--fm-radius-xl);
+  background: var(--fm-card-bg-strong);
+}
+
+.marketCard h3 {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--fm-text-main);
+  font-size: clamp(1rem, 1.4vw, 1.22rem);
+  line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.compactDescription {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--fm-text-muted);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.marketProbabilityMini {
+  border-radius: 22px;
+}
+
+.marketActionRow {
+  gap: 7px;
+}
+
+.marketActionRow button {
+  border-radius: 14px;
+}
+
+.categoryHubSection {
+  border-radius: var(--fm-radius-xl);
+  background: var(--fm-card-bg-strong);
+}
+
+.categoryHub {
+  border-radius: 22px;
+}
+
+.brandHeader {
+  margin-bottom: 14px;
+}
+
+.brandHeaderProfileCard {
+  border-radius: 24px;
+}
+
+.productTopBar {
+  border-radius: 24px;
+}
+
+.profileHeroCard,
+.gameProfileHeroCard,
+.publicProfileHero {
+  border-radius: var(--fm-radius-xl);
+}
+
+.profileStatsGrid > div,
+.publicProfileStatsGrid > div {
+  border-radius: 22px;
+}
+
+.activityPanel {
+  border-radius: var(--fm-radius-xl);
+}
+
+.activityItem {
+  border-radius: 20px;
+}
+
+.telegramApp .gameHomePage {
+  gap: 14px;
+}
+
+.telegramApp .gameHomeHero {
+  grid-template-columns: 1fr;
+  padding: 12px;
+}
+
+.telegramApp .gameHomeHeroText {
+  min-height: auto;
+  padding: 14px;
+}
+
+.telegramApp .heroPlayCard {
+  min-height: 190px;
+}
+
+.telegramApp .todayInGameGrid,
+.telegramApp .homePrimaryActionStrip {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.telegramApp .homePrimaryActionCard-main {
+  grid-column: 1 / -1;
+}
+
+.telegramApp .marketMiniRow {
+  grid-template-columns: 1fr;
+  min-width: min(86vw, 390px);
+}
+
+.telegramApp .marketMiniOdds {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.telegramApp .quickBetAmountRow {
+  grid-template-columns: 1fr;
+}
+
+.telegramApp .quickBetChips {
+  width: 100%;
+}
+
+.telegramApp .quickBetChips button {
+  flex: 1;
+}
+
+.telegramApp .gameShelf {
+  padding: 12px;
+}
+
+@media (max-width: 980px) {
+  .gameHomeHero {
+    grid-template-columns: 1fr;
+  }
+
+  .todayInGameGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .homePrimaryActionStrip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .homePrimaryActionCard-main {
+    grid-column: 1 / -1;
+  }
+
+  .marketMiniRow {
+    grid-template-columns: 1fr;
+  }
+
+  .marketMiniOdds {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .gameHomeHeroText h2 {
+    font-size: 2rem;
+  }
+
+  .todayInGameGrid,
+  .homePrimaryActionStrip {
+    grid-template-columns: 1fr;
+  }
+
+  .homePrimaryActionCard-main {
+    grid-column: auto;
+  }
+
+  .todayInGameItem {
+    min-height: 92px;
+  }
+
+  .marketMiniRow {
+    min-width: min(92vw, 370px);
+    padding: 11px;
+    border-radius: 22px;
+  }
+
+  .marketMiniMain > strong {
+    font-size: 0.96rem;
+  }
+
+  .marketMiniOdds button {
+    min-height: 42px;
+  }
+
+  .quickBetPanel {
+    padding: 9px;
+  }
+
+  .quickBetAmountRow {
+    grid-template-columns: 1fr;
+  }
+
+  .quickBetChips button {
+    flex: 1 1 calc(50% - 6px);
+  }
+
+  .gameShelfHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .gameShelfHeader button {
+    width: 100%;
+  }
+}

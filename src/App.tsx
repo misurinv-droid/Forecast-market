@@ -4844,12 +4844,12 @@ function App() {
 
         <section className="gameHomeHero">
           <div className="gameHomeHeroText">
-            <span className="playBadge">🎮 Игровая лента</span>
-            <h2>Выбирай рынок по настроению</h2>
-            <p>Сначала показываем самые живые события, рынки для тебя и то, что скоро закроется. Всё остальное — в категориях и поиске.</p>
+            <span className="playBadge">🎮 Главный сценарий</span>
+            <h2>Выбери событие и сделай прогноз</h2>
+            <p>На первом экране только самое важное: горячий рынок, быстрые действия и понятный путь к прогнозу.</p>
             <div className="gameHomeActions">
-              <button onClick={() => setMainView("search")}>Найти рынок</button>
-              <button className="secondaryButton" onClick={() => setMainView("tournament")}>Турнир недели</button>
+              <button onClick={() => setMainView("search")}>Выбрать рынок</button>
+              <button className="secondaryButton" onClick={() => setMainView("predictions")}>Мои прогнозы</button>
             </div>
           </div>
 
@@ -4875,8 +4875,8 @@ function App() {
           <div className="todayInGameHeader">
             <div>
               <span className="todayEyebrow">Сегодня в игре</span>
-              <h2>Быстрый обзор перед прогнозом</h2>
-              <p>Самое важное: где движуха, что скоро закроется и что уже ждёт результата.</p>
+              <h2>Что важно прямо сейчас</h2>
+              <p>Короткий обзор без лишнего шума: рынки, прогнозы, бонус и дедлайны.</p>
             </div>
             <button onClick={() => setMainView("search")}>Открыть все рынки</button>
           </div>
@@ -4891,6 +4891,35 @@ function App() {
               </button>
             ))}
           </div>
+        </section>
+
+        <section className="homePrimaryActionStrip" aria-label="Быстрые действия">
+          <button className="homePrimaryActionCard homePrimaryActionCard-main" onClick={() => setMainView("search")}>
+            <span>🎯</span>
+            <strong>Сделать прогноз</strong>
+            <small>Открыть рынки</small>
+          </button>
+          <button className="homePrimaryActionCard" onClick={() => setMainView("predictions")}>
+            <span>📌</span>
+            <strong>{activeUserOpenPredictions.length}</strong>
+            <small>активных прогнозов</small>
+          </button>
+          <button className="homePrimaryActionCard" onClick={() => {
+            if (dailyBonusInfo.canClaim) void claimDailyBonus();
+            else setMainView("profile");
+          }}>
+            <span>{dailyBonusInfo.canClaim ? "🎁" : "⏱️"}</span>
+            <strong>{dailyBonusInfo.canClaim ? `+${activeDailyBonusAmount.toLocaleString("ru-RU")}` : formatBonusCountdown(dailyBonusInfo.remainingMs)}</strong>
+            <small>{dailyBonusInfo.canClaim ? "забрать бонус" : "до бонуса"}</small>
+          </button>
+          <button className="homePrimaryActionCard" onClick={() => {
+            setProfileTab("social");
+            setMainView("profile");
+          }}>
+            <span>👥</span>
+            <strong>{followingActivityItems.length}</strong>
+            <small>событий подписок</small>
+          </button>
         </section>
 
         {renderDailyMissionsCard("home")}
@@ -4909,7 +4938,7 @@ function App() {
             {quickPredictions.length === 0 ? (
               <div className="miniEmptyState">
                 <strong>Активных прогнозов нет</strong>
-                <p>Открой горячий рынок и проверь интуицию.</p>
+                <p>Выбери рынок и сделай первый прогноз за игровые баллы.</p>
               </div>
             ) : (
               <div className="quickPredictionStack">
