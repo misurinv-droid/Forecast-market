@@ -7,8 +7,8 @@ type MarketStatus = "open" | "closed" | "resolved";
 type SuggestionStatus = "pending" | "approved" | "rejected";
 type SortMode = "newest" | "probability" | "trades" | "comments";
 type DetailsTab = "overview" | "trades" | "participants" | "chat";
-type MainView = "markets" | "imported" | "search" | "predictions" | "tournament" | "suggest" | "admin" | "moderation" | "settlement" | "profile";
-type AppRouteSnapshot = { mainView: MainView; selectedMarketId: string | null; scrollY: number };
+type MainView = "markets" | "imported" | "search" | "predictions" | "tournament" | "suggest" | "admin" | "moderation" | "settlement" | "profile" | "publicProfile";
+type AppRouteSnapshot = { mainView: MainView; selectedMarketId: string | null; selectedPublicProfileUserId: string | null; scrollY: number };
 type SwipeRailMode = "pending" | "horizontal" | "vertical";
 type SwipeRailState = { rail: HTMLElement; startX: number; startY: number; scrollLeft: number; mode: SwipeRailMode; moved: boolean; nextLeft: number; rafId: number | null };
 type MarketBadge = { label: string; emoji: string; tone: "hot" | "soon" | "new" | "interest" | "poly" | "mine" | "closed" };
@@ -1013,6 +1013,7 @@ function App() {
   const [profileTab, setProfileTab] = useState<ProfileTab>("overview");
 
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
+  const [selectedPublicProfileUserId, setSelectedPublicProfileUserId] = useState<string | null>(null);
   const [detailsTab, setDetailsTab] = useState<DetailsTab>("overview");
   const [routeHistory, setRouteHistory] = useState<AppRouteSnapshot[]>([]);
   const lastRouteRef = useRef<AppRouteSnapshot | null>(null);
@@ -1057,6 +1058,10 @@ function App() {
   const activeUser = useMemo(() => {
     return users.find((user) => user.id === activeUserId) || null;
   }, [users, activeUserId]);
+
+  const selectedPublicProfileUser = useMemo(() => {
+    return users.find((user) => user.id === selectedPublicProfileUserId) || null;
+  }, [users, selectedPublicProfileUserId]);
 
   const isAdmin = Boolean(isTelegram && authSessionToken && activeUser && adminUserIds.includes(activeUser.id));
 
@@ -2051,6 +2056,7 @@ function App() {
     const isSameView = mainView === view && !selectedMarket;
 
     setSelectedMarketId(null);
+    setSelectedPublicProfileUserId(null);
     setMainView(view);
     sendHaptic(isSameView ? "medium" : "light");
 
@@ -2088,6 +2094,7 @@ function App() {
       isRestoringRouteRef.current = true;
       setRouteHistory((currentHistory) => currentHistory.slice(0, -1));
       setSelectedMarketId(previousRoute.selectedMarketId);
+      setSelectedPublicProfileUserId(previousRoute.selectedPublicProfileUserId || null);
       setMainView(previousRoute.mainView);
       window.setTimeout(() => restoreAppScrollPosition(previousRoute.scrollY, "auto"), 0);
       return;
@@ -2095,6 +2102,12 @@ function App() {
 
     if (selectedMarketId) {
       setSelectedMarketId(null);
+      return;
+    }
+
+    if (selectedPublicProfileUserId) {
+      setSelectedPublicProfileUserId(null);
+      setMainView("markets");
       return;
     }
 
@@ -2442,7 +2455,7 @@ function App() {
   }, [dismissedActivityIds]);
 
   useEffect(() => {
-    const nextRoute: AppRouteSnapshot = { mainView, selectedMarketId, scrollY: getAppScrollTop() };
+    const nextRoute: AppRouteSnapshot = { mainView, selectedMarketId, selectedPublicProfileUserId, scrollY: getAppScrollTop() };
     const previousRoute = lastRouteRef.current;
 
     if (!previousRoute) {
@@ -2450,7 +2463,11 @@ function App() {
       return;
     }
 
-    if (previousRoute.mainView === nextRoute.mainView && previousRoute.selectedMarketId === nextRoute.selectedMarketId) {
+    if (
+      previousRoute.mainView === nextRoute.mainView &&
+      previousRoute.selectedMarketId === nextRoute.selectedMarketId &&
+      previousRoute.selectedPublicProfileUserId === nextRoute.selectedPublicProfileUserId
+    ) {
       return;
     }
 
@@ -2469,13 +2486,14 @@ function App() {
       const lastSavedRoute = currentHistory[currentHistory.length - 1];
       const alreadySaved =
         lastSavedRoute?.mainView === previousRouteWithScroll.mainView &&
-        lastSavedRoute?.selectedMarketId === previousRouteWithScroll.selectedMarketId;
+        lastSavedRoute?.selectedMarketId === previousRouteWithScroll.selectedMarketId &&
+        lastSavedRoute?.selectedPublicProfileUserId === previousRouteWithScroll.selectedPublicProfileUserId;
 
       return alreadySaved ? currentHistory : [...currentHistory, previousRouteWithScroll].slice(-24);
     });
 
     lastRouteRef.current = nextRoute;
-  }, [mainView, selectedMarketId]);
+  }, [mainView, selectedMarketId, selectedPublicProfileUserId]);
 
   useEffect(() => {
     const telegramWebApp = getRealTelegramWebApp();
@@ -2503,7 +2521,7 @@ function App() {
         // Игнорируем старые клиенты Telegram.
       }
     };
-  }, [mainView, selectedMarketId, routeHistory, isActivityOpen, isRulesOpen]);
+  }, [mainView, selectedMarketId, selectedPublicProfileUserId, routeHistory, isActivityOpen, isRulesOpen]);
 
   async function initializeApp() {
     setIsLoading(true);
@@ -3402,9 +3420,11 @@ function App() {
 
     return (
       <div className="participantsGrid">
-        {selectedMarketParticipants.map((participant) => (
-          <div className="participantCard" key={participant.userId}>
-            <div className="commentAvatar">{participant.userName.slice(0, 1).toUpperCase()}</div>
+        {selectedMarketParticipants.map((participant) => {
+          const participantUser = users.find((user) => user.id === participant.userId);
+          return (
+          <button className={`participantCard clickableUserCard ${getUserFrameClass(participantUser)}`} key={participant.userId} onClick={() => openPublicProfile(participant.userId)}>
+            <div className={`commentAvatar ${getUserFrameClass(participantUser)}`}>{participant.userName.slice(0, 1).toUpperCase()}</div>
             <div>
               <strong>{participant.userName}</strong>
               <p>
@@ -3414,8 +3434,9 @@ function App() {
                 Да: {participant.yesAmount.toLocaleString("ru-RU")} · Нет: {participant.noAmount.toLocaleString("ru-RU")}
               </small>
             </div>
-          </div>
-        ))}
+          </button>
+          );
+        })}
       </div>
     );
   }
@@ -3475,10 +3496,10 @@ function App() {
               const commentTitle = getUserActiveTitle(commentUser);
               return (
               <div className={`commentItem ${getUserFrameClass(commentUser)}`} key={comment.id}>
-                <div className={`commentAvatar ${getUserFrameClass(commentUser)}`}>{comment.userName.slice(0, 1).toUpperCase()}</div>
+                <button className={`commentAvatar clickableAvatar ${getUserFrameClass(commentUser)}`} onClick={() => openPublicProfile(comment.userId)}>{comment.userName.slice(0, 1).toUpperCase()}</button>
                 <div className="commentBody">
                   <div className="commentMeta">
-                    <strong>{comment.userName}</strong>
+                    <button className="commentUserNameButton" onClick={() => openPublicProfile(comment.userId)}>{comment.userName}</button>
                     {commentTitle ? <em className="commentUserTitle">{commentTitle.emoji} {commentTitle.name}</em> : null}
                     <span>{comment.createdAt}</span>
                     {isAdmin && (
@@ -3535,8 +3556,17 @@ function App() {
 
   function openMarketDetails(marketId: string, tab: DetailsTab = "overview") {
     setSelectedMarketId(marketId);
+    setSelectedPublicProfileUserId(null);
     setDetailsTab(tab);
     sendHaptic();
+  }
+
+  function openPublicProfile(userId: string) {
+    setSelectedMarketId(null);
+    setSelectedPublicProfileUserId(userId);
+    setMainView("publicProfile");
+    sendHaptic("light");
+    window.setTimeout(() => scrollAppToTop("auto"), 0);
   }
 
   function renderMarketCard(market: Market, variant: "feed" | "search" = "feed") {
@@ -3762,12 +3792,13 @@ function App() {
           {topThree.length === 0 ? (
             <div className="empty wideEmpty">Пока в турнире нет результатов. Первый рассчитанный прогноз запустит недельный топ.</div>
           ) : topThree.map((row, index) => (
-            <article className={`podiumCard podiumPlace${index + 1} ${row.user.id === activeUser?.id ? "activePodiumCard" : ""}`} key={row.user.id}>
+            <button className={`podiumCard clickableUserCard podiumPlace${index + 1} ${row.user.id === activeUser?.id ? "activePodiumCard" : ""} ${getUserFrameClass(row.user)}`} key={row.user.id} onClick={() => openPublicProfile(row.user.id)}>
               <div className="podiumMedal">#{index + 1}</div>
               <h3>{row.user.name}</h3>
+              {getUserActiveTitle(row.user) ? <span className="leaderboardTitle">{getUserActiveTitle(row.user)?.emoji} {getUserActiveTitle(row.user)?.name}</span> : null}
               <strong>{row.score >= 0 ? "+" : ""}{row.score.toLocaleString("ru-RU")}</strong>
               <p>{row.predictionsCount} прогнозов · {row.wins} побед</p>
-            </article>
+            </button>
           ))}
         </section>
 
@@ -3778,11 +3809,11 @@ function App() {
           </div>
           <div className="tournamentRows">
             {[...topThree, ...remainingRows].map((row, index) => (
-              <div className={`tournamentRow ${row.user.id === activeUser?.id ? "activeTournamentRow" : ""}`} key={row.user.id}>
+              <button className={`tournamentRow clickableTournamentRow ${row.user.id === activeUser?.id ? "activeTournamentRow" : ""} ${getUserFrameClass(row.user)}`} key={row.user.id} onClick={() => openPublicProfile(row.user.id)}>
                 <div className="tournamentRank">#{index + 1}</div>
-                <div className="tournamentName"><strong>{row.user.name}</strong><span>{row.predictionsCount} прогнозов · {row.wins} выиграно</span></div>
+                <div className="tournamentName"><strong>{row.user.name}</strong>{getUserActiveTitle(row.user) ? <em>{getUserActiveTitle(row.user)?.emoji} {getUserActiveTitle(row.user)?.name}</em> : null}<span>{row.predictionsCount} прогнозов · {row.wins} выиграно</span></div>
                 <div className="tournamentScore"><strong>{row.score >= 0 ? "+" : ""}{row.score.toLocaleString("ru-RU")}</strong><span>баллов</span></div>
-              </div>
+              </button>
             ))}
           </div>
         </section>
@@ -4691,10 +4722,10 @@ function App() {
             </div>
             <div className="leaderboardList compactLeaderboardList">
               {topLeaderboard.map((user, index) => (
-                <div className={`leaderboardItem ${user.id === activeUser?.id ? "activeLeaderboardItem" : ""} ${getUserFrameClass(user)}`} key={user.id}>
+                <button className={`leaderboardItem clickableUserCard ${user.id === activeUser?.id ? "activeLeaderboardItem" : ""} ${getUserFrameClass(user)}`} key={user.id} onClick={() => openPublicProfile(user.id)}>
                   <div className="place">#{index + 1}</div>
                   <div><strong>{user.name}</strong>{getUserActiveTitle(user) ? <span className="leaderboardTitle">{getUserActiveTitle(user)?.emoji} {getUserActiveTitle(user)?.name}</span> : null}<p>{user.balance.toLocaleString("ru-RU")} баллов</p></div>
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -5443,6 +5474,7 @@ function App() {
                   <div><strong>{stats.total}</strong><small>{stats.wins} побед · {stats.active} активн.</small></div>
                   <div><strong>{stats.weeklyScore.toLocaleString("ru-RU")}</strong><small>за неделю</small></div>
                   <div className="adminRowActions">
+                    <button onClick={() => openPublicProfile(user.id)}>Профиль</button>
                     <button onClick={() => { setAdminAwardForm((current) => ({ ...current, userId: user.id, amount: "1000", description: "Тестовое начисление баллов" })); setAdminTab("points"); }}>Начислить</button>
                     <button className="secondaryButton" onClick={() => { setAdminAwardForm((current) => ({ ...current, userId: user.id, amount: "-500", description: "Тестовое списание баллов" })); setAdminTab("points"); }}>Списать</button>
                   </div>
@@ -6209,6 +6241,186 @@ function App() {
     );
   }
 
+  function renderPublicProfilePage() {
+    const user = selectedPublicProfileUser || activeUser;
+
+    if (!user) {
+      return (
+        <section className="publicProfilePage pageStack">
+          <button className="backButton" onClick={goBackRoute}>← Назад</button>
+          <div className="empty">Профиль игрока не найден.</div>
+        </section>
+      );
+    }
+
+    const userPredictions = predictions.filter((prediction) => prediction.userId === user.id);
+    const userSettledPredictions = userPredictions.filter((prediction) => prediction.settledAt);
+    const userOpenPredictions = userPredictions.filter((prediction) => !prediction.settledAt);
+    const wins = userSettledPredictions.filter((prediction) => prediction.outcome === prediction.resolvedOutcome).length;
+    const invested = userPredictions.reduce((sum, prediction) => sum + prediction.amount, 0);
+    const payouts = userPredictions.reduce((sum, prediction) => sum + (prediction.payout || 0), 0);
+    const winRate = userSettledPredictions.length ? Math.round((wins / userSettledPredictions.length) * 100) : 0;
+    const userRank = leaderboard.findIndex((item) => item.id === user.id) + 1;
+    const weeklyStanding = weeklyStandings.find((row) => row.user.id === user.id) || null;
+    const weeklyRank = weeklyStanding ? weeklyStandings.findIndex((row) => row.user.id === user.id) + 1 : 0;
+    const userSuggestions = marketSuggestions.filter((suggestion) => suggestion.userId === user.id);
+    const userComments = comments.filter((comment) => comment.userId === user.id);
+    const userStats = { predictionsCount: userPredictions.length, settledCount: userSettledPredictions.length, wins, winRate };
+    const level = getUserLevel(userStats, userRank, user);
+    const achievements = getUserAchievements({
+      user,
+      stats: userStats,
+      rank: userRank,
+      suggestionsCount: userSuggestions.length,
+    });
+    const unlockedCount = achievements.filter((achievement) => achievement.unlocked).length;
+    const userInventoryItems = userInventory
+      .filter((entry) => entry.userId === user.id)
+      .map((entry) => effectiveShopItems.find((item) => item.id === entry.itemId))
+      .filter((item): item is ShopItem => Boolean(item));
+    const activeTitle = getUserActiveTitle(user);
+    const activeFrame = effectiveShopItems.find((item) => item.id === user.activeFrameItemId && item.type === "frame") || null;
+    const bestPayout = userSettledPredictions.reduce((max, prediction) => Math.max(max, prediction.payout || 0), 0);
+    const recentPredictions = [...userPredictions]
+      .sort((a, b) => (parseAppDate(b.createdAt)?.getTime() || 0) - (parseAppDate(a.createdAt)?.getTime() || 0))
+      .slice(0, 6);
+
+    return (
+      <section className="publicProfilePage gameProfilePage">
+        <button className="backButton publicProfileBackButton" onClick={goBackRoute}>← Назад</button>
+
+        <article className={`profileHeroCard gameProfileHeroCard publicProfileHero styledProfileHero ${getUserFrameClass(user)}`}>
+          <div className="profileHeroGlow" aria-hidden="true" />
+          <div className={`profileAvatar gameProfileAvatar styledProfileAvatar ${getUserFrameClass(user)}`}>{user.name.slice(0, 1).toUpperCase()}</div>
+
+          <div className="profileMainInfo gameProfileMainInfo">
+            <div className="profileRoleRow">
+              <span className="profileRole">{adminUserIds.includes(user.id) ? "Администратор" : "Игрок"}</span>
+              <span className="profileLevelBadge">{level.emoji} Уровень {level.level} · {level.title}</span>
+            </div>
+            <h2>{user.name}</h2>
+            {activeTitle ? <span className={`activeProfileTitle titleStyle-${activeTitle.styleKey}`}>{activeTitle.emoji} {activeTitle.name}</span> : <span className="emptyProfileTitle">Без титула</span>}
+            <p>{level.description}</p>
+
+            <div className="levelProgressBlock gameLevelProgressBlock">
+              <div className="levelProgressTop">
+                <span>{level.score.toLocaleString("ru-RU")} XP</span>
+                <span>{level.nextTitle === "Максимум" ? "Максимальный уровень" : `До «${level.nextTitle}»`}</span>
+              </div>
+              <div className="levelProgressBar"><span style={{ width: `${level.progress}%` }} /></div>
+            </div>
+
+            <div className="profileHeroActions">
+              {user.id === activeUser?.id ? (
+                <button onClick={() => { setSelectedPublicProfileUserId(null); setMainView("profile"); }}>Открыть мой профиль</button>
+              ) : (
+                <button onClick={() => setMainView("tournament")}>Открыть турнир</button>
+              )}
+              <button className="secondaryButton" onClick={() => setMainView("markets")}>К рынкам</button>
+            </div>
+          </div>
+
+          <div className="profileBalanceBox gameProfileBalanceBox">
+            <span>Публичная карточка</span>
+            <strong>{user.balance.toLocaleString("ru-RU")} баллов</strong>
+            <small>{activeFrame ? `Рамка: ${activeFrame.name}` : "Рамка не выбрана"}</small>
+            <button onClick={() => refreshData(activeUser?.id)}>Обновить</button>
+          </div>
+        </article>
+
+        <section className="profileStatsGrid gameProfileStatsGrid publicProfileStatsGrid">
+          <div><span>Место</span><strong>{userRank ? `#${userRank}` : "—"}</strong><small>общий рейтинг</small></div>
+          <div><span>Турнир</span><strong>{weeklyRank ? `#${weeklyRank}` : "—"}</strong><small>{weeklyStanding ? `${weeklyStanding.score >= 0 ? "+" : ""}${weeklyStanding.score.toLocaleString("ru-RU")} б.` : "нет результата"}</small></div>
+          <div><span>Прогнозы</span><strong>{userPredictions.length}</strong><small>{userOpenPredictions.length} активных</small></div>
+          <div><span>Winrate</span><strong>{winRate}%</strong><small>{wins}/{userSettledPredictions.length || 0} побед</small></div>
+          <div><span>Лучший выигрыш</span><strong>{bestPayout.toLocaleString("ru-RU")}</strong><small>баллов</small></div>
+          <div><span>Предметы</span><strong>{userInventoryItems.length}</strong><small>{unlockedCount}/{achievements.length} достиж.</small></div>
+        </section>
+
+        <section className="publicProfileGrid">
+          <article className="profileCard publicProfileCard">
+            <div className="sectionHeader">
+              <h2>Косметика</h2>
+              <span>{userInventoryItems.length}</span>
+            </div>
+            {userInventoryItems.length === 0 ? (
+              <div className="empty">Игрок ещё не открыл предметы.</div>
+            ) : (
+              <div className="publicInventoryGrid">
+                {userInventoryItems.slice(0, 10).map((item) => (
+                  <div className={`publicInventoryItem shopItemIcon-${item.styleKey}`} key={item.id}>
+                    <span>{item.emoji}</span>
+                    <strong>{item.name}</strong>
+                    <small>{item.type === "title" ? "Титул" : "Рамка"}</small>
+                  </div>
+                ))}
+              </div>
+            )}
+          </article>
+
+          <article className="profileCard publicProfileCard">
+            <div className="sectionHeader">
+              <h2>Достижения</h2>
+              <span>{unlockedCount}/{achievements.length}</span>
+            </div>
+            <div className="publicAchievementsGrid">
+              {achievements.slice(0, 6).map((achievement) => (
+                <div className={`publicAchievementItem ${achievement.unlocked ? "unlockedPublicAchievement" : ""}`} key={achievement.id}>
+                  <span>{achievement.unlocked ? achievement.emoji : "🔒"}</span>
+                  <div>
+                    <strong>{achievement.title}</strong>
+                    <small>{achievement.unlocked ? "Открыто" : `${achievement.progress}%`}</small>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </article>
+
+          <article className="profileCard publicProfileCard profileWideCard publicPredictionsCard">
+            <div className="sectionHeader">
+              <h2>Последние прогнозы</h2>
+              <span>{recentPredictions.length}</span>
+            </div>
+            {recentPredictions.length === 0 ? (
+              <div className="empty">Пока нет прогнозов.</div>
+            ) : (
+              <div className="publicPredictionList">
+                {recentPredictions.map((prediction) => {
+                  const market = markets.find((item) => item.id === prediction.marketId);
+                  const isWinner = prediction.settledAt && prediction.outcome === prediction.resolvedOutcome;
+                  return (
+                    <button className="publicPredictionItem" key={prediction.id} onClick={() => openMarketDetails(prediction.marketId)}>
+                      <div>
+                        <strong>{prediction.marketQuestion}</strong>
+                        <span>{getOutcomeText(prediction.outcome)} · {prediction.amount.toLocaleString("ru-RU")} б. · {prediction.createdAt}</span>
+                      </div>
+                      <b className={prediction.settledAt ? isWinner ? "positiveAmount" : "negativeAmount" : ""}>
+                        {prediction.settledAt ? isWinner ? "Выиграл" : "Проиграл" : market?.status === "closed" ? "Ждёт" : "Активен"}
+                      </b>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </article>
+
+          <article className="profileCard publicProfileCard">
+            <div className="sectionHeader">
+              <h2>Социальная активность</h2>
+              <span>💬</span>
+            </div>
+            <div className="publicSocialStats">
+              <div><strong>{userComments.length}</strong><span>комментариев</span></div>
+              <div><strong>{userSuggestions.length}</strong><span>предложений рынков</span></div>
+              <div><strong>{invested.toLocaleString("ru-RU")}</strong><span>баллов в прогнозах</span></div>
+              <div><strong>{payouts.toLocaleString("ru-RU")}</strong><span>выплат получено</span></div>
+            </div>
+          </article>
+        </section>
+      </section>
+    );
+  }
+
   function renderProfilePage() {
     if (!activeUser) {
       return <section className="profilePage"><div className="empty">Профиль пока не загружен.</div></section>;
@@ -6577,6 +6789,7 @@ function App() {
             className={mainView === "markets" && !selectedMarket ? "activeProductNav" : ""}
             onClick={() => {
               setSelectedMarketId(null);
+              setSelectedPublicProfileUserId(null);
               setMainView("markets");
             }}
           >
@@ -6586,6 +6799,7 @@ function App() {
             className={mainView === "imported" && !selectedMarket ? "activeProductNav" : ""}
             onClick={() => {
               setSelectedMarketId(null);
+              setSelectedPublicProfileUserId(null);
               setMainView("imported");
             }}
           >
@@ -6595,6 +6809,7 @@ function App() {
             className={mainView === "search" && !selectedMarket ? "activeProductNav" : ""}
             onClick={() => {
               setSelectedMarketId(null);
+              setSelectedPublicProfileUserId(null);
               setMainView("search");
             }}
           >
@@ -6604,6 +6819,7 @@ function App() {
             className={mainView === "predictions" && !selectedMarket ? "activeProductNav" : ""}
             onClick={() => {
               setSelectedMarketId(null);
+              setSelectedPublicProfileUserId(null);
               setMainView("predictions");
             }}
           >
@@ -6613,6 +6829,7 @@ function App() {
             className={mainView === "tournament" && !selectedMarket ? "activeProductNav" : ""}
             onClick={() => {
               setSelectedMarketId(null);
+              setSelectedPublicProfileUserId(null);
               setMainView("tournament");
             }}
           >
@@ -6622,6 +6839,7 @@ function App() {
             className={mainView === "suggest" && !selectedMarket ? "activeProductNav" : ""}
             onClick={() => {
               setSelectedMarketId(null);
+              setSelectedPublicProfileUserId(null);
               setMainView("suggest");
             }}
           >
@@ -6632,6 +6850,7 @@ function App() {
               className={(mainView === "admin" || mainView === "moderation" || mainView === "settlement") && !selectedMarket ? "activeProductNav" : ""}
               onClick={() => {
                 setSelectedMarketId(null);
+                setSelectedPublicProfileUserId(null);
                 setMainView("admin");
               }}
             >
@@ -6642,6 +6861,7 @@ function App() {
             className={mainView === "profile" ? "activeProductNav" : ""}
             onClick={() => {
               setSelectedMarketId(null);
+              setSelectedPublicProfileUserId(null);
               setMainView("profile");
             }}
           >
@@ -6731,7 +6951,9 @@ function App() {
         </section>
       )}
 
-      {mainView === "profile" && !selectedMarket ? (
+      {mainView === "publicProfile" && !selectedMarket ? (
+        renderPublicProfilePage()
+      ) : mainView === "profile" && !selectedMarket ? (
         renderProfilePage()
       ) : mainView === "predictions" && !selectedMarket ? (
         renderMyPredictionsPage()
@@ -6747,7 +6969,7 @@ function App() {
         renderSettlementPage()
       ) : selectedMarket ? (
         <section className="detailsPage">
-          <button className="backButton" onClick={() => setSelectedMarketId(null)}>
+          <button className="backButton" onClick={goBackRoute}>
             ← Назад
           </button>
 
