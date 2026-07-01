@@ -2471,9 +2471,10 @@ app.get("/", (_request, response) => {
 
 app.get("/api/health", async (_request, response) => {
   await closeExpiredMarkets();
-  const [dbCheck, pendingResult] = await Promise.all([
+  const [dbCheck, pendingResult, shopResult] = await Promise.all([
     pool.query("SELECT NOW() AS now"),
     pool.query("SELECT COUNT(*)::int AS count FROM markets WHERE status = 'closed'"),
+    pool.query("SELECT COUNT(*)::int AS count FROM shop_items WHERE is_active = TRUE").catch(() => ({ rows: [{ count: 0 }] })),
   ]);
 
   response.json({
@@ -2502,6 +2503,8 @@ app.get("/api/health", async (_request, response) => {
     polymarketImportLimit: POLYMARKET_AUTO_IMPORT_LIMIT,
     polymarketImportIntervalMinutes: Math.round(POLYMARKET_AUTO_IMPORT_INTERVAL_MS / 60000),
     pendingResolutionMarkets: pendingResult.rows[0].count,
+    shopItemsCount: shopResult.rows[0].count,
+    shopAutoSeedEnabled: true,
     time: new Date().toISOString(),
   });
 });
@@ -2753,6 +2756,17 @@ app.post("/api/users/:userId/profile-style", async (request, response) => {
   } catch (error) {
     console.error("profile style failed", error);
     response.status(500).json({ error: "Не удалось обновить стиль профиля" });
+  }
+});
+
+app.get("/api/shop", async (_request, response) => {
+  try {
+    await ensureDefaultShopItems();
+    const result = await pool.query("SELECT * FROM shop_items WHERE is_active = TRUE ORDER BY type ASC, sort_order ASC, price ASC");
+    response.json({ ok: true, shopItems: result.rows.map(toShopItem), count: result.rows.length });
+  } catch (error) {
+    console.error("shop fetch failed", error);
+    response.status(500).json({ error: "Не удалось загрузить магазин" });
   }
 });
 

@@ -591,6 +591,18 @@ const WEEKLY_TOURNAMENT_TOP_REWARDS = [5000, 3000, 1500];
 const WEEKLY_TOURNAMENT_PARTICIPATION_REWARD = 300;
 const WEEKLY_TOURNAMENT_MIN_PREDICTIONS = 3;
 
+const DEFAULT_CLIENT_SHOP_ITEMS: ShopItem[] = [
+  { id: "title-oracle", type: "title", name: "Оракул", description: "Предсказывает рынки на холодную голову.", price: 1500, emoji: "🔮", styleKey: "oracle", sortOrder: 10, isActive: true },
+  { id: "title-insider", type: "title", name: "Инсайдер", description: "Всегда знает, где движуха.", price: 1200, emoji: "🕵️", styleKey: "insider", sortOrder: 20, isActive: true },
+  { id: "title-risk-manager", type: "title", name: "Риск-менеджер", description: "Ставит аккуратно и считает вероятности.", price: 1000, emoji: "🛡️", styleKey: "risk", sortOrder: 30, isActive: true },
+  { id: "title-market-shark", type: "title", name: "Акула рынка", description: "Для тех, кто не боится спорных исходов.", price: 1800, emoji: "🦈", styleKey: "shark", sortOrder: 40, isActive: true },
+  { id: "title-week-king", type: "title", name: "Король недели", description: "Титул для охотника за турнирами.", price: 2500, emoji: "👑", styleKey: "king", sortOrder: 50, isActive: true },
+  { id: "frame-gold", type: "frame", name: "Золотая рамка", description: "Тёплая рамка для профиля победителя.", price: 3000, emoji: "🏆", styleKey: "gold", sortOrder: 110, isActive: true },
+  { id: "frame-neon", type: "frame", name: "Неоновая рамка", description: "Яркая подсветка в стиле игровой арены.", price: 2500, emoji: "💠", styleKey: "neon", sortOrder: 120, isActive: true },
+  { id: "frame-cyber", type: "frame", name: "Кибер рамка", description: "Холодная технологичная рамка для профиля.", price: 2200, emoji: "🤖", styleKey: "cyber", sortOrder: 130, isActive: true },
+  { id: "frame-emerald", type: "frame", name: "Изумрудная рамка", description: "Спокойная зелёная рамка для уверенной игры.", price: 1800, emoji: "💚", styleKey: "emerald", sortOrder: 140, isActive: true },
+];
+
 function formatShortDate(date: Date) {
   return date.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
 }
@@ -1017,21 +1029,27 @@ function App() {
     return new Set(activeUserInventory.map((item) => item.itemId));
   }, [activeUserInventory]);
 
+  const effectiveShopItems = useMemo(() => {
+    return shopItems.length > 0 ? shopItems : DEFAULT_CLIENT_SHOP_ITEMS;
+  }, [shopItems]);
+
+  const isUsingFallbackShopItems = shopItems.length === 0;
+
   const activeTitleItem = useMemo(() => {
-    return shopItems.find((item) => item.id === activeUser?.activeTitleItemId && item.type === "title") || null;
-  }, [shopItems, activeUser]);
+    return effectiveShopItems.find((item) => item.id === activeUser?.activeTitleItemId && item.type === "title") || null;
+  }, [effectiveShopItems, activeUser]);
 
   const activeFrameItem = useMemo(() => {
-    return shopItems.find((item) => item.id === activeUser?.activeFrameItemId && item.type === "frame") || null;
-  }, [shopItems, activeUser]);
+    return effectiveShopItems.find((item) => item.id === activeUser?.activeFrameItemId && item.type === "frame") || null;
+  }, [effectiveShopItems, activeUser]);
 
   const titleShopItems = useMemo(() => {
-    return shopItems.filter((item) => item.type === "title" && item.isActive).sort((a, b) => a.sortOrder - b.sortOrder || a.price - b.price);
-  }, [shopItems]);
+    return effectiveShopItems.filter((item) => item.type === "title" && item.isActive).sort((a, b) => a.sortOrder - b.sortOrder || a.price - b.price);
+  }, [effectiveShopItems]);
 
   const frameShopItems = useMemo(() => {
-    return shopItems.filter((item) => item.type === "frame" && item.isActive).sort((a, b) => a.sortOrder - b.sortOrder || a.price - b.price);
-  }, [shopItems]);
+    return effectiveShopItems.filter((item) => item.type === "frame" && item.isActive).sort((a, b) => a.sortOrder - b.sortOrder || a.price - b.price);
+  }, [effectiveShopItems]);
 
   const dailyBonusInfo = useMemo(() => getDailyBonusInfo(activeUser), [activeUser]);
 
@@ -1779,6 +1797,20 @@ function App() {
     setActiveUserId(nextActiveUserId && hasActiveUser ? nextActiveUserId : "");
   }
 
+  async function refreshShopItems() {
+    try {
+      const data = await apiRequest<{ shopItems: ShopItem[]; count: number }>("/shop");
+      if (data.shopItems?.length) {
+        setShopItems(data.shopItems);
+        showToast(`Магазин обновлён: ${data.count} предметов`);
+      } else {
+        showToast("Магазин пока пуст на backend");
+      }
+    } catch (error) {
+      alert(getErrorMessage(error));
+    }
+  }
+
   const hasSafeSession = Boolean(isTelegram && activeUser && authSessionToken);
 
   function authHeaders() {
@@ -1815,12 +1847,12 @@ function App() {
 
   function getUserActiveTitle(user: DemoUser | null | undefined) {
     if (!user?.activeTitleItemId) return null;
-    return shopItems.find((item) => item.id === user.activeTitleItemId && item.type === "title") || null;
+    return effectiveShopItems.find((item) => item.id === user.activeTitleItemId && item.type === "title") || null;
   }
 
   function getUserFrameClass(user: DemoUser | null | undefined) {
     const frame = user?.activeFrameItemId
-      ? shopItems.find((item) => item.id === user.activeFrameItemId && item.type === "frame")
+      ? effectiveShopItems.find((item) => item.id === user.activeFrameItemId && item.type === "frame")
       : null;
     return frame ? `profileFrame-${frame.styleKey}` : "";
   }
@@ -5623,6 +5655,14 @@ function App() {
             <button className="secondaryButton" onClick={() => void equipShopItem(null, "title")} disabled={!activeUser.activeTitleItemId || Boolean(equippingShopItemId)}>Снять титул</button>
             <button className="secondaryButton" onClick={() => void equipShopItem(null, "frame")} disabled={!activeUser.activeFrameItemId || Boolean(equippingShopItemId)}>Снять рамку</button>
           </div>
+
+          {isUsingFallbackShopItems ? (
+            <div className="shopBackendWarning">
+              <strong>Предметы показаны из встроенного списка.</strong>
+              <span>Нажми “Обновить магазин”; если после этого покупка не проходит, значит Render всё ещё отдаёт старый backend.</span>
+              <button className="secondaryButton" onClick={() => void refreshShopItems()}>Обновить магазин</button>
+            </div>
+          ) : null}
 
           <p className="styleLegalHint">Предметы — только внутриигровая косметика. Они не имеют денежной или имущественной ценности.</p>
         </article>
