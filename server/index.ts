@@ -853,6 +853,9 @@ async function ensureDefaultShopItems(queryRunner: QueryRunner = pool) {
     ["title-risk-manager", "title", "Риск-менеджер", "Ставит аккуратно и считает вероятности.", 1000, "🛡️", "risk", 30],
     ["title-market-shark", "title", "Акула рынка", "Для тех, кто не боится спорных исходов.", 1800, "🦈", "shark", 40],
     ["title-week-king", "title", "Король недели", "Титул для охотника за турнирами.", 2500, "👑", "king", 50],
+    ["title-market-rookie", "title", "Новичок рынка", "Первый серьёзный рубеж: 10 прогнозов.", 900, "🎯", "rookie", 60],
+    ["title-voice-market", "title", "Голос рынка", "Для активных участников обсуждений.", 1600, "💬", "voice", 70],
+    ["frame-streak-7", "frame", "Серия 7 дней", "Рамка за недельную серию ежедневных бонусов.", 3200, "🔥", "streak7", 105],
     ["frame-gold", "frame", "Золотая рамка", "Тёплая рамка для профиля победителя.", 3000, "🏆", "gold", 110],
     ["frame-neon", "frame", "Неоновая рамка", "Яркая подсветка в стиле игровой арены.", 2500, "💠", "neon", 120],
     ["frame-cyber", "frame", "Кибер рамка", "Холодная технологичная рамка для профиля.", 2200, "🤖", "cyber", 130],
@@ -877,6 +880,93 @@ async function ensureDefaultShopItems(queryRunner: QueryRunner = pool) {
       item
     );
   }
+}
+
+async function grantCosmeticReward(
+  queryRunner: QueryRunner,
+  userId: string,
+  itemId: string,
+  reason: string
+) {
+  await ensureDefaultShopItems(queryRunner);
+
+  const itemResult = await queryRunner.query("SELECT * FROM shop_items WHERE id = $1 AND is_active = TRUE", [itemId]);
+  const itemRow = itemResult.rows[0];
+
+  if (!itemRow) return null;
+
+  const inventoryResult = await queryRunner.query(
+    `
+      INSERT INTO user_inventory (id, user_id, item_id, created_at)
+      VALUES ($1, $2, $3, NOW())
+      ON CONFLICT (user_id, item_id) DO NOTHING
+      RETURNING *
+    `,
+    [createId(), userId, itemId]
+  );
+
+  const inventoryRow = inventoryResult.rows[0];
+
+  if (!inventoryRow) return null;
+
+  const item = toShopItem(itemRow);
+
+  await addBalanceTransaction(queryRunner, {
+    userId,
+    type: "system",
+    title: "Открыт предмет",
+    description: `${item.emoji} ${item.name} · ${reason}`,
+    amount: 0,
+  });
+
+  return {
+    item,
+    inventoryItem: toUserInventoryItem(inventoryRow),
+  };
+}
+
+async function maybeAwardProgressCosmetics(queryRunner: QueryRunner, userId: string) {
+  const statsResult = await queryRunner.query(
+    `
+      SELECT
+        (SELECT COUNT(*)::int FROM predictions WHERE user_id = $1) AS predictions_count,
+        (SELECT COUNT(*)::int FROM predictions WHERE user_id = $1 AND settled_at IS NOT NULL AND outcome = resolved_outcome) AS wins_count,
+        (SELECT COUNT(*)::int FROM comments WHERE user_id = $1) AS comments_count,
+        COALESCE((SELECT best_daily_bonus_streak FROM users WHERE id = $1), 0)::int AS best_daily_bonus_streak,
+        COALESCE((SELECT daily_bonus_streak FROM users WHERE id = $1), 0)::int AS daily_bonus_streak
+    `,
+    [userId]
+  );
+
+  const stats = statsResult.rows[0] || {};
+  const rewards = [];
+
+  if (Number(stats.predictions_count || 0) >= 10) {
+    const reward = await grantCosmeticReward(queryRunner, userId, "title-market-rookie", "10 прогнозов");
+    if (reward) rewards.push(reward);
+  }
+
+  if (Number(stats.predictions_count || 0) >= 50) {
+    const reward = await grantCosmeticReward(queryRunner, userId, "title-market-shark", "50 прогнозов");
+    if (reward) rewards.push(reward);
+  }
+
+  if (Number(stats.wins_count || 0) >= 10) {
+    const reward = await grantCosmeticReward(queryRunner, userId, "title-oracle", "10 выигранных прогнозов");
+    if (reward) rewards.push(reward);
+  }
+
+  if (Number(stats.comments_count || 0) >= 10) {
+    const reward = await grantCosmeticReward(queryRunner, userId, "title-voice-market", "10 комментариев");
+    if (reward) rewards.push(reward);
+  }
+
+  if (Math.max(Number(stats.best_daily_bonus_streak || 0), Number(stats.daily_bonus_streak || 0)) >= 7) {
+    const reward = await grantCosmeticReward(queryRunner, userId, "frame-streak-7", "7 дней бонусной серии");
+    if (reward) rewards.push(reward);
+  }
+
+  return rewards;
 }
 
 function normalizeShopItemPayload(body: any) {
@@ -3108,7 +3198,9 @@ app.post("/api/users/:userId/daily-bonus", async (request, response) => {
         amount: streakState.amount,
       });
 
-      return { user: toUser(updatedUserResult.rows[0]), transaction, dailyBonusAmount: streakState.amount, dailyBonusStreak: streakState.nextStreak };
+      const cosmeticRewards = await maybeAwardProgressCosmetics(client, userId);
+
+      return { user: toUser(updatedUserResult.rows[0]), transaction, dailyBonusAmount: streakState.amount, dailyBonusStreak: streakState.nextStreak, cosmeticRewards };
     });
 
     if (!result) return;
@@ -3463,6 +3555,10 @@ app.post("/api/admin/tournament/weekly-awards", async (request, response) => {
             : `Бонус за ${WEEKLY_TOURNAMENT_MIN_PREDICTIONS}+ прогнозов за неделю`,
           amount: award.rewardAmount,
         });
+
+        if (award.awardType === "top" && award.place === 1) {
+          await grantCosmeticReward(client, award.userId, "title-week-king", "1 место в турнире недели");
+        }
 
         createdAwards.push(toWeeklyTournamentAward(awardResult.rows[0]));
         totalRewardAmount += award.rewardAmount;
@@ -4114,7 +4210,9 @@ app.post("/api/markets/:marketId/predictions", async (request, response) => {
       await maybeAwardReferralForFirstPrediction(client, user.id, getUserDisplayName(user));
     }
 
-    return { prediction } as const;
+    const cosmeticRewards = await maybeAwardProgressCosmetics(client, user.id);
+
+    return { prediction, cosmeticRewards } as const;
   });
 
   if ("error" in result) {
@@ -4205,6 +4303,8 @@ app.post("/api/markets/:marketId/resolve", async (request, response) => {
           marketQuestion: market.question,
         });
       }
+
+      await maybeAwardProgressCosmetics(client, userId);
     }
 
     const updatedMarketResult = await client.query(
@@ -4301,6 +4401,8 @@ app.post("/api/markets/:marketId/comments", async (request, response) => {
       comment.mediaName || null,
     ]
   );
+
+  await maybeAwardProgressCosmetics(pool, user.id);
 
   response.status(201).json(comment);
 });

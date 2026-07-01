@@ -14,6 +14,17 @@ type SwipeRailState = { rail: HTMLElement; startX: number; startY: number; scrol
 type MarketBadge = { label: string; emoji: string; tone: "hot" | "soon" | "new" | "interest" | "poly" | "mine" | "closed" };
 type ActivityTone = "bonus" | "prediction" | "win" | "loss" | "market" | "social" | "admin" | "calm";
 type ActivityItem = { id: string; emoji: string; title: string; text: string; tone: ActivityTone; actionLabel: string; action: () => void };
+type UnlockableCosmeticReward = {
+  itemId: string;
+  emoji: string;
+  title: string;
+  description: string;
+  requirement: string;
+  progress: number;
+  current: number;
+  target: number;
+  unlocked: boolean;
+};
 type DailyMission = {
   id: string;
   icon: string;
@@ -1134,6 +1145,11 @@ function App() {
     return referrals.filter((referral) => referral.referrerUserId === activeUser.id);
   }, [referrals, activeUser]);
 
+  const activeUserComments = useMemo(() => {
+    if (!activeUser) return [];
+    return comments.filter((comment) => comment.userId === activeUser.id);
+  }, [comments, activeUser]);
+
   const activeUserReferralStats = useMemo(() => {
     const qualified = activeUserReferrals.filter((referral) => referral.status === "qualified");
     const pending = activeUserReferrals.filter((referral) => referral.status === "pending");
@@ -1231,6 +1247,88 @@ function App() {
     if (!activeUser) return null;
     return weeklyStandings.find((row) => row.user.id === activeUser.id) || null;
   }, [weeklyStandings, activeUser]);
+
+  const unlockableCosmeticRewards = useMemo<UnlockableCosmeticReward[]>(() => {
+    const makeProgress = (current: number, target: number) => Math.max(0, Math.min(100, Math.round((current / target) * 100)));
+    const bestStreak = Math.max(activeUser?.bestDailyBonusStreak || 0, activeUser?.dailyBonusStreak || 0);
+    const weeklyTopProgress = activeUserWeeklyRank === 1 ? 100 : activeUserWeeklyRank > 1 ? Math.max(10, Math.round((1 / activeUserWeeklyRank) * 100)) : 0;
+
+    return [
+      {
+        itemId: "title-week-king",
+        emoji: "👑",
+        title: "Король недели",
+        description: "Эксклюзивный титул за победу в недельном турнире.",
+        requirement: "Займи 1 место недели",
+        progress: activeUserOwnedItemIds.has("title-week-king") ? 100 : weeklyTopProgress,
+        current: activeUserWeeklyRank === 1 ? 1 : 0,
+        target: 1,
+        unlocked: activeUserOwnedItemIds.has("title-week-king"),
+      },
+      {
+        itemId: "title-market-rookie",
+        emoji: "🎯",
+        title: "Новичок рынка",
+        description: "Первый рубеж регулярной игры.",
+        requirement: "Сделай 10 прогнозов",
+        progress: activeUserOwnedItemIds.has("title-market-rookie") ? 100 : makeProgress(activeUserPredictions.length, 10),
+        current: activeUserPredictions.length,
+        target: 10,
+        unlocked: activeUserOwnedItemIds.has("title-market-rookie"),
+      },
+      {
+        itemId: "title-market-shark",
+        emoji: "🦈",
+        title: "Акула рынка",
+        description: "Для игроков, которые часто заходят в рынки.",
+        requirement: "Сделай 50 прогнозов",
+        progress: activeUserOwnedItemIds.has("title-market-shark") ? 100 : makeProgress(activeUserPredictions.length, 50),
+        current: activeUserPredictions.length,
+        target: 50,
+        unlocked: activeUserOwnedItemIds.has("title-market-shark"),
+      },
+      {
+        itemId: "title-oracle",
+        emoji: "🔮",
+        title: "Оракул",
+        description: "Титул за точность прогнозов.",
+        requirement: "Выиграй 10 прогнозов",
+        progress: activeUserOwnedItemIds.has("title-oracle") ? 100 : makeProgress(activeUserStats.wins, 10),
+        current: activeUserStats.wins,
+        target: 10,
+        unlocked: activeUserOwnedItemIds.has("title-oracle"),
+      },
+      {
+        itemId: "title-voice-market",
+        emoji: "💬",
+        title: "Голос рынка",
+        description: "Для тех, кто оживляет обсуждения.",
+        requirement: "Оставь 10 комментариев",
+        progress: activeUserOwnedItemIds.has("title-voice-market") ? 100 : makeProgress(activeUserComments.length, 10),
+        current: activeUserComments.length,
+        target: 10,
+        unlocked: activeUserOwnedItemIds.has("title-voice-market"),
+      },
+      {
+        itemId: "frame-streak-7",
+        emoji: "🔥",
+        title: "Серия 7 дней",
+        description: "Рамка за стабильные ежедневные входы.",
+        requirement: "Забери бонус 7 дней подряд",
+        progress: activeUserOwnedItemIds.has("frame-streak-7") ? 100 : makeProgress(bestStreak, 7),
+        current: bestStreak,
+        target: 7,
+        unlocked: activeUserOwnedItemIds.has("frame-streak-7"),
+      },
+    ];
+  }, [
+    activeUser,
+    activeUserOwnedItemIds,
+    activeUserWeeklyRank,
+    activeUserPredictions.length,
+    activeUserStats.wins,
+    activeUserComments.length,
+  ]);
 
   const currentWeekKey = useMemo(() => getLocalDateKey(currentWeekStart), [currentWeekStart]);
 
@@ -1584,6 +1682,24 @@ function App() {
       });
     }
 
+    activeUserTransactions
+      .filter((transaction) => transaction.title === "Открыт предмет")
+      .slice(0, 2)
+      .forEach((transaction) => {
+        items.push({
+          id: `cosmetic-${transaction.id}`,
+          emoji: "🎁",
+          title: "Открыт новый предмет",
+          text: transaction.description,
+          tone: "social",
+          actionLabel: "В стиль",
+          action: () => {
+            setProfileTab("style");
+            setMainView("profile");
+          },
+        });
+      });
+
     const waitingPredictions = activeUserOpenPredictions.filter((prediction) => {
       const market = markets.find((item) => item.id === prediction.marketId);
       return market?.status === "closed";
@@ -1717,6 +1833,7 @@ function App() {
     activeUserSettledPredictions,
     activeUserPredictions,
     activeUserSuggestions,
+    activeUserTransactions,
     markets,
     soonClosingMarkets,
     forYouMarkets,
@@ -6058,6 +6175,40 @@ function App() {
     );
   }
 
+  function renderUnlockableRewardsCard() {
+    if (!activeUser) return null;
+
+    return (
+      <article className="profileCard unlockableRewardsCard profileWideCard">
+        <div className="sectionHeader">
+          <div>
+            <p className="eyebrow">Открываемые награды</p>
+            <h2>Косметика за достижения</h2>
+            <p>Игра сама выдаёт предметы, когда ты выполняешь условия.</p>
+          </div>
+          <span>{unlockableCosmeticRewards.filter((reward) => reward.unlocked).length}/{unlockableCosmeticRewards.length}</span>
+        </div>
+
+        <div className="unlockableRewardList">
+          {unlockableCosmeticRewards.map((reward) => (
+            <article className={`unlockableRewardItem ${reward.unlocked ? "unlockedRewardItem" : ""}`} key={reward.itemId}>
+              <div className="unlockableRewardIcon">{reward.unlocked ? "✅" : reward.emoji}</div>
+              <div>
+                <strong>{reward.title}</strong>
+                <p>{reward.description}</p>
+                <small>{reward.unlocked ? "Уже открыт" : reward.requirement}</small>
+                <div className="unlockableProgressBar">
+                  <span style={{ width: `${reward.progress}%` }} />
+                </div>
+              </div>
+              <b>{reward.unlocked ? "Открыто" : `${Math.min(reward.current, reward.target)}/${reward.target}`}</b>
+            </article>
+          ))}
+        </div>
+      </article>
+    );
+  }
+
   function renderProfilePage() {
     if (!activeUser) {
       return <section className="profilePage"><div className="empty">Профиль пока не загружен.</div></section>;
@@ -6168,6 +6319,7 @@ function App() {
           <section className="profileContentGrid profileOverviewGrid">
             {renderDailyBonusCard("profile")}
             {renderDailyMissionsCard("profile")}
+            {renderUnlockableRewardsCard()}
             {renderTelegramNotificationCard()}
             {renderInterestPicker("profile")}
             {renderReferralCard()}
