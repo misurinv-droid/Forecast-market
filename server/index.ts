@@ -2575,51 +2575,63 @@ app.post("/api/users/:userId/shop/:itemId/buy", async (request, response) => {
 
   try {
     const result = await withTransaction(async (client) => {
-      const [userResult, itemResult, ownedResult] = await Promise.all([
-        client.query("SELECT * FROM users WHERE id = $1 FOR UPDATE", [userId]),
-        client.query("SELECT * FROM shop_items WHERE id = $1 AND is_active = TRUE", [itemId]),
-        client.query("SELECT * FROM user_inventory WHERE user_id = $1 AND item_id = $2", [userId, itemId]),
-      ]);
-
+      const userResult = await client.query("SELECT * FROM users WHERE id = $1 FOR UPDATE", [userId]);
       const userRow = userResult.rows[0];
-      const itemRow = itemResult.rows[0];
 
       if (!userRow) return { error: "Пользователь не найден" } as const;
+
+      const itemResult = await client.query("SELECT * FROM shop_items WHERE id = $1 AND is_active = TRUE", [itemId]);
+      const itemRow = itemResult.rows[0];
+
       if (!itemRow) return { error: "Предмет не найден" } as const;
-      if (ownedResult.rows[0]) return { error: "Этот предмет уже куплен" } as const;
 
       const item = toShopItem(itemRow);
-      const currentBalance = Number(userRow.balance || 0);
+      const ownedResult = await client.query("SELECT * FROM user_inventory WHERE user_id = $1 AND item_id = $2", [userId, itemId]);
+      let inventoryRow = ownedResult.rows[0];
+      let transaction: BalanceTransaction | undefined;
 
-      if (currentBalance < item.price) {
-        return { error: "Не хватает игровых баллов для покупки" } as const;
+      if (!inventoryRow) {
+        const currentBalance = Number(userRow.balance || 0);
+
+        if (currentBalance < item.price) {
+          return { error: "Не хватает игровых баллов для покупки" } as const;
+        }
+
+        const inventoryResult = await client.query(
+          `
+            INSERT INTO user_inventory (id, user_id, item_id, created_at)
+            VALUES ($1, $2, $3, NOW())
+            RETURNING *
+          `,
+          [createId(), userId, item.id]
+        );
+
+        inventoryRow = inventoryResult.rows[0];
+
+        transaction = await addBalanceTransaction(client, {
+          userId,
+          type: "system",
+          title: "Покупка в магазине",
+          description: `${item.emoji} ${item.name}`,
+          amount: -item.price,
+        });
       }
 
-      const inventoryResult = await client.query(
+      const updatedUserResult = await client.query(
         `
-          INSERT INTO user_inventory (id, user_id, item_id, created_at)
-          VALUES ($1, $2, $3, NOW())
+          UPDATE users
+          SET balance = CASE WHEN $4::boolean THEN balance - $3 ELSE balance END,
+              active_title_item_id = CASE WHEN $5 = 'title' THEN $2 ELSE active_title_item_id END,
+              active_frame_item_id = CASE WHEN $5 = 'frame' THEN $2 ELSE active_frame_item_id END
+          WHERE id = $1
           RETURNING *
         `,
-        [createId(), userId, item.id]
+        [userId, item.id, item.price, !ownedResult.rows[0], item.type]
       );
-
-      const updatedUserResult = await client.query(
-        "UPDATE users SET balance = balance - $2 WHERE id = $1 RETURNING *",
-        [userId, item.price]
-      );
-
-      const transaction = await addBalanceTransaction(client, {
-        userId,
-        type: "system",
-        title: "Покупка в магазине",
-        description: `${item.emoji} ${item.name}`,
-        amount: -item.price,
-      });
 
       return {
         user: toUser(updatedUserResult.rows[0]),
-        inventoryItem: toUserInventoryItem(inventoryResult.rows[0]),
+        inventoryItem: toUserInventoryItem(inventoryRow),
         transaction,
       };
     });

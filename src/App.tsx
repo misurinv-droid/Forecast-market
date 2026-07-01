@@ -2105,7 +2105,7 @@ function App() {
 
     try {
       setBuyingShopItemId(item.id);
-      const result = await apiRequest<{ user: DemoUser; inventoryItem: UserInventoryItem; transaction: BalanceTransaction }>(
+      const result = await apiRequest<{ user: DemoUser; inventoryItem: UserInventoryItem; transaction?: BalanceTransaction }>(
         `/users/${activeUser.id}/shop/${item.id}/buy`,
         {
           method: "POST",
@@ -2115,11 +2115,13 @@ function App() {
 
       setUsers((currentUsers) => currentUsers.map((user) => user.id === result.user.id ? result.user : user));
       setUserInventory((currentInventory) => (
-        currentInventory.some((entry) => entry.id === result.inventoryItem.id) ? currentInventory : [result.inventoryItem, ...currentInventory]
+        currentInventory.some((entry) => entry.itemId === result.inventoryItem.itemId && entry.userId === result.inventoryItem.userId)
+          ? currentInventory
+          : [result.inventoryItem, ...currentInventory]
       ));
-      setTransactions((currentTransactions) => [result.transaction, ...currentTransactions].slice(0, 500));
+      setTransactions((currentTransactions) => result.transaction ? [result.transaction, ...currentTransactions].slice(0, 500) : currentTransactions);
       sendSuccess();
-      showToast(`Покупка готова: ${item.name}`);
+      showToast(`Куплено и выбрано: ${item.name}`);
     } catch (error) {
       sendError();
       alert(getErrorMessage(error));
@@ -5601,6 +5603,12 @@ function App() {
             </div>
             <span>{activeUserInventory.length} предметов</span>
           </div>
+
+          {!hasSafeSession && (
+            <div className="styleSessionHint">
+              Покупки доступны только при запуске через Telegram Mini App.
+            </div>
+          )}
 
           <div className="stylePreviewHero">
             <div className={`profileAvatar gameProfileAvatar styledProfileAvatar ${getUserFrameClass(activeUser)}`}>{activeUser.name.slice(0, 1).toUpperCase()}</div>

@@ -12898,3 +12898,15 @@ body,
     grid-template-columns: 1fr;
   }
 }
+
+
+.styleSessionHint {
+  padding: 10px 12px;
+  border-radius: 16px;
+  color: #b45309;
+  background: rgba(254, 243, 199, 0.92);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  font-size: 0.74rem;
+  font-weight: 850;
+  line-height: 1.35;
+}
