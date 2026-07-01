@@ -194,6 +194,19 @@ type UserFollow = {
   createdAt: string;
 };
 
+type FollowingActivity = {
+  id: string;
+  userId: string;
+  userName: string;
+  emoji: string;
+  title: string;
+  text: string;
+  createdAt: string;
+  marketId?: string;
+  marketQuestion?: string;
+  type: "prediction" | "comment" | "win" | "cosmetic";
+};
+
 type MarketSuggestion = {
   id: string;
   userId: string;
@@ -1172,6 +1185,83 @@ function App() {
     return userFollows.filter((follow) => follow.followingUserId === activeUser.id);
   }, [userFollows, activeUser]);
 
+  const followingActivityItems = useMemo<FollowingActivity[]>(() => {
+    if (!activeUser || activeUserFollowing.length === 0) return [];
+
+    const followingIds = new Set(activeUserFollowing.map((follow) => follow.followingUserId));
+    const items: FollowingActivity[] = [];
+
+    predictions
+      .filter((prediction) => followingIds.has(prediction.userId))
+      .forEach((prediction) => {
+        items.push({
+          id: `prediction-${prediction.id}`,
+          userId: prediction.userId,
+          userName: prediction.userName,
+          emoji: "🎯",
+          title: "Сделал прогноз",
+          text: `${prediction.userName}: ${getOutcomeText(prediction.outcome)} · ${prediction.amount.toLocaleString("ru-RU")} б. в рынке «${prediction.marketQuestion}»`,
+          createdAt: prediction.createdAt,
+          marketId: prediction.marketId,
+          marketQuestion: prediction.marketQuestion,
+          type: "prediction",
+        });
+
+        if (prediction.settledAt && prediction.outcome === prediction.resolvedOutcome) {
+          items.push({
+            id: `win-${prediction.id}`,
+            userId: prediction.userId,
+            userName: prediction.userName,
+            emoji: "🏆",
+            title: "Выиграл прогноз",
+            text: `${prediction.userName} выиграл ${(prediction.payout || 0).toLocaleString("ru-RU")} б. в рынке «${prediction.marketQuestion}»`,
+            createdAt: prediction.settledAt,
+            marketId: prediction.marketId,
+            marketQuestion: prediction.marketQuestion,
+            type: "win",
+          });
+        }
+      });
+
+    comments
+      .filter((comment) => followingIds.has(comment.userId))
+      .forEach((comment) => {
+        const market = markets.find((item) => item.id === comment.marketId);
+        items.push({
+          id: `comment-${comment.id}`,
+          userId: comment.userId,
+          userName: comment.userName,
+          emoji: "💬",
+          title: "Оставил комментарий",
+          text: `${comment.userName}: ${comment.text ? comment.text.slice(0, 120) : "добавил вложение"}${market ? ` · «${market.question}»` : ""}`,
+          createdAt: comment.createdAt,
+          marketId: comment.marketId,
+          marketQuestion: market?.question,
+          type: "comment",
+        });
+      });
+
+    transactions
+      .filter((transaction) => followingIds.has(transaction.userId) && transaction.title === "Открыт предмет")
+      .forEach((transaction) => {
+        const user = users.find((item) => item.id === transaction.userId);
+        items.push({
+          id: `cosmetic-${transaction.id}`,
+          userId: transaction.userId,
+          userName: user?.name || "Игрок",
+          emoji: "🎁",
+          title: "Открыл предмет",
+          text: `${user?.name || "Игрок"} открыл: ${transaction.description}`,
+          createdAt: transaction.createdAt,
+          type: "cosmetic",
+        });
+      });
+
+    return items
+      .sort((a, b) => (parseAppDate(b.createdAt)?.getTime() || 0) - (parseAppDate(a.createdAt)?.getTime() || 0))
+      .slice(0, 40);
+  }, [activeUser, activeUserFollowing, predictions, comments, transactions, markets, users]);
+
   const activeUserComments = useMemo(() => {
     if (!activeUser) return [];
     return comments.filter((comment) => comment.userId === activeUser.id);
@@ -1739,6 +1829,22 @@ function App() {
       });
     });
 
+    if (followingActivityItems.length > 0) {
+      const latestFollowActivity = followingActivityItems[0];
+      items.push({
+        id: `following-activity-${latestFollowActivity.id}`,
+        emoji: "👥",
+        title: "Новая активность подписок",
+        text: latestFollowActivity.text,
+        tone: "social",
+        actionLabel: latestFollowActivity.marketId ? "К рынку" : "К профилю",
+        action: () => {
+          if (latestFollowActivity.marketId) openMarketDetails(latestFollowActivity.marketId);
+          else openPublicProfile(latestFollowActivity.userId);
+        },
+      });
+    }
+
     const waitingPredictions = activeUserOpenPredictions.filter((prediction) => {
       const market = markets.find((item) => item.id === prediction.marketId);
       return market?.status === "closed";
@@ -1874,6 +1980,7 @@ function App() {
     activeUserSuggestions,
     activeUserTransactions,
     activeUserFollowers,
+    followingActivityItems,
     markets,
     soonClosingMarkets,
     forYouMarkets,
@@ -4785,6 +4892,7 @@ function App() {
         </section>
 
         {renderDailyMissionsCard("home")}
+        {renderFollowingActivityFeed("home")}
 
         {renderInterestPicker("home")}
 
@@ -6334,6 +6442,73 @@ function App() {
     );
   }
 
+  function renderFollowingActivityFeed(mode: "home" | "profile" = "profile") {
+    if (!activeUser) return null;
+
+    const compact = mode === "home";
+    const items = compact ? followingActivityItems.slice(0, 4) : followingActivityItems.slice(0, 20);
+
+    return (
+      <article className={`followingFeedCard profileCard ${compact ? "followingFeedCardHome" : "profileWideCard followingFeedCardProfile"}`}>
+        <div className="sectionHeader">
+          <div>
+            <p className="eyebrow">Лента подписок</p>
+            <h2>Активность игроков, на которых ты подписан</h2>
+            <p>{activeUserFollowing.length > 0 ? "Следи за прогнозами, комментариями и победами сильных игроков." : "Подпишись на игроков из рейтинга или турнира, чтобы увидеть их активность."}</p>
+          </div>
+          <span>{followingActivityItems.length}</span>
+        </div>
+
+        {activeUserFollowing.length === 0 ? (
+          <div className="followingFeedEmpty">
+            <strong>Пока нет подписок</strong>
+            <p>Открой публичный профиль игрока и нажми “Подписаться”.</p>
+            <button onClick={() => setMainView("tournament")}>Найти игроков</button>
+          </div>
+        ) : items.length === 0 ? (
+          <div className="followingFeedEmpty">
+            <strong>Активности пока нет</strong>
+            <p>Когда игроки, на которых ты подписан, сделают прогноз или комментарий — это появится здесь.</p>
+            <button onClick={() => setMainView("search")}>Открыть рынки</button>
+          </div>
+        ) : (
+          <div className="followingFeedList">
+            {items.map((item) => {
+              const user = users.find((candidate) => candidate.id === item.userId);
+              const title = getUserActiveTitle(user);
+
+              return (
+                <article className={`followingActivityItem followingActivity-${item.type} ${getUserFrameClass(user)}`} key={item.id}>
+                  <button className={`commentAvatar clickableAvatar ${getUserFrameClass(user)}`} onClick={() => openPublicProfile(item.userId)}>
+                    {user?.name.slice(0, 1).toUpperCase() || item.userName.slice(0, 1).toUpperCase()}
+                  </button>
+
+                  <div className="followingActivityBody">
+                    <div className="followingActivityTop">
+                      <span>{item.emoji}</span>
+                      <button onClick={() => openPublicProfile(item.userId)}>{item.userName}</button>
+                      {title ? <em>{title.emoji} {title.name}</em> : null}
+                    </div>
+                    <strong>{item.title}</strong>
+                    <p>{item.text}</p>
+                    <small>{item.createdAt}</small>
+                  </div>
+
+                  <div className="followingActivityActions">
+                    {item.marketId ? (
+                      <button onClick={() => openMarketDetails(item.marketId || "")}>Рынок</button>
+                    ) : null}
+                    <button className="secondaryButton" onClick={() => openPublicProfile(item.userId)}>Профиль</button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </article>
+    );
+  }
+
   function renderFollowsCard() {
     if (!activeUser) return null;
 
@@ -6820,6 +6995,7 @@ function App() {
           <section className="profileContentGrid profileSocialGrid">
             {renderReferralCard()}
             {renderFollowsCard()}
+            {renderFollowingActivityFeed("profile")}
 
             <div className="profileCard profileWideCard">
               <div className="sectionHeader">

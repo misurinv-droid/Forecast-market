@@ -13557,3 +13557,196 @@ button.participantCard:hover,
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Following feed */
+.followingFeedCard {
+  display: grid;
+  gap: 13px;
+  position: relative;
+  overflow: hidden;
+}
+
+.followingFeedCard::before {
+  content: "";
+  position: absolute;
+  inset: -80px auto auto -80px;
+  width: 190px;
+  height: 190px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.13), transparent 68%);
+  pointer-events: none;
+}
+
+.followingFeedCard > * {
+  position: relative;
+  z-index: 1;
+}
+
+.followingFeedCardHome {
+  min-width: min(100%, 520px);
+}
+
+.followingFeedList {
+  display: grid;
+  gap: 10px;
+}
+
+.followingActivityItem {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 11px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 22px;
+  border: 1px solid rgba(226, 232, 240, 0.88);
+  background: rgba(248, 250, 252, 0.86);
+}
+
+.followingActivityBody {
+  min-width: 0;
+}
+
+.followingActivityTop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 5px;
+}
+
+.followingActivityTop > span {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 10px;
+  background: rgba(219, 234, 254, 0.88);
+}
+
+.followingActivityTop button {
+  border: 0;
+  padding: 0;
+  color: #0f172a;
+  background: transparent;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.followingActivityTop em {
+  display: inline-flex;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: #1d4ed8;
+  background: rgba(219, 234, 254, 0.9);
+  font-size: 0.62rem;
+  font-style: normal;
+  font-weight: 950;
+}
+
+.followingActivityBody strong {
+  display: block;
+  color: #0f172a;
+  font-size: 0.9rem;
+}
+
+.followingActivityBody p {
+  margin: 4px 0 0;
+  color: #475569;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  font-weight: 760;
+}
+
+.followingActivityBody small {
+  display: block;
+  margin-top: 6px;
+  color: #94a3b8;
+  font-size: 0.66rem;
+  font-weight: 820;
+}
+
+.followingActivityActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  justify-content: flex-end;
+}
+
+.followingActivityActions button {
+  border-radius: 14px;
+  padding: 9px 11px;
+  white-space: nowrap;
+}
+
+.followingActivity-win {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(34, 197, 94, 0.1), transparent 34%),
+    rgba(240, 253, 244, 0.86);
+  border-color: rgba(134, 239, 172, 0.68);
+}
+
+.followingActivity-comment {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(168, 85, 247, 0.1), transparent 34%),
+    rgba(250, 245, 255, 0.82);
+}
+
+.followingActivity-cosmetic {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(245, 158, 11, 0.12), transparent 34%),
+    rgba(255, 251, 235, 0.82);
+}
+
+.followingFeedEmpty {
+  padding: 16px;
+  border-radius: 22px;
+  background: rgba(248, 250, 252, 0.86);
+  border: 1px dashed rgba(148, 163, 184, 0.72);
+}
+
+.followingFeedEmpty strong {
+  display: block;
+  color: #0f172a;
+  font-size: 0.94rem;
+}
+
+.followingFeedEmpty p {
+  margin: 5px 0 12px;
+  color: #64748b;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  font-weight: 760;
+}
+
+.followingFeedEmpty button {
+  width: fit-content;
+}
+
+.telegramApp .followingActivityItem {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.telegramApp .followingActivityActions {
+  grid-column: 1 / -1;
+  justify-content: stretch;
+}
+
+.telegramApp .followingActivityActions button {
+  flex: 1;
+}
+
+@media (max-width: 720px) {
+  .followingActivityItem {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .followingActivityActions {
+    grid-column: 1 / -1;
+    justify-content: stretch;
+  }
+
+  .followingActivityActions button {
+    flex: 1;
+  }
+}
