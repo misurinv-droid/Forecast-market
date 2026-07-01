@@ -846,6 +846,39 @@ type QueryRunner = {
   query: (text: string, params?: unknown[]) => Promise<{ rows: any[] }>;
 };
 
+async function ensureDefaultShopItems(queryRunner: QueryRunner = pool) {
+  const defaultShopItems = [
+    ["title-oracle", "title", "Оракул", "Предсказывает рынки на холодную голову.", 1500, "🔮", "oracle", 10],
+    ["title-insider", "title", "Инсайдер", "Всегда знает, где движуха.", 1200, "🕵️", "insider", 20],
+    ["title-risk-manager", "title", "Риск-менеджер", "Ставит аккуратно и считает вероятности.", 1000, "🛡️", "risk", 30],
+    ["title-market-shark", "title", "Акула рынка", "Для тех, кто не боится спорных исходов.", 1800, "🦈", "shark", 40],
+    ["title-week-king", "title", "Король недели", "Титул для охотника за турнирами.", 2500, "👑", "king", 50],
+    ["frame-gold", "frame", "Золотая рамка", "Тёплая рамка для профиля победителя.", 3000, "🏆", "gold", 110],
+    ["frame-neon", "frame", "Неоновая рамка", "Яркая подсветка в стиле игровой арены.", 2500, "💠", "neon", 120],
+    ["frame-cyber", "frame", "Кибер рамка", "Холодная технологичная рамка для профиля.", 2200, "🤖", "cyber", 130],
+    ["frame-emerald", "frame", "Изумрудная рамка", "Спокойная зелёная рамка для уверенной игры.", 1800, "💚", "emerald", 140],
+  ];
+
+  for (const item of defaultShopItems) {
+    await queryRunner.query(
+      `
+        INSERT INTO shop_items (id, type, name, description, price, emoji, style_key, sort_order, is_active)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE)
+        ON CONFLICT (id) DO UPDATE
+        SET type = EXCLUDED.type,
+            name = EXCLUDED.name,
+            description = EXCLUDED.description,
+            price = EXCLUDED.price,
+            emoji = EXCLUDED.emoji,
+            style_key = EXCLUDED.style_key,
+            sort_order = EXCLUDED.sort_order,
+            is_active = TRUE
+      `,
+      item
+    );
+  }
+}
+
 async function addBalanceTransaction(
   queryRunner: QueryRunner,
   input: Omit<BalanceTransaction, "id" | "createdAt">
@@ -2391,6 +2424,7 @@ async function getSnapshot(): Promise<DatabaseSnapshot> {
 // -----------------------------
 
 await migrate();
+await ensureDefaultShopItems();
 await seedIfEmpty();
 void maybeAutoImportPolymarket("startup");
 setInterval(() => {
@@ -2580,10 +2614,16 @@ app.post("/api/users/:userId/shop/:itemId/buy", async (request, response) => {
 
       if (!userRow) return { error: "Пользователь не найден" } as const;
 
-      const itemResult = await client.query("SELECT * FROM shop_items WHERE id = $1 AND is_active = TRUE", [itemId]);
-      const itemRow = itemResult.rows[0];
+      let itemResult = await client.query("SELECT * FROM shop_items WHERE id = $1 AND is_active = TRUE", [itemId]);
+      let itemRow = itemResult.rows[0];
 
-      if (!itemRow) return { error: "Предмет не найден" } as const;
+      if (!itemRow) {
+        await ensureDefaultShopItems(client);
+        itemResult = await client.query("SELECT * FROM shop_items WHERE id = $1 AND is_active = TRUE", [itemId]);
+        itemRow = itemResult.rows[0];
+      }
+
+      if (!itemRow) return { error: "Предмет не найден. Обнови приложение и попробуй снова." } as const;
 
       const item = toShopItem(itemRow);
       const ownedResult = await client.query("SELECT * FROM user_inventory WHERE user_id = $1 AND item_id = $2", [userId, itemId]);
@@ -2716,7 +2756,21 @@ app.post("/api/users/:userId/profile-style", async (request, response) => {
   }
 });
 
+app.post("/api/admin/shop/seed", async (request, response) => {
+  if (!(await requireAdmin(request, response))) return;
+
+  try {
+    await ensureDefaultShopItems();
+    const result = await pool.query("SELECT * FROM shop_items WHERE is_active = TRUE ORDER BY type ASC, sort_order ASC, price ASC");
+    response.json({ ok: true, shopItems: result.rows.map(toShopItem), count: result.rows.length });
+  } catch (error) {
+    console.error("shop seed failed", error);
+    response.status(500).json({ error: "Не удалось заполнить магазин предметами" });
+  }
+});
+
 app.get("/api/bootstrap", async (_request, response) => {
+  await ensureDefaultShopItems();
   await maybeAutoImportPolymarket("bootstrap");
   response.json(await getSnapshot());
 });

@@ -5636,7 +5636,11 @@ function App() {
             <span>{titleShopItems.length}</span>
           </div>
           <div className="shopGrid">
-            {titleShopItems.map(renderShopItem)}
+            {titleShopItems.length === 0 ? (
+              <div className="empty shopEmptyState">
+                Титулы не загрузились с backend. После деплоя server/index.ts обнови приложение.
+              </div>
+            ) : titleShopItems.map(renderShopItem)}
           </div>
         </article>
 
@@ -5649,7 +5653,11 @@ function App() {
             <span>{frameShopItems.length}</span>
           </div>
           <div className="shopGrid">
-            {frameShopItems.map(renderShopItem)}
+            {frameShopItems.length === 0 ? (
+              <div className="empty shopEmptyState">
+                Рамки не загрузились с backend. После деплоя server/index.ts обнови приложение.
+              </div>
+            ) : frameShopItems.map(renderShopItem)}
           </div>
         </article>
       </section>
