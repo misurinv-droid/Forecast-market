@@ -16977,3 +16977,277 @@ button:disabled:not(.modalCloseButton):not(.activityCloseButton):not(.prediction
     transition: none !important;
   }
 }
+
+
+/* Rebuild Fixed v1 — hard fixes for loading screen, bottom navigation and prediction modal */
+
+/* 1. Loading screen must be visible and centered */
+.appLoadingState {
+  width: 100% !important;
+  max-width: none !important;
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
+  display: grid !important;
+  place-items: center !important;
+  margin: 0 !important;
+  padding: calc(env(safe-area-inset-top, 0px) + 18px) 14px calc(env(safe-area-inset-bottom, 0px) + 18px) !important;
+  background:
+    radial-gradient(circle at 14% 0%, rgba(37, 99, 235, 0.18), transparent 32%),
+    radial-gradient(circle at 92% 0%, rgba(34, 197, 94, 0.14), transparent 30%),
+    linear-gradient(180deg, #f8fbff 0%, #eef5ff 48%, #f8fafc 100%) !important;
+}
+
+.fixedLoadingScreen {
+  width: min(100%, 560px) !important;
+  min-height: auto !important;
+  margin: 0 auto !important;
+  padding: clamp(22px, 5vw, 38px) !important;
+  border: 1px solid rgba(226, 232, 240, 0.95) !important;
+  border-radius: 34px !important;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.16), transparent 42%),
+    rgba(255, 255, 255, 0.96) !important;
+  box-shadow: 0 26px 80px rgba(15, 23, 42, 0.16) !important;
+  text-align: center !important;
+}
+
+.fixedLoadingScreen .loadingOrb {
+  margin: 0 auto 14px !important;
+}
+
+.fixedLoadingScreen .predictionLoader {
+  width: min(100%, 420px) !important;
+  margin: 18px auto 0 !important;
+}
+
+.fixedLoadingSkeleton {
+  display: grid;
+  gap: 8px;
+  width: min(100%, 360px);
+  margin: 18px auto 0;
+}
+
+.fixedLoadingSkeleton span {
+  display: block;
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #e2e8f0, #f8fafc, #e2e8f0);
+  background-size: 220% 100%;
+  animation: fixedLoadingSkeletonShimmer 1.2s linear infinite;
+}
+
+.fixedLoadingSkeleton span:nth-child(1) { width: 100%; }
+.fixedLoadingSkeleton span:nth-child(2) { width: 78%; margin-left: auto; margin-right: auto; }
+.fixedLoadingSkeleton span:nth-child(3) { width: 52%; margin-left: auto; margin-right: auto; }
+
+@keyframes fixedLoadingSkeletonShimmer {
+  0% { background-position: 220% 0; }
+  100% { background-position: -220% 0; }
+}
+
+/* 2. Bottom menu must be fixed, not part of document flow */
+.bottomTabBar {
+  transform: none !important;
+  margin: 0 !important;
+}
+
+.telegramApp .bottomTabBar,
+body.is-telegram-webapp .bottomTabBar {
+  position: fixed !important;
+  left: max(10px, env(safe-area-inset-left, 0px)) !important;
+  right: max(10px, env(safe-area-inset-right, 0px)) !important;
+  bottom: calc(max(var(--tg-safe-bottom, 0px), env(safe-area-inset-bottom, 0px), 0px) + 8px) !important;
+  z-index: 2147483000 !important;
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 5px !important;
+  padding: 7px !important;
+  border-radius: 24px !important;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(238, 249, 255, 0.92)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.95) !important;
+  box-shadow: 0 20px 56px rgba(15, 23, 42, 0.22) !important;
+  backdrop-filter: blur(18px) !important;
+}
+
+.telegramApp .bottomTabBar button,
+body.is-telegram-webapp .bottomTabBar button {
+  min-height: 52px !important;
+  min-width: 0 !important;
+  display: grid !important;
+  place-items: center !important;
+  gap: 2px !important;
+  border-radius: 18px !important;
+  padding: 6px 4px !important;
+  transform: none !important;
+}
+
+.telegramApp .bottomTabBar button span,
+body.is-telegram-webapp .bottomTabBar button span {
+  font-size: 18px !important;
+  line-height: 1 !important;
+}
+
+.telegramApp .bottomTabBar button strong,
+body.is-telegram-webapp .bottomTabBar button strong {
+  max-width: 100% !important;
+  overflow: hidden !important;
+  font-size: 10px !important;
+  line-height: 1.05 !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.telegramApp,
+body.is-telegram-webapp .telegramApp {
+  padding-bottom: calc(max(var(--tg-safe-bottom, 0px), env(safe-area-inset-bottom, 0px), 0px) + 98px) !important;
+}
+
+.telegramApp .mobileAdminFab,
+body.is-telegram-webapp .mobileAdminFab {
+  position: fixed !important;
+  right: max(14px, env(safe-area-inset-right, 0px)) !important;
+  bottom: calc(max(var(--tg-safe-bottom, 0px), env(safe-area-inset-bottom, 0px), 0px) + 78px) !important;
+  z-index: 2147482990 !important;
+}
+
+/* Browser/mobile fallback: keep bottom navigation fixed on small screens too */
+@media (max-width: 900px) {
+  main:not(.telegramApp) {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 98px) !important;
+  }
+
+  main:not(.telegramApp) .bottomTabBar {
+    position: fixed !important;
+    left: max(10px, env(safe-area-inset-left, 0px)) !important;
+    right: max(10px, env(safe-area-inset-right, 0px)) !important;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 8px) !important;
+    z-index: 2147483000 !important;
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+}
+
+/* Desktop browser keeps the top product nav; bottom nav hidden unless mobile/Telegram */
+@media (min-width: 901px) {
+  main:not(.telegramApp) .bottomTabBar {
+    display: none !important;
+  }
+}
+
+/* 3. Prediction confirmation must be centered and fully visible */
+.predictionConfirmOverlay {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483600 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  padding: 16px !important;
+  overflow: hidden !important;
+  transform: none !important;
+  pointer-events: auto !important;
+}
+
+.predictionConfirmBackdrop {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  border: 0 !important;
+  transform: none !important;
+}
+
+.predictionConfirmPanel {
+  position: relative !important;
+  left: auto !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: auto !important;
+  z-index: 1 !important;
+  width: min(560px, calc(100vw - 28px)) !important;
+  max-width: calc(100vw - 28px) !important;
+  max-height: calc(100vh - 32px) !important;
+  max-height: calc(100dvh - 32px) !important;
+  margin: 0 auto !important;
+  overflow: auto !important;
+  transform: none !important;
+  box-sizing: border-box !important;
+}
+
+.telegramApp .predictionConfirmOverlay,
+body.is-telegram-webapp .predictionConfirmOverlay {
+  align-items: flex-end !important;
+  justify-content: center !important;
+  padding: 12px 12px calc(max(var(--tg-safe-bottom, 0px), env(safe-area-inset-bottom, 0px), 0px) + 104px) !important;
+}
+
+.telegramApp .predictionConfirmPanel,
+body.is-telegram-webapp .predictionConfirmPanel {
+  width: min(100%, 560px) !important;
+  max-width: 100% !important;
+  max-height: calc(100dvh - 128px) !important;
+  border-radius: 26px !important;
+}
+
+/* 4. Floating overlays must stay above content but below modals */
+.telegramApp .appToast,
+body.is-telegram-webapp .appToast {
+  position: fixed !important;
+  left: 12px !important;
+  right: 12px !important;
+  bottom: calc(max(var(--tg-safe-bottom, 0px), env(safe-area-inset-bottom, 0px), 0px) + 88px) !important;
+  z-index: 2147482500 !important;
+  transform: none !important;
+}
+
+.telegramApp .activityFloatingButton,
+.telegramApp .floatingBackButton,
+body.is-telegram-webapp .activityFloatingButton,
+body.is-telegram-webapp .floatingBackButton {
+  position: fixed !important;
+  bottom: calc(max(var(--tg-safe-bottom, 0px), env(safe-area-inset-bottom, 0px), 0px) + 88px) !important;
+  z-index: 2147482400 !important;
+}
+
+/* 5. Avoid the last polish animations from shifting fixed UI */
+.bottomTabBar,
+.predictionConfirmOverlay,
+.predictionConfirmPanel,
+.appLoadingState,
+.fixedLoadingScreen {
+  animation: none !important;
+}
+
+@media (max-width: 420px) {
+  .telegramApp .bottomTabBar,
+  body.is-telegram-webapp .bottomTabBar,
+  main:not(.telegramApp) .bottomTabBar {
+    left: 7px !important;
+    right: 7px !important;
+    gap: 3px !important;
+    padding: 6px !important;
+    border-radius: 21px !important;
+  }
+
+  .telegramApp .bottomTabBar button,
+  body.is-telegram-webapp .bottomTabBar button,
+  main:not(.telegramApp) .bottomTabBar button {
+    min-height: 50px !important;
+    border-radius: 16px !important;
+  }
+
+  .fixedLoadingScreen {
+    padding: 20px 14px !important;
+    border-radius: 28px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fixedLoadingSkeleton span {
+    animation: none !important;
+  }
+}

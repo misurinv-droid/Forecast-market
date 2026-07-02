@@ -8020,96 +8020,36 @@ function App() {
     );
   }
 
-  function renderLoadingSkeleton() {
-    const skeletonCards = Array.from({ length: isTelegram ? 4 : 6 });
-    const skeletonStats = Array.from({ length: 4 });
-
+  function renderStartupLoadingScreen() {
     return (
-      <main className={`${appClassName} appSkeletonMode`}>
-        <section className="skeletonTopBar" aria-label="Загрузка Forecast Market">
-          <div className="skeletonLogoBlock">
-            <div className="skeletonLogoPulse">📈</div>
-            <div>
-              <span className="skeletonLine skeletonLineTiny" />
-              <span className="skeletonLine skeletonLineTitle" />
+      <main className={`${appClassName} appLoadingState`}>
+        <section className="loadingScreen fixedLoadingScreen" aria-label="Загрузка Forecast Market">
+          <div className="loadingOrb" aria-hidden="true">
+            <span>📈</span>
+          </div>
+          <p className="loadingEyebrow">Прогреваем рынок</p>
+          <h1>Forecast Market</h1>
+          <p className="loadingText">Загружаем рынки, профиль, прогнозы и игровые события...</p>
+          <div className="predictionLoader" aria-label="Загрузка приложения">
+            <div className="predictionLoaderTrack">
+              <span className="predictionLoaderFill" />
+              <span className="predictionLoaderDot predictionLoaderDotYes">ДА</span>
+              <span className="predictionLoaderDot predictionLoaderDotNo">НЕТ</span>
+            </div>
+            <div className="loadingTicks">
+              <span>0%</span>
+              <span>50%</span>
+              <span>100%</span>
             </div>
           </div>
-          <div className="skeletonProfileChip">
-            <span className="skeletonLine skeletonLineTiny" />
-            <span className="skeletonLine skeletonLineShort" />
-          </div>
-        </section>
+          <p className="loadingJoke">Если backend на Render просыпается — это может занять несколько секунд.</p>
 
-        <section className="skeletonHeroPanel">
-          <div className="skeletonHeroText">
-            <span className="skeletonPill" />
-            <span className="skeletonLine skeletonLineHero" />
-            <span className="skeletonLine skeletonLineWide" />
-            <span className="skeletonLine skeletonLineMedium" />
-            <div className="skeletonButtonRow">
-              <span className="skeletonButton" />
-              <span className="skeletonButton skeletonButtonMuted" />
-            </div>
-          </div>
-          <div className="skeletonHeroCard">
-            <span className="skeletonLine skeletonLineTiny" />
-            <span className="skeletonLine skeletonLineCardTitle" />
-            <span className="skeletonProgress" />
-            <div className="skeletonCardFooter">
-              <span className="skeletonLine skeletonLineShort" />
-              <span className="skeletonLine skeletonLineShort" />
-            </div>
+          <div className="fixedLoadingSkeleton" aria-hidden="true">
+            <span />
+            <span />
+            <span />
           </div>
         </section>
-
-        <section className="skeletonStatsGrid">
-          {skeletonStats.map((_, index) => (
-            <article className="skeletonStatCard" key={`skeleton-stat-${index}`}>
-              <span className="skeletonCircle" />
-              <span className="skeletonLine skeletonLineShort" />
-              <span className="skeletonLine skeletonLineTiny" />
-            </article>
-          ))}
-        </section>
-
-        <section className="skeletonContentGrid">
-          <div className="skeletonMainColumn">
-            <div className="skeletonSectionHeader">
-              <span className="skeletonLine skeletonLineTitle" />
-              <span className="skeletonButton skeletonButtonSmall" />
-            </div>
-            <div className="skeletonMarketList">
-              {skeletonCards.map((_, index) => (
-                <article className="skeletonMarketCard" key={`skeleton-market-${index}`}>
-                  <div>
-                    <span className="skeletonPill skeletonPillSmall" />
-                    <span className="skeletonLine skeletonLineCardTitle" />
-                    <span className="skeletonLine skeletonLineWide" />
-                    <span className="skeletonProgress" />
-                  </div>
-                  <div className="skeletonOdds">
-                    <span />
-                    <span />
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
-
-          <aside className="skeletonSideColumn">
-            <span className="skeletonLine skeletonLineTitle" />
-            <span className="skeletonLine skeletonLineWide" />
-            <span className="skeletonLine skeletonLineMedium" />
-            <div className="skeletonMiniGrid">
-              {skeletonStats.map((_, index) => <span key={`skeleton-mini-${index}`} />)}
-            </div>
-          </aside>
-        </section>
-
-        <div className="skeletonLoadingCaption">
-          <div className="buttonSpinner" aria-hidden="true" />
-          <span>Загружаем рынки, профиль и игровые события...</span>
-        </div>
       </main>
     );
   }
@@ -8118,7 +8058,7 @@ function App() {
   const canShowBackButton = Boolean(celebration) || Boolean(predictionConfirmation) || isActivityOpen || isRulesOpen || mainView !== "markets" || Boolean(selectedMarketId);
 
   if (isLoading) {
-    return renderLoadingSkeleton();
+    return renderStartupLoadingScreen();
   }
 
   if (serverError) {
