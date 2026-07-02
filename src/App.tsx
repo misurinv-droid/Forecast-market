@@ -5149,6 +5149,121 @@ function App() {
     );
   }
 
+  function renderQuickStartCard() {
+    if (!activeUser) return null;
+
+    const hasClaimedDailyBonus = Boolean(activeUser.lastDailyBonusAt);
+    const hasSelectedInterests = selectedInterestCategories.length > 0;
+    const hasFirstPrediction = activeUserPredictions.length > 0;
+    const hasFirstFollow = activeUserFollowing.length > 0;
+
+    const openInterests = () => {
+      setMainView("markets");
+      setSelectedMarketId(null);
+      window.setTimeout(() => {
+        document.querySelector(".interestPickerSection")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 90);
+    };
+
+    const openFirstPrediction = () => {
+      setSelectedCategory("Все");
+      setStatusFilter("open");
+      setShowFavoritesOnly(false);
+      setMainView("search");
+    };
+
+    const openFirstFollow = () => {
+      setMainView("tournament");
+      window.setTimeout(() => scrollAppToTop("auto"), 0);
+    };
+
+    const quickStartSteps = [
+      {
+        id: "bonus",
+        emoji: hasClaimedDailyBonus ? "✅" : "🎁",
+        title: "Забери стартовый бонус",
+        text: hasClaimedDailyBonus ? "Бонус уже получен. Баллы готовы для игры." : "Получи игровые баллы, чтобы сделать первые прогнозы.",
+        completed: hasClaimedDailyBonus,
+        actionLabel: hasClaimedDailyBonus ? "Готово" : dailyBonusInfo.canClaim ? "Забрать" : "Профиль",
+        action: () => {
+          if (!hasClaimedDailyBonus && dailyBonusInfo.canClaim) void claimDailyBonus();
+          else setMainView("profile");
+        },
+      },
+      {
+        id: "interests",
+        emoji: hasSelectedInterests ? "✅" : "🎯",
+        title: "Выбери интересы",
+        text: hasSelectedInterests ? `${selectedInterestCategories.length} тем выбрано — лента станет точнее.` : "Отметь темы, которые тебе интересны: спорт, крипта, политика и другое.",
+        completed: hasSelectedInterests,
+        actionLabel: hasSelectedInterests ? "Изменить" : "Выбрать",
+        action: openInterests,
+      },
+      {
+        id: "prediction",
+        emoji: hasFirstPrediction ? "✅" : "📊",
+        title: "Сделай первый прогноз",
+        text: hasFirstPrediction ? "Первый прогноз сделан. Теперь можно следить за результатом." : "Выбери рынок, сумму и исход Да/Нет.",
+        completed: hasFirstPrediction,
+        actionLabel: hasFirstPrediction ? "Мои прогнозы" : "К рынкам",
+        action: () => hasFirstPrediction ? setMainView("predictions") : openFirstPrediction(),
+      },
+      {
+        id: "follow",
+        emoji: hasFirstFollow ? "✅" : "👥",
+        title: "Подпишись на игрока",
+        text: hasFirstFollow ? "Подписка оформлена. В ленте появится активность игроков." : "Открой турнир и подпишись на сильного игрока, чтобы видеть его активность.",
+        completed: hasFirstFollow,
+        actionLabel: hasFirstFollow ? "Лента" : "Открыть турнир",
+        action: () => {
+          if (hasFirstFollow) {
+            setProfileTab("social");
+            setMainView("profile");
+          } else {
+            openFirstFollow();
+          }
+        },
+      },
+    ];
+
+    const completedSteps = quickStartSteps.filter((step) => step.completed).length;
+    const progress = Math.round((completedSteps / quickStartSteps.length) * 100);
+    const isFinished = completedSteps === quickStartSteps.length;
+
+    return (
+      <section className={`quickStartCard ${isFinished ? "quickStartCardFinished" : ""}`}>
+        <div className="quickStartGlow" aria-hidden="true" />
+        <div className="quickStartHeader">
+          <div>
+            <p className="eyebrow">Путь новичка</p>
+            <h2>{isFinished ? "Быстрый старт пройден" : "Быстрый старт"}</h2>
+            <span>{isFinished ? "Ты уже освоил базовые действия Forecast Market." : "Пройди 4 шага и пойми игру за минуту."}</span>
+          </div>
+          <strong>{completedSteps}/{quickStartSteps.length}</strong>
+        </div>
+
+        <div className="quickStartProgress" aria-label={`Быстрый старт выполнен на ${progress}%`}>
+          <span style={{ width: `${progress}%` }} />
+        </div>
+
+        <div className="quickStartStepList">
+          {quickStartSteps.map((step, index) => (
+            <article className={`quickStartStep ${step.completed ? "quickStartStepDone" : ""}`} key={step.id}>
+              <div className="quickStartStepIcon">{step.emoji}</div>
+              <div>
+                <strong>{index + 1}. {step.title}</strong>
+                <p>{step.text}</p>
+              </div>
+              <button className={step.completed ? "secondaryButton" : ""} onClick={step.action}>
+                {step.actionLabel}
+              </button>
+            </article>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
   function renderDailyMissionsCard(context: "home" | "profile" = "home") {
     const progress = dailyMissions.length > 0 ? Math.round((completedDailyMissionsCount / dailyMissions.length) * 100) : 0;
     const compact = context === "home";
@@ -5347,6 +5462,8 @@ function App() {
             <small>событий подписок</small>
           </button>
         </section>
+
+        {renderQuickStartCard()}
 
         {renderDailyMissionsCard("home")}
         {renderFollowingActivityFeed("home")}
