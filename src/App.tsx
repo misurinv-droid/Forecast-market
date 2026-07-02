@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { MouseEvent, TouchEvent } from "react";
+import type { CSSProperties, MouseEvent, TouchEvent } from "react";
 import "./App.css";
 
 type Outcome = "yes" | "no";
@@ -153,6 +153,17 @@ type PredictionConfirmationDraft = {
   marketId: string;
   outcome: Outcome;
   amount: number;
+};
+
+type CelebrationTone = "prediction" | "bonus" | "mission" | "cosmetic" | "tournament" | "success";
+
+type Celebration = {
+  id: number;
+  tone: CelebrationTone;
+  emoji: string;
+  title: string;
+  text: string;
+  amount?: string;
 };
 
 type MarketComment = {
@@ -1007,6 +1018,7 @@ function App() {
   const [amountByMarket, setAmountByMarket] = useState<Record<string, string>>({});
   const [buyingPredictionKey, setBuyingPredictionKey] = useState<string | null>(null);
   const [predictionConfirmation, setPredictionConfirmation] = useState<PredictionConfirmationDraft | null>(null);
+  const [celebration, setCelebration] = useState<Celebration | null>(null);
   const [toastMessage, setToastMessage] = useState("");
   const [isActivityOpen, setIsActivityOpen] = useState(false);
   const [dismissedActivityIds, setDismissedActivityIds] = useState<string[]>(() => {
@@ -1061,6 +1073,7 @@ function App() {
   const isRestoringRouteRef = useRef(false);
   const swipeRailRef = useRef<SwipeRailState | null>(null);
   const suppressSwipeClickUntilRef = useRef(0);
+  const celebrationTimeoutRef = useRef<number | null>(null);
 
   const [editingMarketId, setEditingMarketId] = useState<string | null>(null);
   const [editMarket, setEditMarket] = useState<EditMarketForm>(emptyEditMarketForm);
@@ -2192,6 +2205,34 @@ function App() {
     }, 2400);
   }
 
+  function triggerCelebration(input: Omit<Celebration, "id">) {
+    if (celebrationTimeoutRef.current) {
+      window.clearTimeout(celebrationTimeoutRef.current);
+    }
+
+    const nextCelebration: Celebration = {
+      ...input,
+      id: Date.now(),
+    };
+
+    setCelebration(nextCelebration);
+    sendSuccess();
+
+    celebrationTimeoutRef.current = window.setTimeout(() => {
+      setCelebration((currentCelebration) => currentCelebration?.id === nextCelebration.id ? null : currentCelebration);
+      celebrationTimeoutRef.current = null;
+    }, 3200);
+  }
+
+  function closeCelebration() {
+    if (celebrationTimeoutRef.current) {
+      window.clearTimeout(celebrationTimeoutRef.current);
+      celebrationTimeoutRef.current = null;
+    }
+
+    setCelebration(null);
+  }
+
   function getAppScrollTop() {
     const mainScroll = document.querySelector("main.app")?.scrollTop || 0;
     return Math.max(
@@ -2233,6 +2274,12 @@ function App() {
   }
 
   function closeActiveOverlay() {
+    if (celebration) {
+      closeCelebration();
+      sendHaptic("light");
+      return true;
+    }
+
     if (predictionConfirmation) {
       setPredictionConfirmation(null);
       sendHaptic("light");
@@ -2410,12 +2457,18 @@ function App() {
 
     try {
       setIsDailyBonusClaiming(true);
-      await apiRequest<{ user: DemoUser; transaction: BalanceTransaction; nextDailyBonusAt: string }>(`/users/${activeUser.id}/daily-bonus`, {
+      const result = await apiRequest<{ user: DemoUser; transaction: BalanceTransaction; nextDailyBonusAt: string }>(`/users/${activeUser.id}/daily-bonus`, {
         method: "POST",
         headers: adminHeaders(),
       });
       await refreshData(activeUser.id);
-      sendSuccess();
+      triggerCelebration({
+        tone: "bonus",
+        emoji: "🎁",
+        title: "Бонус получен",
+        text: "Серия продолжается. Завтра награда может стать ещё приятнее.",
+        amount: `+${Math.abs(result.transaction.amount || 0).toLocaleString("ru-RU")} б.`,
+      });
     } catch (error) {
       sendError();
       alert(getErrorMessage(error));
@@ -2442,7 +2495,13 @@ function App() {
         currentClaims.some((claim) => claim.id === result.claim.id) ? currentClaims : [result.claim, ...currentClaims]
       ));
       setTransactions((currentTransactions) => [result.transaction, ...currentTransactions].slice(0, 500));
-      sendSuccess();
+      triggerCelebration({
+        tone: "mission",
+        emoji: "🏅",
+        title: "Миссия выполнена",
+        text: "Награда за задание дня уже начислена на баланс.",
+        amount: `+${result.rewardAmount.toLocaleString("ru-RU")} б.`,
+      });
       showToast(`Награда получена: +${result.rewardAmount.toLocaleString("ru-RU")} баллов`);
     } catch (error) {
       sendError();
@@ -2482,7 +2541,13 @@ function App() {
           : [result.inventoryItem, ...currentInventory]
       ));
       setTransactions((currentTransactions) => result.transaction ? [result.transaction, ...currentTransactions].slice(0, 500) : currentTransactions);
-      sendSuccess();
+      triggerCelebration({
+        tone: "cosmetic",
+        emoji: item.emoji || "✨",
+        title: "Предмет открыт",
+        text: `${item.name} теперь в твоём профиле. Стиль становится заметнее.`,
+        amount: item.type === "title" ? "Новый титул" : "Новая рамка",
+      });
       showToast(`Куплено и выбрано: ${item.name}`);
     } catch (error) {
       sendError();
@@ -2955,7 +3020,13 @@ function App() {
       });
       setPredictionConfirmation(null);
       await refreshData(activeUser.id);
-      sendSuccess();
+      triggerCelebration({
+        tone: "prediction",
+        emoji: outcome === "yes" ? "✅" : "❌",
+        title: "Прогноз принят",
+        text: `${getOutcomeText(outcome)} · ${market.question}`,
+        amount: `${stakeAmount.toLocaleString("ru-RU")} б.`,
+      });
       showToast(`Прогноз принят: ${getOutcomeText(outcome)} · ${stakeAmount.toLocaleString("ru-RU")} б.`);
     } catch (error) {
       sendError();
@@ -3065,7 +3136,13 @@ function App() {
         return [...result.awards, ...currentAwards.filter((award) => !newAwardIds.has(award.id))];
       });
       await refreshData(activeUser?.id);
-      sendSuccess();
+      triggerCelebration({
+        tone: "tournament",
+        emoji: "🏆",
+        title: "Турнир недели завершён",
+        text: `Награды получили ${result.awardedUsers} игроков.`,
+        amount: `+${result.totalRewardAmount.toLocaleString("ru-RU")} б.`,
+      });
       showToast(`Турнир завершён: ${result.awardedUsers} игроков · +${result.totalRewardAmount.toLocaleString("ru-RU")} б.`);
     } catch (error) {
       sendError();
@@ -4889,6 +4966,31 @@ function App() {
     setIsActivityOpen(false);
     sendHaptic("light");
     item.action();
+  }
+
+  function renderCelebrationOverlay() {
+    if (!celebration) return null;
+
+    const particles = ["✦", "◆", "●", "★", "✧", "+", "✦", "●", "◆", "★", "✧", "+"];
+
+    return (
+      <div className={`celebrationOverlay celebrationOverlay-${celebration.tone}`} role="status" aria-live="polite" key={celebration.id}>
+        <div className="celebrationConfetti" aria-hidden="true">
+          {particles.map((particle, index) => (
+            <span style={{ "--i": index } as CSSProperties} key={`${celebration.id}-${index}`}>{particle}</span>
+          ))}
+        </div>
+        <section className="celebrationCard">
+          <button className="celebrationClose" onClick={closeCelebration} aria-label="Закрыть">×</button>
+          <div className="celebrationGlow" aria-hidden="true" />
+          <div className="celebrationEmoji">{celebration.emoji}</div>
+          <p className="eyebrow">Game Feel</p>
+          <h2>{celebration.title}</h2>
+          {celebration.amount && <strong className="celebrationAmount">{celebration.amount}</strong>}
+          <p>{celebration.text}</p>
+        </section>
+      </div>
+    );
   }
 
   function renderPredictionConfirmationModal() {
@@ -7389,7 +7491,7 @@ function App() {
   }
 
   const appClassName = `app ${isTelegram ? "telegramApp" : ""}`;
-  const canShowBackButton = Boolean(predictionConfirmation) || isActivityOpen || isRulesOpen || mainView !== "markets" || Boolean(selectedMarketId);
+  const canShowBackButton = Boolean(celebration) || Boolean(predictionConfirmation) || isActivityOpen || isRulesOpen || mainView !== "markets" || Boolean(selectedMarketId);
 
   if (isLoading) {
     return (
@@ -7435,6 +7537,7 @@ function App() {
   return (
     <main className={appClassName}>
       {toastMessage && <div className="appToast" role="status">{toastMessage}</div>}
+      {renderCelebrationOverlay()}
       {renderPredictionConfirmationModal()}
       {renderActivityCenter()}
 
