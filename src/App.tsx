@@ -8055,7 +8055,8 @@ function App() {
   }
 
   const appClassName = `app appReady ${isTelegram ? "telegramApp" : ""}`;
-  const canShowBackButton = Boolean(celebration) || Boolean(predictionConfirmation) || isActivityOpen || isRulesOpen || mainView !== "markets" || Boolean(selectedMarketId);
+  const canShowBackButton = Boolean(celebration) || Boolean(predictionConfirmation) || isActivityOpen || isRulesOpen || Boolean(selectedMarketId) || Boolean(selectedPublicProfileUserId);
+  const canShowFloatingBackButton = canShowBackButton && !isTelegram;
 
   if (isLoading) {
     return renderStartupLoadingScreen();
@@ -8094,7 +8095,7 @@ function App() {
         {activityBadgeCount > 0 && <span>{activityBadgeCount}</span>}
       </button>
 
-      {canShowBackButton && (
+      {canShowFloatingBackButton && (
         <button className="floatingBackButton" onClick={goBackRoute} aria-label="Вернуться назад">
           ← Назад
         </button>
