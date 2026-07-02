@@ -15630,3 +15630,348 @@ button:active,
     grid-column: 1 / -1;
   }
 }
+
+
+/* Profile Showcase v1 — profile as a trophy room */
+.profileShowcaseStrip,
+.publicProfileShowcaseStrip {
+  display: grid;
+  grid-template-columns: 1.25fr repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.profileShowcaseCard,
+.publicShowcaseCard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  min-height: 104px;
+  padding: 14px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(59, 130, 246, 0.08), transparent 38%),
+    rgba(255, 255, 255, 0.94);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+}
+
+.profileShowcaseCard-main,
+.publicShowcaseCard-main {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(250, 204, 21, 0.18), transparent 38%),
+    linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 64, 175, 0.9));
+  border-color: rgba(191, 219, 254, 0.36);
+  color: #ffffff;
+}
+
+.profileShowcaseIcon,
+.publicShowcaseCard > span {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 18px;
+  background: rgba(219, 234, 254, 0.86);
+  font-size: 1.35rem;
+}
+
+.profileShowcaseCard-main .profileShowcaseIcon,
+.publicShowcaseCard-main > span {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.profileShowcaseCard p {
+  margin: 0 0 3px;
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.profileShowcaseCard-main p {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.profileShowcaseCard strong,
+.publicShowcaseCard strong {
+  display: block;
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 0.95rem;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profileShowcaseCard-main strong,
+.profileShowcaseCard-main small,
+.publicShowcaseCard-main strong,
+.publicShowcaseCard-main small {
+  color: #ffffff;
+}
+
+.profileShowcaseCard small,
+.publicShowcaseCard small {
+  display: block;
+  overflow: hidden;
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 760;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trophyRoomCard {
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(250, 204, 21, 0.14), transparent 35%),
+    radial-gradient(circle at 100% 0%, rgba(59, 130, 246, 0.1), transparent 38%),
+    rgba(255, 255, 255, 0.96);
+}
+
+.trophyRoomGrid {
+  display: grid;
+  grid-template-columns: 1.1fr repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.trophyRoomPanel {
+  min-height: 168px;
+  padding: 14px;
+  border: 1px solid rgba(226, 232, 240, 0.86);
+  border-radius: 22px;
+  background: rgba(248, 250, 252, 0.78);
+}
+
+.trophyRoomPanel-main {
+  display: grid;
+  align-content: center;
+  gap: 12px;
+  color: #ffffff;
+  background:
+    radial-gradient(circle at 30% 0%, rgba(250, 204, 21, 0.36), transparent 44%),
+    linear-gradient(145deg, #0f172a, #1d4ed8);
+  border-color: rgba(191, 219, 254, 0.38);
+}
+
+.trophyRoomPanel-main > span {
+  font-size: 2.2rem;
+}
+
+.trophyRoomPanel-main strong {
+  color: #ffffff;
+  font-size: 1.25rem;
+}
+
+.trophyRoomPanel-main p {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.trophyRoomPanel h3 {
+  margin: 0 0 10px;
+  color: #0f172a;
+  font-size: 0.95rem;
+  letter-spacing: -0.02em;
+}
+
+.trophyMiniList {
+  display: grid;
+  gap: 8px;
+}
+
+.trophyMiniItem {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-height: 38px;
+  padding: 8px;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid rgba(226, 232, 240, 0.76);
+}
+
+.trophyMiniItem span {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 10px;
+  background: rgba(219, 234, 254, 0.84);
+}
+
+.trophyMiniItem strong {
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trophyMiniEmpty {
+  display: grid;
+  place-items: center;
+  min-height: 108px;
+  padding: 12px;
+  border-radius: 18px;
+  color: #64748b;
+  background: rgba(255, 255, 255, 0.72);
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.trophyGoalPanel {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.trophyGoalPanel p {
+  margin: 0;
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 760;
+  line-height: 1.4;
+}
+
+.trophyGoalProgress {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(226, 232, 240, 0.9);
+}
+
+.trophyGoalProgress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2563eb, #22c55e);
+}
+
+.trophyGoalPanel button {
+  margin-top: auto;
+  min-height: 38px;
+  border-radius: 14px;
+}
+
+.achievementShowcaseHeader {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.achievementShowcaseHeader article {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border-radius: 22px;
+  background: rgba(248, 250, 252, 0.84);
+  border: 1px solid rgba(226, 232, 240, 0.86);
+}
+
+.achievementShowcaseHeader span {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 16px;
+  background: rgba(219, 234, 254, 0.86);
+  font-size: 1.2rem;
+}
+
+.achievementShowcaseHeader strong {
+  display: block;
+  color: #0f172a;
+  font-weight: 950;
+}
+
+.achievementShowcaseHeader small {
+  display: block;
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 0.74rem;
+  font-weight: 760;
+}
+
+.styleEquippedGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  margin-top: 12px;
+}
+
+.styleEquippedGrid > div {
+  padding: 11px;
+  border-radius: 18px;
+  background: rgba(248, 250, 252, 0.86);
+  border: 1px solid rgba(226, 232, 240, 0.82);
+}
+
+.styleEquippedGrid span {
+  display: block;
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 860;
+}
+
+.styleEquippedGrid strong {
+  display: block;
+  overflow: hidden;
+  margin-top: 4px;
+  color: #0f172a;
+  font-size: 0.82rem;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.publicProfileShowcaseStrip {
+  margin-top: -2px;
+}
+
+.publicShowcaseCard {
+  min-height: 96px;
+}
+
+.publicShowcaseCard > span {
+  font-size: 1.22rem;
+}
+
+@media (max-width: 980px) {
+  .profileShowcaseStrip,
+  .publicProfileShowcaseStrip,
+  .trophyRoomGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .profileShowcaseCard-main,
+  .publicShowcaseCard-main,
+  .trophyRoomPanel-main {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .profileShowcaseStrip,
+  .publicProfileShowcaseStrip,
+  .trophyRoomGrid,
+  .achievementShowcaseHeader,
+  .styleEquippedGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .profileShowcaseCard,
+  .publicShowcaseCard {
+    min-height: 88px;
+  }
+
+  .trophyRoomPanel {
+    min-height: auto;
+  }
+}

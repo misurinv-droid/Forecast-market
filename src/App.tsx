@@ -6937,6 +6937,21 @@ function App() {
             </div>
           </div>
 
+          <div className="styleEquippedGrid">
+            <div>
+              <span>Титул</span>
+              <strong>{activeTitleItem ? `${activeTitleItem.emoji} ${activeTitleItem.name}` : "Не выбран"}</strong>
+            </div>
+            <div>
+              <span>Рамка</span>
+              <strong>{activeFrameItem ? `${activeFrameItem.emoji} ${activeFrameItem.name}` : "Не выбрана"}</strong>
+            </div>
+            <div>
+              <span>Инвентарь</span>
+              <strong>{activeUserInventory.length} предметов</strong>
+            </div>
+          </div>
+
           <div className="styleResetRow">
             <button className="secondaryButton" onClick={() => void equipShopItem(null, "title")} disabled={!activeUser.activeTitleItemId || Boolean(equippingShopItemId)}>Снять титул</button>
             <button className="secondaryButton" onClick={() => void equipShopItem(null, "frame")} disabled={!activeUser.activeFrameItemId || Boolean(equippingShopItemId)}>Снять рамку</button>
@@ -7200,6 +7215,9 @@ function App() {
       .filter((item): item is ShopItem => Boolean(item));
     const activeTitle = getUserActiveTitle(user);
     const activeFrame = effectiveShopItems.find((item) => item.id === user.activeFrameItemId && item.type === "frame") || null;
+    const publicShowcaseAchievements = achievements.filter((achievement) => achievement.unlocked).slice(0, 4);
+    const publicNextAchievement = achievements.find((achievement) => !achievement.unlocked) || null;
+    const publicShowcaseItems = userInventoryItems.slice(0, 4);
     const bestPayout = userSettledPredictions.reduce((max, prediction) => Math.max(max, prediction.payout || 0), 0);
     const recentPredictions = [...userPredictions]
       .sort((a, b) => (parseAppDate(b.createdAt)?.getTime() || 0) - (parseAppDate(a.createdAt)?.getTime() || 0))
@@ -7259,6 +7277,37 @@ function App() {
           <div><span>Лучший выигрыш</span><strong>{bestPayout.toLocaleString("ru-RU")}</strong><small>баллов</small></div>
           <div><span>Предметы</span><strong>{userInventoryItems.length}</strong><small>{unlockedCount}/{achievements.length} достиж.</small></div>
           <div><span>Подписчики</span><strong>{userFollowers.length}</strong><small>{userFollowing.length} подписок</small></div>
+        </section>
+
+        <section className="publicProfileShowcaseStrip">
+          <article className="publicShowcaseCard publicShowcaseCard-main">
+            <span>🏆</span>
+            <div>
+              <strong>{publicShowcaseAchievements[0]?.title || "Профиль набирает силу"}</strong>
+              <small>{publicShowcaseAchievements[0]?.description || "Первые трофеи появятся после прогнозов и побед."}</small>
+            </div>
+          </article>
+          <article className="publicShowcaseCard">
+            <span>{activeTitle?.emoji || "🎭"}</span>
+            <div>
+              <strong>{activeTitle?.name || "Без титула"}</strong>
+              <small>{activeFrame ? `Рамка: ${activeFrame.name}` : "Рамка не выбрана"}</small>
+            </div>
+          </article>
+          <article className="publicShowcaseCard">
+            <span>✨</span>
+            <div>
+              <strong>{publicShowcaseItems.length} предметов</strong>
+              <small>{publicShowcaseItems[0] ? `${publicShowcaseItems[0].emoji} ${publicShowcaseItems[0].name}` : "Косметика ещё впереди"}</small>
+            </div>
+          </article>
+          <article className="publicShowcaseCard">
+            <span>🎯</span>
+            <div>
+              <strong>{publicNextAchievement ? `Следующая цель: ${publicNextAchievement.title}` : "Все цели закрыты"}</strong>
+              <small>{publicNextAchievement ? `${publicNextAchievement.progress}% прогресса` : "Игрок уже собрал все бейджи"}</small>
+            </div>
+          </article>
         </section>
 
         <section className="publicProfileGrid">
@@ -7360,6 +7409,20 @@ function App() {
       return !prediction.settledAt && market?.status === "closed";
     }).length;
     const nextLevelHint = level.nextTitle === "Максимум" ? "Максимальный уровень" : `До «${level.nextTitle}»`;
+    const showcaseInventoryItems = activeUserInventory
+      .map((entry) => effectiveShopItems.find((item) => item.id === entry.itemId))
+      .filter((item): item is ShopItem => Boolean(item));
+    const showcaseAchievements = activeUserAchievements.filter((achievement) => achievement.unlocked).slice(0, 4);
+    const nextAchievement = activeUserAchievements.find((achievement) => !achievement.unlocked) || null;
+    const nextPlayerGoal = activeUserStats.predictionsCount < 1
+      ? "Сделай первый прогноз, чтобы открыть стартовое достижение."
+      : activeUserStats.wins < 1
+        ? "Дождись первой победы и прокачай winrate."
+        : activeUserFollowing.length < 1
+          ? "Подпишись на сильного игрока и оживи социальную ленту."
+          : nextAchievement
+            ? `Следующая цель: ${nextAchievement.title} · ${nextAchievement.progress}%`
+            : "Все базовые цели выполнены. Теперь играй за место в рейтинге.";
     const profileTabs: { id: ProfileTab; icon: string; label: string; badge?: number | string }[] = [
       { id: "overview", icon: "🏠", label: "Обзор" },
       { id: "style", icon: "🛍️", label: "Стиль", badge: activeUserInventory.length },
@@ -7407,6 +7470,41 @@ function App() {
             <button onClick={() => refreshData(activeUser.id)}>Обновить данные</button>
           </div>
         </article>
+
+        <section className="profileShowcaseStrip">
+          <article className="profileShowcaseCard profileShowcaseCard-main">
+            <span className="profileShowcaseIcon">{activeTitleItem?.emoji || level.emoji}</span>
+            <div>
+              <p>Мой игровой статус</p>
+              <strong>{activeTitleItem?.name || level.title}</strong>
+              <small>{activeFrameItem ? `Рамка: ${activeFrameItem.name}` : "Рамка не выбрана"}</small>
+            </div>
+          </article>
+          <article className="profileShowcaseCard">
+            <span className="profileShowcaseIcon">⭐</span>
+            <div>
+              <p>Прогресс</p>
+              <strong>{level.progress}% до следующего уровня</strong>
+              <small>{nextLevelHint}</small>
+            </div>
+          </article>
+          <article className="profileShowcaseCard">
+            <span className="profileShowcaseIcon">🏆</span>
+            <div>
+              <p>Трофеи</p>
+              <strong>{unlockedAchievementsCount}/{activeUserAchievements.length} достижений</strong>
+              <small>{showcaseAchievements[0]?.title || "Первый трофей ещё впереди"}</small>
+            </div>
+          </article>
+          <article className="profileShowcaseCard">
+            <span className="profileShowcaseIcon">🎒</span>
+            <div>
+              <p>Инвентарь</p>
+              <strong>{showcaseInventoryItems.length} предметов</strong>
+              <small>{showcaseInventoryItems[0] ? `${showcaseInventoryItems[0].emoji} ${showcaseInventoryItems[0].name}` : "Открой титул или рамку"}</small>
+            </div>
+          </article>
+        </section>
 
         <section className="profileStatsGrid gameProfileStatsGrid">
           <div>
@@ -7456,6 +7554,73 @@ function App() {
             {renderDailyBonusCard("profile")}
             {renderDailyMissionsCard("profile")}
             {renderUnlockableRewardsCard()}
+
+            <article className="profileCard profileWideCard trophyRoomCard">
+              <div className="sectionHeader">
+                <div>
+                  <p className="eyebrow">Витрина игрока</p>
+                  <h2>Трофейная комната</h2>
+                  <p>Главные награды, предметы и следующая цель профиля.</p>
+                </div>
+                <span>{showcaseAchievements.length + showcaseInventoryItems.length}</span>
+              </div>
+
+              <div className="trophyRoomGrid">
+                <section className="trophyRoomPanel trophyRoomPanel-main">
+                  <span>{showcaseAchievements[0]?.emoji || "🏆"}</span>
+                  <div>
+                    <strong>{showcaseAchievements[0]?.title || "Первый трофей впереди"}</strong>
+                    <p>{showcaseAchievements[0]?.description || "Сделай прогноз, получи победу или зайди несколько дней подряд."}</p>
+                  </div>
+                </section>
+
+                <section className="trophyRoomPanel">
+                  <h3>Лучшие достижения</h3>
+                  {showcaseAchievements.length === 0 ? (
+                    <div className="trophyMiniEmpty">Пока нет открытых достижений.</div>
+                  ) : (
+                    <div className="trophyMiniList">
+                      {showcaseAchievements.map((achievement) => (
+                        <div className="trophyMiniItem" key={achievement.id}>
+                          <span>{achievement.emoji}</span>
+                          <strong>{achievement.title}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                <section className="trophyRoomPanel">
+                  <h3>Редкие предметы</h3>
+                  {showcaseInventoryItems.length === 0 ? (
+                    <div className="trophyMiniEmpty">Инвентарь пока пуст.</div>
+                  ) : (
+                    <div className="trophyMiniList">
+                      {showcaseInventoryItems.slice(0, 4).map((item) => (
+                        <div className={`trophyMiniItem shopItemIcon-${item.styleKey}`} key={item.id}>
+                          <span>{item.emoji}</span>
+                          <strong>{item.name}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                <section className="trophyRoomPanel trophyGoalPanel">
+                  <h3>Следующая цель</h3>
+                  <p>{nextPlayerGoal}</p>
+                  {nextAchievement ? (
+                    <div className="trophyGoalProgress">
+                      <span style={{ width: `${nextAchievement.progress}%` }} />
+                    </div>
+                  ) : null}
+                  <button onClick={() => setProfileTab(nextAchievement ? "achievements" : "predictions")}>
+                    {nextAchievement ? "Открыть достижения" : "Открыть прогнозы"}
+                  </button>
+                </section>
+              </div>
+            </article>
+
             {renderTelegramNotificationCard()}
             {renderInterestPicker("profile")}
             {renderReferralCard()}
@@ -7498,6 +7663,23 @@ function App() {
               </div>
               <span>{unlockedAchievementsCount}/{activeUserAchievements.length}</span>
             </div>
+            <div className="achievementShowcaseHeader">
+              <article>
+                <span>🏆</span>
+                <div>
+                  <strong>{showcaseAchievements[0]?.title || "Первое достижение ждёт"}</strong>
+                  <small>{showcaseAchievements[0]?.description || "Начни с первого прогноза и ежедневного бонуса."}</small>
+                </div>
+              </article>
+              <article>
+                <span>🎯</span>
+                <div>
+                  <strong>{nextAchievement ? nextAchievement.title : "Все базовые достижения открыты"}</strong>
+                  <small>{nextAchievement ? `${nextAchievement.progress}% прогресса` : "Продолжай играть за рейтинг и стиль"}</small>
+                </div>
+              </article>
+            </div>
+
             <div className="achievementGrid">
               {activeUserAchievements.map((achievement) => (
                 <article className={`achievementItem ${achievement.unlocked ? "achievementUnlocked" : ""}`} key={achievement.id}>
