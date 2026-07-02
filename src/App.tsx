@@ -5,7 +5,8 @@ import "./App.css";
 type Outcome = "yes" | "no";
 type MarketStatus = "open" | "closed" | "resolved";
 type SuggestionStatus = "pending" | "approved" | "rejected";
-type SortMode = "newest" | "probability" | "trades" | "comments";
+type SortMode = "newest" | "probability" | "trades" | "comments" | "closing";
+type DiscoveryPreset = "all" | "hot" | "forYou" | "unplayed" | "polymarket" | "soon" | "favorites";
 type DetailsTab = "overview" | "trades" | "participants" | "chat";
 type MainView = "markets" | "imported" | "search" | "predictions" | "tournament" | "suggest" | "admin" | "moderation" | "settlement" | "profile" | "publicProfile";
 type AppRouteSnapshot = { mainView: MainView; selectedMarketId: string | null; selectedPublicProfileUserId: string | null; scrollY: number };
@@ -356,6 +357,7 @@ const TELEGRAM_MINI_APP_URL = String(import.meta.env.VITE_TELEGRAM_MINI_APP_URL 
 const APP_PUBLIC_URL = String(import.meta.env.VITE_APP_PUBLIC_URL || window.location.origin).trim();
 const AUTH_SESSION_STORAGE_KEY = "forecast-market-auth-session";
 const ACTIVITY_DISMISSED_STORAGE_KEY = "forecast-market-dismissed-activity-items";
+const SEARCH_RECENT_STORAGE_KEY = "forecast-market-recent-searches";
 
 const emptyNewMarketForm: NewMarketForm = {
   question: "",
@@ -504,6 +506,32 @@ function getInterestCategoryEmoji(category: string, index = 0) {
   if (normalized.includes("мир") || normalized.includes("polymarket")) return "🌍";
 
   return ["🔥", "🎯", "⚡", "✨", "🧠", "🚀"][index % 6];
+}
+
+function getSmartSearchTerms(value: string) {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return [];
+
+  const terms = new Set([normalized]);
+
+  const synonymGroups = [
+    ["bitcoin", "btc", "биткоин", "битко", "крипта", "криптовалюта", "crypto"],
+    ["ии", "ai", "нейросеть", "нейросети", "искусственный интеллект", "технологии", "technology"],
+    ["спорт", "футбол", "хоккей", "матч", "sports"],
+    ["политика", "выборы", "election", "president", "президент"],
+    ["экономика", "финансы", "рынок", "цб", "ставка", "доллар", "рубль"],
+    ["polymarket", "поли", "полимаркет", "prediction market"],
+    ["игры", "game", "games", "gta", "playstation", "xbox"],
+    ["кино", "сериал", "movie", "film", "netflix"],
+  ];
+
+  synonymGroups.forEach((group) => {
+    if (group.some((item) => normalized.includes(item))) {
+      group.forEach((item) => terms.add(item));
+    }
+  });
+
+  return Array.from(terms);
 }
 
 function getUserLevel(stats: { predictionsCount: number; wins: number; winRate: number; settledCount: number }, rank: number, user: DemoUser | null) {
@@ -1037,6 +1065,15 @@ function App() {
   const [statusFilter, setStatusFilter] = useState<"all" | MarketStatus>("all");
   const [sortMode, setSortMode] = useState<SortMode>("newest");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [discoveryPreset, setDiscoveryPreset] = useState<DiscoveryPreset>("all");
+  const [recentMarketSearches, setRecentMarketSearches] = useState<string[]>(() => {
+    try {
+      const parsedRecentSearches = JSON.parse(window.localStorage.getItem(SEARCH_RECENT_STORAGE_KEY) || "[]");
+      return Array.isArray(parsedRecentSearches) ? parsedRecentSearches.filter((item) => typeof item === "string").slice(0, 6) : [];
+    } catch {
+      return [];
+    }
+  });
   const [importedCategory, setImportedCategory] = useState("Все");
   const [importedSearch, setImportedSearch] = useState("");
   const [selectedInterestCategories, setSelectedInterestCategories] = useState<string[]>(() => {
@@ -1531,7 +1568,8 @@ function App() {
   }, [markets]);
 
   const filteredMarkets = useMemo(() => {
-    const normalizedSearch = marketSearch.trim().toLowerCase();
+    const smartSearchTerms = getSmartSearchTerms(marketSearch);
+    const predictedMarketIds = new Set(activeUserPredictions.map((prediction) => prediction.marketId));
 
     return markets
       .filter((market) => {
@@ -1541,12 +1579,25 @@ function App() {
         const searchableText = [market.question, market.description, market.category, market.source]
           .join(" ")
           .toLowerCase();
-        const matchesSearch = !normalizedSearch || searchableText.includes(normalizedSearch);
-        return matchesCategory && matchesStatus && matchesFavorite && matchesSearch;
+        const matchesSearch = smartSearchTerms.length === 0 || smartSearchTerms.some((term) => searchableText.includes(term));
+        const matchesPreset =
+          discoveryPreset === "all" ||
+          (discoveryPreset === "hot" && market.status === "open") ||
+          (discoveryPreset === "forYou" && market.status === "open" && !predictedMarketIds.has(market.id) && (selectedInterestCategories.length === 0 || selectedInterestCategories.includes(market.category || "Без категории"))) ||
+          (discoveryPreset === "unplayed" && market.status === "open" && !predictedMarketIds.has(market.id)) ||
+          (discoveryPreset === "polymarket" && isPolymarketSource(market.source)) ||
+          (discoveryPreset === "soon" && market.status === "open") ||
+          (discoveryPreset === "favorites" && favoriteMarketIds.includes(market.id));
+
+        return matchesCategory && matchesStatus && matchesFavorite && matchesSearch && matchesPreset;
       })
       .sort((a, b) => {
+        if (discoveryPreset === "soon" || sortMode === "closing") {
+          return new Date(a.closesAt || 0).getTime() - new Date(b.closesAt || 0).getTime();
+        }
+
         if (sortMode === "probability") return getYesProbability(b) - getYesProbability(a);
-        if (sortMode === "trades") {
+        if (sortMode === "trades" || discoveryPreset === "hot") {
           return (
             predictions.filter((prediction) => prediction.marketId === b.id).length -
             predictions.filter((prediction) => prediction.marketId === a.id).length
@@ -1560,7 +1611,7 @@ function App() {
         }
         return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
       });
-  }, [markets, selectedCategory, statusFilter, marketSearch, sortMode, predictions, comments, showFavoritesOnly, favoriteMarketIds]);
+  }, [markets, selectedCategory, statusFilter, marketSearch, sortMode, predictions, comments, showFavoritesOnly, favoriteMarketIds, discoveryPreset, activeUserPredictions, selectedInterestCategories]);
 
   const feedMarkets = useMemo(() => {
     return markets
@@ -2747,6 +2798,14 @@ function App() {
       // localStorage может быть недоступен во встроенном WebView — это не критично.
     }
   }, [dismissedActivityIds]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(SEARCH_RECENT_STORAGE_KEY, JSON.stringify(recentMarketSearches.slice(0, 6)));
+    } catch {
+      // localStorage может быть недоступен во встроенном WebView — это не критично.
+    }
+  }, [recentMarketSearches]);
 
   useEffect(() => {
     const nextRoute: AppRouteSnapshot = { mainView, selectedMarketId, selectedPublicProfileUserId, scrollY: getAppScrollTop() };
@@ -4032,12 +4091,37 @@ function App() {
     );
   }
 
+  function rememberMarketSearch(value: string) {
+    const normalized = value.trim();
+    if (!normalized) return;
+
+    setRecentMarketSearches((current) => [normalized, ...current.filter((item) => item.toLowerCase() !== normalized.toLowerCase())].slice(0, 6));
+  }
+
+  function applyMarketSearch(value: string) {
+    setMarketSearch(value);
+    setDiscoveryPreset("all");
+    rememberMarketSearch(value);
+    sendHaptic("light");
+  }
+
+  function applyDiscoveryPreset(nextPreset: DiscoveryPreset) {
+    setDiscoveryPreset(nextPreset);
+    setMarketSearch("");
+    setSelectedCategory("Все");
+    setShowFavoritesOnly(nextPreset === "favorites");
+    setStatusFilter(nextPreset === "polymarket" || nextPreset === "favorites" ? "all" : "open");
+    setSortMode(nextPreset === "soon" ? "closing" : nextPreset === "hot" ? "trades" : "newest");
+    sendHaptic("light");
+  }
+
   function clearMarketFilters() {
     setMarketSearch("");
     setStatusFilter("all");
     setSortMode("newest");
     setSelectedCategory("Все");
     setShowFavoritesOnly(false);
+    setDiscoveryPreset("all");
   }
 
   async function refreshPolymarketImport() {
@@ -5722,40 +5806,187 @@ function App() {
   }
 
   function renderSearchPage() {
+    const predictedMarketIds = new Set(activeUserPredictions.map((prediction) => prediction.marketId));
+    const unplayedOpenCount = markets.filter((market) => market.status === "open" && !predictedMarketIds.has(market.id)).length;
+    const favoriteCount = favoriteMarketIds.length;
+    const popularSearches = ["спорт", "крипта", "политика", "ИИ", "Polymarket", "GTA"];
+    const activeFiltersCount = [
+      selectedCategory !== "Все",
+      statusFilter !== "all",
+      sortMode !== "newest",
+      showFavoritesOnly,
+      discoveryPreset !== "all",
+      marketSearch.trim().length > 0,
+    ].filter(Boolean).length;
+
+    const discoveryPresets: { id: DiscoveryPreset; icon: string; title: string; text: string; count: number }[] = [
+      { id: "hot", icon: "🔥", title: "Горячие", text: "где больше активности", count: popularMarkets.length },
+      { id: "forYou", icon: "🎯", title: "Для тебя", text: "по интересам и без прогноза", count: forYouMarkets.length },
+      { id: "unplayed", icon: "🧭", title: "Без моего прогноза", text: "открытые рынки", count: unplayedOpenCount },
+      { id: "soon", icon: "⏳", title: "Скоро закрываются", text: "успеть до дедлайна", count: soonClosingMarkets.length },
+      { id: "polymarket", icon: "🌍", title: "Polymarket", text: "события для фана", count: importedOpenCount },
+      { id: "favorites", icon: "⭐", title: "Избранные", text: "сохранённые рынки", count: favoriteCount },
+    ];
+
     return (
-      <section className="searchPage">
-        <section className="searchHeroPanel">
-          <div>
-            <p className="eyebrow">Навигация по рынкам</p>
-            <h2>Поиск и фильтры</h2>
-            <p>Быстро найди нужное событие: по теме, категории, статусу, популярности или избранному.</p>
+      <section className="searchPage discoverySearchPage">
+        <section className="discoverySearchHero">
+          <div className="discoverySearchHeroText">
+            <p className="eyebrow">Каталог рынков</p>
+            <h2>Найди событие для прогноза</h2>
+            <p>Поиск понимает темы и синонимы: Bitcoin найдёт крипту, AI — ИИ и технологии, Polymarket — импортированные события.</p>
           </div>
-          <button className="clearFiltersButton" onClick={clearMarketFilters}>Сбросить фильтры</button>
+
+          <div className="discoverySearchBox">
+            <label>
+              <span>Поиск по вопросу, теме или источнику</span>
+              <div className="discoverySearchInputWrap">
+                <b>🔍</b>
+                <input
+                  placeholder="Bitcoin, спорт, выборы, ИИ..."
+                  value={marketSearch}
+                  onChange={(event) => {
+                    setMarketSearch(event.target.value);
+                    setDiscoveryPreset("all");
+                  }}
+                  onBlur={() => rememberMarketSearch(marketSearch)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") rememberMarketSearch(marketSearch);
+                  }}
+                />
+                {marketSearch && <button onClick={() => setMarketSearch("")}>×</button>}
+              </div>
+            </label>
+
+            <div className="searchHintRow">
+              {(recentMarketSearches.length > 0 ? recentMarketSearches : popularSearches).map((query) => (
+                <button key={query} onClick={() => applyMarketSearch(query)}>
+                  {query}
+                </button>
+              ))}
+            </div>
+          </div>
         </section>
 
-        <section className="marketToolbar searchToolbar">
-          <label className="toolbarSearch">Поиск рынка<input placeholder="Например: ЦБ, GTA, Bitcoin, друзья..." value={marketSearch} onChange={(event) => setMarketSearch(event.target.value)} /></label>
-          <label>Статус<select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "all" | MarketStatus)}><option value="all">Все рынки</option><option value="open">Открытые</option><option value="closed">Ожидают расчёта</option><option value="resolved">Рассчитанные</option></select></label>
-          <label>Сортировка<select value={sortMode} onChange={(event) => setSortMode(event.target.value as SortMode)}><option value="newest">Сначала новые</option><option value="probability">По вероятности “Да”</option><option value="trades">По количеству сделок</option><option value="comments">По комментариям</option></select></label>
-          <label className="toolbarCheckbox"><input type="checkbox" checked={showFavoritesOnly} onChange={(event) => setShowFavoritesOnly(event.target.checked)} />Только избранные</label>
-        </section>
-
-        <section className="categoryTabs searchCategoryTabs">
-          {categories.map((category) => (
-            <button key={category} className={selectedCategory === category ? "activeTab" : ""} onClick={() => setSelectedCategory(category)}>{category}</button>
+        <section className="discoveryPresetGrid">
+          {discoveryPresets.map((preset) => (
+            <button
+              className={`discoveryPresetCard ${discoveryPreset === preset.id ? "activeDiscoveryPreset" : ""}`}
+              key={preset.id}
+              onClick={() => applyDiscoveryPreset(preset.id)}
+            >
+              <span>{preset.icon}</span>
+              <strong>{preset.title}</strong>
+              <small>{preset.text}</small>
+              <b>{preset.count}</b>
+            </button>
           ))}
         </section>
 
-        <section className="searchResultsPanel">
-          <div className="sectionHeader"><h2>Результаты</h2><span>{filteredMarkets.length} событий</span></div>
-          {filteredMarkets.length === 0 ? <div className="empty">По этим фильтрам рынков не найдено.</div> : (
+        <section className="discoveryFiltersPanel">
+          <div className="discoveryFiltersHeader">
+            <div>
+              <h3>Фильтры</h3>
+              <p>{activeFiltersCount > 0 ? `Активно: ${activeFiltersCount}` : "Показываем все рынки"}</p>
+            </div>
+            <button className="clearFiltersButton" onClick={clearMarketFilters}>Сбросить</button>
+          </div>
+
+          <div className="discoveryFilterRail" aria-label="Фильтр по статусу">
+            {([
+              ["all", "Все"],
+              ["open", "Открытые"],
+              ["closed", "Ждут расчёта"],
+              ["resolved", "Завершённые"],
+            ] as ["all" | MarketStatus, string][]).map(([status, label]) => (
+              <button key={status} className={statusFilter === status ? "activeDiscoveryFilter" : ""} onClick={() => {
+                setStatusFilter(status);
+                setDiscoveryPreset("all");
+              }}>
+                {label}
+              </button>
+            ))}
+            <button className={showFavoritesOnly ? "activeDiscoveryFilter" : ""} onClick={() => {
+              setShowFavoritesOnly((current) => !current);
+              setDiscoveryPreset("all");
+            }}>
+              ⭐ Избранные
+            </button>
+            <button className={discoveryPreset === "polymarket" ? "activeDiscoveryFilter" : ""} onClick={() => applyDiscoveryPreset("polymarket")}>
+              🌍 Polymarket
+            </button>
+          </div>
+
+          <div className="discoverySortRail" aria-label="Сортировка">
+            {([
+              ["newest", "Новые"],
+              ["trades", "Популярные"],
+              ["probability", "Вероятность"],
+              ["comments", "Обсуждаемые"],
+              ["closing", "Скоро закроются"],
+            ] as [SortMode, string][]).map(([mode, label]) => (
+              <button key={mode} className={sortMode === mode ? "activeDiscoverySort" : ""} onClick={() => setSortMode(mode)}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="discoveryCategoryPanel">
+          <div className="sectionHeader discoverySectionHeader">
+            <div>
+              <h2>Категории</h2>
+              <p>Быстрый переход по темам.</p>
+            </div>
+            <button onClick={() => setSelectedCategory("Все")}>Все категории</button>
+          </div>
+
+          <div className="discoveryCategoryGrid">
+            {categories.slice(0, 12).map((category, index) => {
+              const categoryCount = category === "Все" ? markets.length : markets.filter((market) => market.category === category).length;
+              return (
+                <button
+                  className={`discoveryCategoryCard ${selectedCategory === category ? "activeDiscoveryCategory" : ""}`}
+                  key={category}
+                  onClick={() => {
+                    setSelectedCategory(category);
+                    setDiscoveryPreset("all");
+                  }}
+                >
+                  <span>{category === "Все" ? "🗂️" : getInterestCategoryEmoji(category, index)}</span>
+                  <strong>{category}</strong>
+                  <small>{categoryCount} событий</small>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="searchResultsPanel discoveryResultsPanel">
+          <div className="sectionHeader">
+            <div>
+              <h2>Результаты</h2>
+              <p>{marketSearch.trim() ? `По запросу “${marketSearch.trim()}”` : "Подборка по текущим фильтрам"}</p>
+            </div>
+            <span>{filteredMarkets.length} событий</span>
+          </div>
+
+          {filteredMarkets.length === 0 ? (
+            <div className="empty emptyActionState discoveryEmptyState">
+              <strong>Ничего не найдено</strong>
+              <p>Попробуй убрать фильтры, изменить запрос или открыть горячие рынки.</p>
+              <div>
+                <button onClick={clearMarketFilters}>Сбросить фильтры</button>
+                <button className="secondaryButton" onClick={() => applyDiscoveryPreset("hot")}>Открыть горячие</button>
+              </div>
+            </div>
+          ) : (
             renderMarketGroups(filteredMarkets, "search")
           )}
         </section>
       </section>
     );
   }
-
 
 
   function renderSettlementPage() {
