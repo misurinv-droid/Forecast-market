@@ -8020,46 +8020,124 @@ function App() {
     );
   }
 
-  const appClassName = `app ${isTelegram ? "telegramApp" : ""}`;
-  const canShowBackButton = Boolean(celebration) || Boolean(predictionConfirmation) || isActivityOpen || isRulesOpen || mainView !== "markets" || Boolean(selectedMarketId);
+  function renderLoadingSkeleton() {
+    const skeletonCards = Array.from({ length: isTelegram ? 4 : 6 });
+    const skeletonStats = Array.from({ length: 4 });
 
-  if (isLoading) {
     return (
-      <main className={appClassName}>
-        <div className="loadingScreen">
-          <div className="loadingOrb" aria-hidden="true">
-            <span>📈</span>
-          </div>
-          <p className="loadingEyebrow">Прогреваем рынок</p>
-          <h1>Forecast Market</h1>
-          <p className="loadingText">Сверяем вероятности, будим backend и начисляем удачу...</p>
-          <div className="predictionLoader" aria-label="Загрузка приложения">
-            <div className="predictionLoaderTrack">
-              <span className="predictionLoaderFill" />
-              <span className="predictionLoaderDot predictionLoaderDotYes">ДА</span>
-              <span className="predictionLoaderDot predictionLoaderDotNo">НЕТ</span>
-            </div>
-            <div className="loadingTicks">
-              <span>0%</span>
-              <span>50%</span>
-              <span>100%</span>
+      <main className={`${appClassName} appSkeletonMode`}>
+        <section className="skeletonTopBar" aria-label="Загрузка Forecast Market">
+          <div className="skeletonLogoBlock">
+            <div className="skeletonLogoPulse">📈</div>
+            <div>
+              <span className="skeletonLine skeletonLineTiny" />
+              <span className="skeletonLine skeletonLineTitle" />
             </div>
           </div>
-          <p className="loadingJoke">Если вероятность загрузки выше 50% — мы уже почти победили.</p>
+          <div className="skeletonProfileChip">
+            <span className="skeletonLine skeletonLineTiny" />
+            <span className="skeletonLine skeletonLineShort" />
+          </div>
+        </section>
+
+        <section className="skeletonHeroPanel">
+          <div className="skeletonHeroText">
+            <span className="skeletonPill" />
+            <span className="skeletonLine skeletonLineHero" />
+            <span className="skeletonLine skeletonLineWide" />
+            <span className="skeletonLine skeletonLineMedium" />
+            <div className="skeletonButtonRow">
+              <span className="skeletonButton" />
+              <span className="skeletonButton skeletonButtonMuted" />
+            </div>
+          </div>
+          <div className="skeletonHeroCard">
+            <span className="skeletonLine skeletonLineTiny" />
+            <span className="skeletonLine skeletonLineCardTitle" />
+            <span className="skeletonProgress" />
+            <div className="skeletonCardFooter">
+              <span className="skeletonLine skeletonLineShort" />
+              <span className="skeletonLine skeletonLineShort" />
+            </div>
+          </div>
+        </section>
+
+        <section className="skeletonStatsGrid">
+          {skeletonStats.map((_, index) => (
+            <article className="skeletonStatCard" key={`skeleton-stat-${index}`}>
+              <span className="skeletonCircle" />
+              <span className="skeletonLine skeletonLineShort" />
+              <span className="skeletonLine skeletonLineTiny" />
+            </article>
+          ))}
+        </section>
+
+        <section className="skeletonContentGrid">
+          <div className="skeletonMainColumn">
+            <div className="skeletonSectionHeader">
+              <span className="skeletonLine skeletonLineTitle" />
+              <span className="skeletonButton skeletonButtonSmall" />
+            </div>
+            <div className="skeletonMarketList">
+              {skeletonCards.map((_, index) => (
+                <article className="skeletonMarketCard" key={`skeleton-market-${index}`}>
+                  <div>
+                    <span className="skeletonPill skeletonPillSmall" />
+                    <span className="skeletonLine skeletonLineCardTitle" />
+                    <span className="skeletonLine skeletonLineWide" />
+                    <span className="skeletonProgress" />
+                  </div>
+                  <div className="skeletonOdds">
+                    <span />
+                    <span />
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+
+          <aside className="skeletonSideColumn">
+            <span className="skeletonLine skeletonLineTitle" />
+            <span className="skeletonLine skeletonLineWide" />
+            <span className="skeletonLine skeletonLineMedium" />
+            <div className="skeletonMiniGrid">
+              {skeletonStats.map((_, index) => <span key={`skeleton-mini-${index}`} />)}
+            </div>
+          </aside>
+        </section>
+
+        <div className="skeletonLoadingCaption">
+          <div className="buttonSpinner" aria-hidden="true" />
+          <span>Загружаем рынки, профиль и игровые события...</span>
         </div>
       </main>
     );
   }
 
+  const appClassName = `app appReady ${isTelegram ? "telegramApp" : ""}`;
+  const canShowBackButton = Boolean(celebration) || Boolean(predictionConfirmation) || isActivityOpen || isRulesOpen || mainView !== "markets" || Boolean(selectedMarketId);
+
+  if (isLoading) {
+    return renderLoadingSkeleton();
+  }
+
   if (serverError) {
     return (
-      <main className={appClassName}>
-        <div className="errorBox">
-          <h1>Backend недоступен</h1>
-          <p>{serverError}</p>
-          <p>Проверь Render backend и переменные окружения.</p>
-          <button onClick={initializeApp}>Повторить подключение</button>
-        </div>
+      <main className={`${appClassName} appErrorState`}>
+        <section className="friendlyErrorCard" role="alert">
+          <div className="friendlyErrorIcon">⚠️</div>
+          <p className="eyebrow">Не удалось подключиться</p>
+          <h1>Forecast Market временно не загрузился</h1>
+          <p>Проверь интернет и попробуй ещё раз. Если backend на Render “спит”, первый запуск может занять немного времени.</p>
+          <details className="friendlyErrorDetails">
+            <summary>Техническая причина</summary>
+            <span>{serverError}</span>
+          </details>
+          <div className="friendlyErrorActions">
+            <button onClick={initializeApp}>Повторить подключение</button>
+            {TELEGRAM_MINI_APP_URL && <button className="secondaryButton" onClick={openTelegramMiniApp}>Открыть в Telegram</button>}
+          </div>
+        </section>
       </main>
     );
   }
