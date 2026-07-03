@@ -4926,9 +4926,10 @@ function App() {
         <div className="gameShelfHeader">
           <div>
             <span className="gameShelfIcon">{icon}</span>
-            <div>
+            <div className="gameShelfTitleText">
               <h2>{title}</h2>
               <p>{subtitle}</p>
+              <span className="gameShelfSwipeHint"><b>←</b> свайп <b>→</b></span>
             </div>
           </div>
           <button onClick={onAction}>{actionLabel}</button>
@@ -8016,6 +8017,12 @@ function App() {
             {activityBadgeCount > 0 && <span>{activityBadgeCount}</span>}
           </button>
           <button className="cleanIconButton" onClick={() => setMainView("leaderboard")} aria-label="Рейтинг игроков">🏆</button>
+          {isAdmin && (
+            <button className="cleanIconButton cleanAdminButton" onClick={() => navigateBottomTab("admin")} aria-label="Админка">
+              ⚙️
+              {pendingSuggestions.length + closedMarketsCount > 0 && <span>{pendingSuggestions.length + closedMarketsCount}</span>}
+            </button>
+          )}
           <button className="cleanProfileButton" onClick={() => setMainView("profile")} aria-label="Профиль">
             <span>{activeUser?.name?.slice(0, 1).toUpperCase() || "👤"}</span>
           </button>
@@ -8159,15 +8166,6 @@ function App() {
           </button>
         </nav>,
         document.body,
-      )}
-
-      {isAdmin && (
-        <button
-          className={`mobileAdminFab ${(mainView === "admin" || mainView === "moderation" || mainView === "settlement") && !selectedMarket ? "activeMobileAdminFab" : ""}`}
-          onClick={() => navigateBottomTab("admin")}
-        >
-          ⚙️ Админка {pendingSuggestions.length + closedMarketsCount > 0 ? `· ${pendingSuggestions.length + closedMarketsCount}` : ""}
-        </button>
       )}
 
       {showDebugTools && (

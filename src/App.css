@@ -18446,3 +18446,167 @@ body.is-telegram-webapp .mobileAdminFab,
     max-width: min(84vw, 330px) !important;
   }
 }
+
+
+/* Home Rebuild v4 — admin as top icon and non-overlapping animated swipe hint */
+
+/* Admin no longer floats over content; it lives in the top icon row. */
+.mobileAdminFab,
+.telegramApp .mobileAdminFab,
+body.is-telegram-webapp .mobileAdminFab {
+  display: none !important;
+}
+
+.cleanBrandActions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 7px !important;
+}
+
+.cleanAdminButton {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #0f172a, #1d4ed8) !important;
+  border-color: rgba(191, 219, 254, 0.46) !important;
+}
+
+.cleanAdminButton > span,
+.cleanActivityButton > span {
+  position: absolute !important;
+  top: -5px !important;
+  right: -5px !important;
+  display: grid !important;
+  place-items: center !important;
+  min-width: 20px !important;
+  height: 20px !important;
+  padding: 0 5px !important;
+  border-radius: 999px !important;
+  color: #ffffff !important;
+  background: #ef4444 !important;
+  border: 2px solid rgba(255, 255, 255, 0.96) !important;
+  font-size: 0.68rem !important;
+  font-weight: 950 !important;
+  line-height: 1 !important;
+  text-align: center !important;
+}
+
+/* Remove the old pseudo-hint that overlapped the action button. */
+.gameShelfHeader::after,
+.cleanHomeFeed .gameShelfHeader::after,
+.telegramApp .gameShelf .gameShelfHeader::after {
+  content: none !important;
+  display: none !important;
+}
+
+.cleanHomeFeed .gameShelfHeader {
+  align-items: flex-start !important;
+  margin-bottom: 10px !important;
+}
+
+.cleanHomeFeed .gameShelfHeader > div {
+  align-items: flex-start !important;
+  min-width: 0 !important;
+}
+
+.gameShelfTitleText {
+  display: grid !important;
+  gap: 3px !important;
+  min-width: 0 !important;
+}
+
+.cleanHomeFeed .gameShelfTitleText p {
+  display: none !important;
+}
+
+.gameShelfSwipeHint {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  width: max-content !important;
+  max-width: 100% !important;
+  margin-top: 2px !important;
+  padding: 4px 8px !important;
+  border-radius: 999px !important;
+  color: #0f766e !important;
+  background: linear-gradient(135deg, rgba(209, 250, 229, 0.82), rgba(224, 242, 254, 0.82)) !important;
+  font-size: 0.66rem !important;
+  font-weight: 950 !important;
+  letter-spacing: 0.02em !important;
+  white-space: nowrap !important;
+  animation: swipeHintFloat 1.65s ease-in-out infinite !important;
+}
+
+.gameShelfSwipeHint b {
+  display: inline-block !important;
+  color: #2563eb !important;
+  animation: swipeHintArrow 1.65s ease-in-out infinite !important;
+}
+
+.gameShelfSwipeHint b:first-child {
+  animation-delay: 0.15s !important;
+}
+
+.gameShelfSwipeHint b:last-child {
+  animation-delay: 0.45s !important;
+}
+
+@keyframes swipeHintFloat {
+  0%, 100% {
+    transform: translateX(0);
+    opacity: 0.78;
+  }
+  50% {
+    transform: translateX(4px);
+    opacity: 1;
+  }
+}
+
+@keyframes swipeHintArrow {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(3px);
+  }
+}
+
+.cleanHomeFeed .gameShelfHeader button {
+  flex: 0 0 auto !important;
+  align-self: flex-start !important;
+  margin-top: 1px !important;
+  z-index: 1 !important;
+}
+
+/* Keep header compact with four top icons on small Telegram screens. */
+@media (max-width: 560px) {
+  .cleanBrandActions {
+    gap: 5px !important;
+  }
+
+  .cleanIconButton,
+  .cleanProfileButton {
+    width: 36px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    border-radius: 14px !important;
+    font-size: 0.95rem !important;
+  }
+
+  .cleanProfileButton span {
+    width: 26px !important;
+    height: 26px !important;
+    border-radius: 10px !important;
+  }
+
+  .gameShelfSwipeHint {
+    padding: 3px 7px !important;
+    font-size: 0.62rem !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gameShelfSwipeHint,
+  .gameShelfSwipeHint b {
+    animation: none !important;
+  }
+}
