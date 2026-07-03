@@ -19005,3 +19005,41 @@ body.is-telegram-webapp .mobileAdminFab {
     animation: none !important;
   }
 }
+
+
+/* Home Rebuild v7 — CTA button without arrow, only flowing gradient */
+.cleanHomeActions .cleanPrimaryAction {
+  background:
+    linear-gradient(135deg, #162bdc 0%, #07a9cf 34%, #14b8a6 58%, #3157ff 78%, #162bdc 100%) !important;
+  background-size: 260% 260% !important;
+  animation:
+    openMarketsPulse 2.15s ease-in-out infinite,
+    openMarketsGradientFlow 4.2s ease-in-out infinite !important;
+}
+
+.cleanHomeActions .cleanPrimaryAction::after {
+  content: none !important;
+  display: none !important;
+  margin: 0 !important;
+  animation: none !important;
+}
+
+.cleanHomeActions .cleanPrimaryAction::before {
+  opacity: 0.55 !important;
+}
+
+@keyframes openMarketsGradientFlow {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cleanHomeActions .cleanPrimaryAction {
+    animation: none !important;
+    background-position: 50% 50% !important;
+  }
+}
