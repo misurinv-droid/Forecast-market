@@ -5484,7 +5484,6 @@ function App() {
       ? hotMarkets[hotMarketRotationTick % hotMarkets.length]
       : openFeedMarkets[0] || markets[0] || null;
     const heroMarketIndex = heroMarket && hotMarkets.length > 0 ? hotMarkets.findIndex((market) => market.id === heroMarket.id) + 1 : 0;
-    const topLeaders = leaderboard.slice(0, 3);
     const cleanNewMarkets = newOpenMarkets.slice(0, 8);
     const cleanSoonMarkets = soonClosingMarkets.slice(0, 8);
     const cleanHotMarkets = hotMarkets.filter((market) => market.id !== heroMarket?.id).slice(0, 8);
@@ -5495,9 +5494,8 @@ function App() {
           <div className="cleanHotMarketIntro">
             <p className="eyebrow">Главное сейчас</p>
             <h2>Выбери рынок и сделай прогноз</h2>
-            <p>На главной теперь только рынки и быстрый путь к действию. Всё остальное — в профиле, турнирах и уведомлениях.</p>
             <div className="cleanHomeActions">
-              <button onClick={() => setMainView("search")}>Открыть рынки</button>
+              <button className="cleanPrimaryAction" onClick={() => setMainView("search")}>Открыть рынки</button>
               <button className="secondaryButton" onClick={() => setMainView("leaderboard")}>Рейтинг</button>
             </div>
           </div>
@@ -5523,22 +5521,6 @@ function App() {
               </div>
             </article>
           )}
-        </section>
-
-        <section className="cleanHomeLeaderboardTeaser">
-          <button onClick={() => setMainView("leaderboard")}>
-            <span>🏆</span>
-            <div>
-              <strong>Рейтинг игроков</strong>
-              <small>{topLeaders[0] ? `Лидер: ${topLeaders[0].name} · ${topLeaders[0].balance.toLocaleString("ru-RU")} б.` : "Открыть таблицу лидеров"}</small>
-            </div>
-          </button>
-          {topLeaders.map((user, index) => (
-            <button className={`cleanLeaderMini ${getUserFrameClass(user)}`} key={user.id} onClick={() => openPublicProfile(user.id)}>
-              <b>#{index + 1}</b>
-              <span>{user.name}</span>
-            </button>
-          ))}
         </section>
 
         <section className="cleanHomeFeed">

@@ -17980,3 +17980,312 @@ body.is-telegram-webapp .mobileAdminFab {
 .fixedLoadingScreen {
   animation: none !important;
 }
+
+
+/* Home Rebuild v2 — fixed bottom toolbar, cleaner hero and compact market rows */
+
+/* Critical: appReady animation left transform: translateY(0), which breaks position: fixed inside Telegram WebView. */
+.appReady,
+.telegramApp.appReady,
+body.is-telegram-webapp .appReady {
+  animation: none !important;
+  transform: none !important;
+  translate: none !important;
+  will-change: auto !important;
+}
+
+.app,
+.telegramApp,
+#root,
+body {
+  transform: none !important;
+}
+
+html,
+body,
+#root {
+  min-height: 100% !important;
+  overflow-x: hidden !important;
+}
+
+/* Fixed bottom nav in Telegram and mobile browser */
+.bottomTabBar {
+  margin: 0 !important;
+  transform: none !important;
+}
+
+.telegramApp .bottomTabBar,
+body.is-telegram-webapp .bottomTabBar {
+  position: fixed !important;
+}
+
+.telegramApp .bottomTabBar,
+body.is-telegram-webapp .bottomTabBar {
+  position: fixed !important;
+  left: max(10px, env(safe-area-inset-left, 0px)) !important;
+  right: max(10px, env(safe-area-inset-right, 0px)) !important;
+  bottom: calc(max(var(--tg-safe-bottom, 0px), env(safe-area-inset-bottom, 0px), 0px) + 8px) !important;
+  z-index: 2147483000 !important;
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 5px !important;
+  padding: 7px !important;
+  border-radius: 24px !important;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(238, 249, 255, 0.94)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.96) !important;
+  box-shadow: 0 20px 56px rgba(15, 23, 42, 0.24) !important;
+  backdrop-filter: blur(18px) !important;
+}
+
+@media (max-width: 900px) {
+  main:not(.telegramApp) .bottomTabBar {
+    left: max(10px, env(safe-area-inset-left, 0px)) !important;
+    right: max(10px, env(safe-area-inset-right, 0px)) !important;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 8px) !important;
+    z-index: 2147483000 !important;
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 5px !important;
+    padding: 7px !important;
+    border-radius: 24px !important;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(238, 249, 255, 0.94)) !important;
+    border: 1px solid rgba(255, 255, 255, 0.96) !important;
+    box-shadow: 0 20px 56px rgba(15, 23, 42, 0.24) !important;
+    backdrop-filter: blur(18px) !important;
+  }
+}
+
+@media (max-width: 900px) {
+  main:not(.telegramApp) {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 106px) !important;
+  }
+}
+
+.telegramApp,
+body.is-telegram-webapp .telegramApp {
+  padding-bottom: calc(max(var(--tg-safe-bottom, 0px), env(safe-area-inset-bottom, 0px), 0px) + 106px) !important;
+}
+
+/* Remove leaderboard teaser from home completely even if cached old markup appears */
+.cleanHomeLeaderboardTeaser {
+  display: none !important;
+}
+
+/* Cleaner "Главное сейчас" */
+.cleanHotMarketHero {
+  grid-template-columns: minmax(0, 0.82fr) minmax(280px, 1.18fr) !important;
+  align-items: center !important;
+}
+
+.cleanHotMarketIntro {
+  gap: 14px !important;
+}
+
+.cleanHotMarketIntro p:not(.eyebrow) {
+  display: none !important;
+}
+
+.cleanHomeActions {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr) !important;
+  gap: 10px !important;
+  width: min(100%, 420px) !important;
+  margin-top: 4px !important;
+}
+
+.cleanHomeActions button {
+  width: 100% !important;
+  min-height: 50px !important;
+  border-radius: 18px !important;
+  padding: 12px 14px !important;
+  font-size: 0.92rem !important;
+  font-weight: 950 !important;
+}
+
+.cleanHomeActions .cleanPrimaryAction {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #162bdc, #07a9cf) !important;
+  box-shadow: 0 16px 36px rgba(37, 99, 235, 0.24) !important;
+}
+
+.cleanHomeActions .secondaryButton {
+  color: #0f172a !important;
+  background: rgba(255, 255, 255, 0.78) !important;
+  border: 1px solid rgba(226, 232, 240, 0.9) !important;
+  box-shadow: none !important;
+}
+
+/* Unified compact market shelves on home */
+.cleanHomeFeed {
+  gap: 10px !important;
+}
+
+.cleanHomeFeed .gameShelf {
+  padding: 12px !important;
+  border-radius: 24px !important;
+  background: rgba(255, 255, 255, 0.68) !important;
+  border: 1px solid rgba(226, 232, 240, 0.64) !important;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04) !important;
+}
+
+.cleanHomeFeed .gameShelfHeader {
+  margin-bottom: 9px !important;
+  align-items: center !important;
+}
+
+.cleanHomeFeed .gameShelfIcon {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 14px !important;
+  font-size: 1.05rem !important;
+}
+
+.cleanHomeFeed .gameShelfHeader h2 {
+  font-size: 1rem !important;
+  line-height: 1.08 !important;
+}
+
+.cleanHomeFeed .gameShelfHeader button {
+  min-height: 34px !important;
+  padding: 8px 10px !important;
+  border-radius: 12px !important;
+  font-size: 0.72rem !important;
+}
+
+.cleanHomeFeed .gameShelfList {
+  display: grid !important;
+  gap: 8px !important;
+}
+
+/* Hide trading controls inside home shelves: home is for discovery, details screen is for action. */
+.cleanHomeFeed .quickBetPanel,
+.cleanHomeFeed .quickBetAccepted,
+.cleanHomeFeed .quickBetClosed,
+.cleanHomeFeed .marketActionHint,
+.cleanHomeFeed .marketBadgeRow,
+.cleanHomeFeed .quickBetPreviewRow {
+  display: none !important;
+}
+
+.cleanHomeFeed .marketMiniRow {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 118px !important;
+  gap: 9px !important;
+  min-height: 104px !important;
+  max-height: 104px !important;
+  overflow: hidden !important;
+  padding: 10px !important;
+  border-radius: 18px !important;
+  background: rgba(255, 255, 255, 0.82) !important;
+  box-shadow: none !important;
+}
+
+.cleanHomeFeed .marketMiniTop {
+  display: flex !important;
+  gap: 5px !important;
+  overflow: hidden !important;
+}
+
+.cleanHomeFeed .miniCategory,
+.cleanHomeFeed .miniSource,
+.cleanHomeFeed .miniStatus,
+.cleanHomeFeed .miniMine {
+  padding: 3px 7px !important;
+  font-size: 0.62rem !important;
+  line-height: 1.05 !important;
+}
+
+.cleanHomeFeed .marketMiniMain strong {
+  -webkit-line-clamp: 2 !important;
+  margin: 6px 0 5px !important;
+  font-size: 0.9rem !important;
+  line-height: 1.18 !important;
+}
+
+.cleanHomeFeed .miniMetaLine {
+  display: flex !important;
+  gap: 6px !important;
+  overflow: hidden !important;
+  margin-bottom: 5px !important;
+  color: #64748b !important;
+  font-size: 0.66rem !important;
+  white-space: nowrap !important;
+}
+
+.cleanHomeFeed .miniMetaLine span:nth-child(n+3) {
+  display: none !important;
+}
+
+.cleanHomeFeed .marketSignal {
+  margin-top: 4px !important;
+}
+
+.cleanHomeFeed .marketSignalText {
+  display: none !important;
+}
+
+.cleanHomeFeed .marketMiniOdds {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  grid-template-rows: 1fr 28px !important;
+  gap: 6px !important;
+  align-self: stretch !important;
+}
+
+.cleanHomeFeed .marketMiniOdds button {
+  min-height: 0 !important;
+  padding: 6px 5px !important;
+  border-radius: 12px !important;
+}
+
+.cleanHomeFeed .marketMiniOdds button span {
+  font-size: 0.62rem !important;
+}
+
+.cleanHomeFeed .marketMiniOdds b {
+  font-size: 1rem !important;
+}
+
+.cleanHomeFeed .marketMiniOdds .miniFavorite {
+  grid-column: 1 / -1 !important;
+  min-height: 28px !important;
+  font-size: 0.92rem !important;
+}
+
+@media (max-width: 820px) {
+  .cleanHotMarketHero {
+    grid-template-columns: 1fr !important;
+  }
+
+  .cleanHomeActions {
+    grid-template-columns: 1fr 1fr !important;
+    width: 100% !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .cleanHomeActions button {
+    min-height: 48px !important;
+  }
+
+  .cleanHomeFeed .gameShelf {
+    padding: 10px !important;
+    border-radius: 22px !important;
+  }
+
+  .cleanHomeFeed .marketMiniRow {
+    grid-template-columns: minmax(0, 1fr) 104px !important;
+    min-height: 100px !important;
+    max-height: 100px !important;
+    gap: 7px !important;
+    padding: 9px !important;
+  }
+
+  .cleanHomeFeed .marketMiniMain strong {
+    font-size: 0.84rem !important;
+  }
+
+  .cleanHomeFeed .marketMiniOdds b {
+    font-size: 0.92rem !important;
+  }
+}
