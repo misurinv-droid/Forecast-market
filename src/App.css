@@ -18610,3 +18610,157 @@ body.is-telegram-webapp .mobileAdminFab {
     animation: none !important;
   }
 }
+
+
+/* Home Rebuild v5 — long market title fit on compact home cards */
+
+/* Compact cards stay uniform, but long questions are now clipped cleanly with ellipsis,
+   not cut off by the card bottom. Full question is still available by opening the market. */
+.cleanHomeFeed .marketMiniRow {
+  min-height: 132px !important;
+  max-height: 132px !important;
+  grid-template-columns: minmax(0, 1fr) 112px !important;
+  align-items: stretch !important;
+}
+
+.cleanHomeFeed .marketMiniMain {
+  display: grid !important;
+  grid-template-rows: auto minmax(42px, auto) auto 8px !important;
+  align-content: start !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+.cleanHomeFeed .marketMiniTop {
+  min-height: 24px !important;
+  max-height: 24px !important;
+  flex-wrap: nowrap !important;
+  overflow: hidden !important;
+}
+
+.cleanHomeFeed .miniCategory,
+.cleanHomeFeed .miniSource,
+.cleanHomeFeed .miniStatus,
+.cleanHomeFeed .miniMine {
+  flex: 0 1 auto !important;
+  max-width: 98px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.cleanHomeFeed .marketMiniMain strong {
+  display: -webkit-box !important;
+  min-height: 42px !important;
+  max-height: 42px !important;
+  margin: 7px 0 4px !important;
+  overflow: hidden !important;
+  color: #0f172a !important;
+  font-size: 0.86rem !important;
+  line-height: 1.22 !important;
+  letter-spacing: -0.018em !important;
+  text-overflow: ellipsis !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  -webkit-box-orient: vertical !important;
+  -webkit-line-clamp: 2 !important;
+}
+
+.cleanHomeFeed .miniMetaLine {
+  min-height: 17px !important;
+  max-height: 17px !important;
+  margin: 0 0 6px !important;
+  overflow: hidden !important;
+  font-size: 0.64rem !important;
+  line-height: 1.1 !important;
+}
+
+.cleanHomeFeed .miniMetaLine span {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.cleanHomeFeed .marketSignal {
+  align-self: end !important;
+  height: 8px !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+}
+
+.cleanHomeFeed .signalBar {
+  height: 7px !important;
+}
+
+/* Right-side odds column now scales better on small screens. */
+.cleanHomeFeed .marketMiniOdds {
+  grid-template-rows: minmax(52px, 1fr) 28px !important;
+  align-content: stretch !important;
+}
+
+.cleanHomeFeed .marketMiniOdds button:not(.miniFavorite) {
+  display: grid !important;
+  align-content: center !important;
+  justify-items: center !important;
+  min-height: 52px !important;
+}
+
+.cleanHomeFeed .marketMiniOdds button span {
+  margin: 0 0 3px !important;
+  font-size: 0.64rem !important;
+  line-height: 1 !important;
+}
+
+.cleanHomeFeed .marketMiniOdds b {
+  font-size: 0.98rem !important;
+  line-height: 1 !important;
+}
+
+/* Wider cards for desktop/tablet so Russian long titles breathe a bit. */
+.cleanHomeFeed .marketMiniRow {
+  flex-basis: clamp(330px, 78vw, 430px) !important;
+  width: clamp(330px, 78vw, 430px) !important;
+  min-width: clamp(330px, 78vw, 430px) !important;
+  max-width: clamp(330px, 78vw, 430px) !important;
+}
+
+@media (max-width: 560px) {
+  .cleanHomeFeed .marketMiniRow {
+    grid-template-columns: minmax(0, 1fr) 98px !important;
+    min-height: 124px !important;
+    max-height: 124px !important;
+    flex-basis: min(86vw, 348px) !important;
+    width: min(86vw, 348px) !important;
+    min-width: min(86vw, 348px) !important;
+    max-width: min(86vw, 348px) !important;
+  }
+
+  .cleanHomeFeed .marketMiniMain {
+    grid-template-rows: auto minmax(40px, auto) auto 8px !important;
+  }
+
+  .cleanHomeFeed .marketMiniMain strong {
+    min-height: 40px !important;
+    max-height: 40px !important;
+    font-size: 0.78rem !important;
+    line-height: 1.24 !important;
+  }
+
+  .cleanHomeFeed .miniCategory,
+  .cleanHomeFeed .miniSource,
+  .cleanHomeFeed .miniStatus,
+  .cleanHomeFeed .miniMine {
+    max-width: 82px !important;
+    font-size: 0.56rem !important;
+  }
+
+  .cleanHomeFeed .marketMiniOdds {
+    gap: 5px !important;
+  }
+
+  .cleanHomeFeed .marketMiniOdds button:not(.miniFavorite) {
+    min-height: 48px !important;
+  }
+
+  .cleanHomeFeed .marketMiniOdds b {
+    font-size: 0.86rem !important;
+  }
+}
