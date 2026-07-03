@@ -1101,6 +1101,7 @@ function App() {
   const [adminMarketStatus, setAdminMarketStatus] = useState<"all" | "open" | "closed" | "resolved" | "polymarket">("all");
   const [mainView, setMainView] = useState<MainView>("markets");
   const [myPredictionTab, setMyPredictionTab] = useState<MyPredictionTab>("active");
+  const [leaderboardSearch, setLeaderboardSearch] = useState("");
   const [profileTab, setProfileTab] = useState<ProfileTab>("overview");
 
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
@@ -4363,58 +4364,150 @@ function App() {
 
 
   function renderLeaderboardPage() {
-    const topThree = leaderboard.slice(0, 3);
-    const otherLeaders = leaderboard.slice(3, 50);
-    const activeUserRank = activeUser ? leaderboard.findIndex((user) => user.id === activeUser.id) + 1 : 0;
+    const normalizedSearch = leaderboardSearch.trim().toLowerCase();
+
+    const leaderboardRows = leaderboard.map((user, index) => {
+      const userTitle = getUserActiveTitle(user);
+      const userPredictions = predictions.filter((prediction) => prediction.userId === user.id);
+      const settledPredictions = userPredictions.filter((prediction) => prediction.settledAt);
+      const wonPredictions = settledPredictions.filter((prediction) => (prediction.payout || 0) > prediction.amount);
+      const winRate = settledPredictions.length ? Math.round((wonPredictions.length / settledPredictions.length) * 100) : 0;
+
+      return {
+        user,
+        rank: index + 1,
+        title: userTitle,
+        predictionsCount: userPredictions.length,
+        winRate,
+      };
+    });
+
+    const topRows = leaderboardRows.slice(0, 3);
+    const activeUserRow = activeUser ? leaderboardRows.find((row) => row.user.id === activeUser.id) || null : null;
+    const nearbyRows = activeUserRow
+      ? leaderboardRows.slice(Math.max(0, activeUserRow.rank - 3), Math.min(leaderboardRows.length, activeUserRow.rank + 2))
+      : [];
+
+    const filteredRows = leaderboardRows
+      .filter((row) => {
+        if (!normalizedSearch) return true;
+        return [
+          row.user.name,
+          row.title?.name || "",
+          row.title?.emoji || "",
+          String(row.rank),
+          String(row.user.balance),
+        ].join(" ").toLowerCase().includes(normalizedSearch);
+      })
+      .slice(0, 100);
+
+    const renderCompactLeaderboardRow = (row: (typeof leaderboardRows)[number], mode: "list" | "nearby" = "list") => (
+      <button
+        className={`leaderboardCompactRow ${mode === "nearby" ? "leaderboardNearbyRow" : ""} ${row.user.id === activeUser?.id ? "activeLeaderboardCompactRow" : ""} ${getUserFrameClass(row.user)}`}
+        key={`${mode}-${row.user.id}`}
+        onClick={() => openPublicProfile(row.user.id)}
+      >
+        <b className="leaderboardRank">#{row.rank}</b>
+        <span className="leaderboardAvatar">{row.user.name.slice(0, 1).toUpperCase()}</span>
+        <div className="leaderboardPlayerInfo">
+          <strong>{row.user.name}</strong>
+          <small>{row.title ? `${row.title.emoji} ${row.title.name}` : `${row.predictionsCount} прогнозов · winrate ${row.winRate}%`}</small>
+        </div>
+        <div className="leaderboardScore">
+          <strong>{row.user.balance.toLocaleString("ru-RU")}</strong>
+          <span>баллов</span>
+        </div>
+      </button>
+    );
 
     return (
-      <section className="leaderboardPage pageStack">
-        <section className="leaderboardHeroCard">
-          <div>
+      <section className="leaderboardPage leaderboardPageV2">
+        <section className="leaderboardCompactHero">
+          <div className="leaderboardCompactTitle">
             <p className="eyebrow">Рейтинг игроков</p>
-            <h2>Таблица лидеров</h2>
-            <p>Общий рейтинг по балансу игровых баллов. Турнир недели остаётся отдельным режимом во вкладке “Турнир”.</p>
+            <h2>Лидеры</h2>
+            <p>Компактная таблица для большого количества игроков: поиск, топ-3, твоё место и быстрый список.</p>
           </div>
-          <div className="leaderboardMeCard">
-            <span>Твоё место</span>
-            <strong>{activeUserRank ? `#${activeUserRank}` : "—"}</strong>
-            <p>{activeUser ? `${activeUser.balance.toLocaleString("ru-RU")} баллов` : "Открой через Telegram"}</p>
-          </div>
+
+          <label className="leaderboardSearchBox">
+            <span>🔍</span>
+            <input
+              placeholder="Найти игрока"
+              value={leaderboardSearch}
+              onChange={(event) => setLeaderboardSearch(event.target.value)}
+            />
+            {leaderboardSearch && <button onClick={() => setLeaderboardSearch("")}>×</button>}
+          </label>
+
+          {activeUserRow ? (
+            <button className="leaderboardMyCompactCard" onClick={() => openPublicProfile(activeUserRow.user.id)}>
+              <span>Моё место</span>
+              <strong>#{activeUserRow.rank}</strong>
+              <p>{activeUserRow.user.balance.toLocaleString("ru-RU")} баллов · {activeUserRow.predictionsCount} прогнозов</p>
+            </button>
+          ) : (
+            <div className="leaderboardMyCompactCard muted">
+              <span>Моё место</span>
+              <strong>—</strong>
+              <p>Открой приложение через Telegram</p>
+            </div>
+          )}
         </section>
 
-        {topThree.length > 0 && (
-          <section className="leaderboardPodium">
-            {topThree.map((user, index) => (
-              <button className={`podiumCard podiumCard-${index + 1} ${getUserFrameClass(user)}`} key={user.id} onClick={() => openPublicProfile(user.id)}>
-                <span>{index === 0 ? "👑" : index === 1 ? "🥈" : "🥉"}</span>
-                <strong>{user.name}</strong>
-                <small>#{index + 1} · {user.balance.toLocaleString("ru-RU")} баллов</small>
-                {getUserActiveTitle(user) ? <em>{getUserActiveTitle(user)?.emoji} {getUserActiveTitle(user)?.name}</em> : null}
+        {topRows.length > 0 && (
+          <section className="leaderboardTopStripV2" aria-label="Топ-3 игроков">
+            {topRows.map((row) => (
+              <button className={`leaderboardTopMiniCard topMiniRank-${row.rank} ${getUserFrameClass(row.user)}`} key={row.user.id} onClick={() => openPublicProfile(row.user.id)}>
+                <span>{row.rank === 1 ? "👑" : row.rank === 2 ? "🥈" : "🥉"}</span>
+                <div>
+                  <strong>{row.user.name}</strong>
+                  <small>{row.user.balance.toLocaleString("ru-RU")} б.</small>
+                </div>
               </button>
             ))}
           </section>
         )}
 
-        <section className="leaderboardFullCard">
-          <div className="sectionHeader">
-            <div>
-              <h2>Все лидеры</h2>
-              <p>Нажми на игрока, чтобы открыть публичный профиль.</p>
+        {activeUserRow && activeUserRow.rank > 5 && nearbyRows.length > 0 && (
+          <section className="leaderboardNearbyCard">
+            <div className="leaderboardMiniHeader">
+              <div>
+                <h3>Рядом с тобой</h3>
+                <p>Ближайшие игроки вокруг твоего места.</p>
+              </div>
+              <span>#{activeUserRow.rank}</span>
             </div>
-            <span>{leaderboard.length}</span>
+            <div className="leaderboardNearbyList">
+              {nearbyRows.map((row) => renderCompactLeaderboardRow(row, "nearby"))}
+            </div>
+          </section>
+        )}
+
+        <section className="leaderboardListCardV2">
+          <div className="leaderboardMiniHeader">
+            <div>
+              <h3>Все игроки</h3>
+              <p>{leaderboardSearch ? `Найдено: ${filteredRows.length}` : `Показано ${filteredRows.length} из ${leaderboardRows.length}`}</p>
+            </div>
+            <span>{leaderboardRows.length}</span>
           </div>
 
-          <div className="leaderboardFullList">
-            {otherLeaders.map((user, index) => (
-              <button className={`leaderboardFullItem ${user.id === activeUser?.id ? "activeLeaderboardItem" : ""} ${getUserFrameClass(user)}`} key={user.id} onClick={() => openPublicProfile(user.id)}>
-                <b>#{index + 4}</b>
-                <div>
-                  <strong>{user.name}</strong>
-                  {getUserActiveTitle(user) ? <small>{getUserActiveTitle(user)?.emoji} {getUserActiveTitle(user)?.name}</small> : <small>{predictions.filter((prediction) => prediction.userId === user.id).length} прогнозов</small>}
-                </div>
-                <span>{user.balance.toLocaleString("ru-RU")} б.</span>
-              </button>
-            ))}
+          <div className="leaderboardTableHead">
+            <span>Место</span>
+            <span>Игрок</span>
+            <span>Баллы</span>
+          </div>
+
+          <div className="leaderboardCompactList">
+            {filteredRows.length === 0 ? (
+              <div className="leaderboardEmptyState">
+                <strong>Игрок не найден</strong>
+                <p>Попробуй изменить запрос или сбросить поиск.</p>
+                <button onClick={() => setLeaderboardSearch("")}>Сбросить поиск</button>
+              </div>
+            ) : (
+              filteredRows.map((row) => renderCompactLeaderboardRow(row))
+            )}
           </div>
         </section>
       </section>
