@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { CSSProperties, MouseEvent, TouchEvent } from "react";
 import "./App.css";
 
@@ -8119,43 +8120,46 @@ function App() {
         <div className="connectionPill">{isTelegram ? "Telegram Mini App" : "Браузерная версия"}</div>
       </section>
 
-      <nav className="bottomTabBar" aria-label="Нижняя навигация">
-        <button
-          className={mainView === "markets" && !selectedMarket ? "activeBottomTab" : ""}
-          onClick={() => navigateBottomTab("markets")}
-        >
-          <span>🏠</span>
-          <strong>Главная</strong>
-        </button>
-        <button
-          className={mainView === "search" && !selectedMarket ? "activeBottomTab" : ""}
-          onClick={() => navigateBottomTab("search")}
-        >
-          <span>🔍</span>
-          <strong>Поиск</strong>
-        </button>
-        <button
-          className={mainView === "predictions" && !selectedMarket ? "activeBottomTab" : ""}
-          onClick={() => navigateBottomTab("predictions")}
-        >
-          <span>🎯</span>
-          <strong>Мои</strong>
-        </button>
-        <button
-          className={mainView === "tournament" && !selectedMarket ? "activeBottomTab" : ""}
-          onClick={() => navigateBottomTab("tournament")}
-        >
-          <span>🏆</span>
-          <strong>Турнир</strong>
-        </button>
-        <button
-          className={mainView === "profile" && !selectedMarket ? "activeBottomTab" : ""}
-          onClick={() => navigateBottomTab("profile")}
-        >
-          <span>👤</span>
-          <strong>Профиль</strong>
-        </button>
-      </nav>
+      {createPortal(
+        <nav className="bottomTabBar bodyPortalBottomTabBar" aria-label="Нижняя навигация">
+          <button
+            className={mainView === "markets" && !selectedMarket ? "activeBottomTab" : ""}
+            onClick={() => navigateBottomTab("markets")}
+          >
+            <span>🏠</span>
+            <strong>Главная</strong>
+          </button>
+          <button
+            className={mainView === "search" && !selectedMarket ? "activeBottomTab" : ""}
+            onClick={() => navigateBottomTab("search")}
+          >
+            <span>🔍</span>
+            <strong>Поиск</strong>
+          </button>
+          <button
+            className={mainView === "predictions" && !selectedMarket ? "activeBottomTab" : ""}
+            onClick={() => navigateBottomTab("predictions")}
+          >
+            <span>🎯</span>
+            <strong>Мои</strong>
+          </button>
+          <button
+            className={mainView === "tournament" && !selectedMarket ? "activeBottomTab" : ""}
+            onClick={() => navigateBottomTab("tournament")}
+          >
+            <span>🏆</span>
+            <strong>Турнир</strong>
+          </button>
+          <button
+            className={mainView === "profile" && !selectedMarket ? "activeBottomTab" : ""}
+            onClick={() => navigateBottomTab("profile")}
+          >
+            <span>👤</span>
+            <strong>Профиль</strong>
+          </button>
+        </nav>,
+        document.body,
+      )}
 
       {isAdmin && (
         <button
