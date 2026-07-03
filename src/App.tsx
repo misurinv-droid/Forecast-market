@@ -8,7 +8,7 @@ type SuggestionStatus = "pending" | "approved" | "rejected";
 type SortMode = "newest" | "probability" | "trades" | "comments" | "closing";
 type DiscoveryPreset = "all" | "hot" | "forYou" | "unplayed" | "polymarket" | "soon" | "favorites";
 type DetailsTab = "overview" | "trades" | "participants" | "chat";
-type MainView = "markets" | "imported" | "search" | "predictions" | "tournament" | "suggest" | "admin" | "moderation" | "settlement" | "profile" | "publicProfile";
+type MainView = "markets" | "imported" | "search" | "predictions" | "tournament" | "leaderboard" | "suggest" | "admin" | "moderation" | "settlement" | "profile" | "publicProfile";
 type AppRouteSnapshot = { mainView: MainView; selectedMarketId: string | null; selectedPublicProfileUserId: string | null; scrollY: number };
 type SwipeRailMode = "pending" | "horizontal" | "vertical";
 type SwipeRailState = { rail: HTMLElement; startX: number; startY: number; scrollLeft: number; mode: SwipeRailMode; moved: boolean; nextLeft: number; rafId: number | null };
@@ -1137,6 +1137,7 @@ function App() {
   const [isTestingTelegramNotification, setIsTestingTelegramNotification] = useState(false);
   const [isSavingTelegramNotificationPrefs, setIsSavingTelegramNotificationPrefs] = useState(false);
   const [isRulesOpen, setIsRulesOpen] = useState(false);
+  const [hotMarketRotationTick, setHotMarketRotationTick] = useState(() => Math.floor(Date.now() / (15 * 60 * 1000)));
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(() => {
     try {
       return window.localStorage.getItem(ONBOARDING_STORAGE_KEY) !== "1";
@@ -2808,6 +2809,14 @@ function App() {
   }, [recentMarketSearches]);
 
   useEffect(() => {
+    const rotationTimer = window.setInterval(() => {
+      setHotMarketRotationTick(Math.floor(Date.now() / (15 * 60 * 1000)));
+    }, 60 * 1000);
+
+    return () => window.clearInterval(rotationTimer);
+  }, []);
+
+  useEffect(() => {
     const nextRoute: AppRouteSnapshot = { mainView, selectedMarketId, selectedPublicProfileUserId, scrollY: getAppScrollTop() };
     const previousRoute = lastRouteRef.current;
 
@@ -2930,6 +2939,11 @@ function App() {
       setTransactions(data.transactions || []);
       setMarketSuggestions(data.marketSuggestions || []);
       setReferrals(data.referrals || []);
+      setUserFollows(data.userFollows || []);
+      setDailyMissionClaims(data.dailyMissionClaims || []);
+      setWeeklyTournamentAwards(data.weeklyTournamentAwards || []);
+      setShopItems(data.shopItems || []);
+      setUserInventory(data.userInventory || []);
       setFavoriteMarketIdsByUser(data.favoriteMarketIdsByUser || {});
       setAdminUserIds(data.adminUserIds || []);
       setActiveUserId(nextActiveUserId);
@@ -4330,6 +4344,66 @@ function App() {
   }
 
 
+  function renderLeaderboardPage() {
+    const topThree = leaderboard.slice(0, 3);
+    const otherLeaders = leaderboard.slice(3, 50);
+    const activeUserRank = activeUser ? leaderboard.findIndex((user) => user.id === activeUser.id) + 1 : 0;
+
+    return (
+      <section className="leaderboardPage pageStack">
+        <section className="leaderboardHeroCard">
+          <div>
+            <p className="eyebrow">Рейтинг игроков</p>
+            <h2>Таблица лидеров</h2>
+            <p>Общий рейтинг по балансу игровых баллов. Турнир недели остаётся отдельным режимом во вкладке “Турнир”.</p>
+          </div>
+          <div className="leaderboardMeCard">
+            <span>Твоё место</span>
+            <strong>{activeUserRank ? `#${activeUserRank}` : "—"}</strong>
+            <p>{activeUser ? `${activeUser.balance.toLocaleString("ru-RU")} баллов` : "Открой через Telegram"}</p>
+          </div>
+        </section>
+
+        {topThree.length > 0 && (
+          <section className="leaderboardPodium">
+            {topThree.map((user, index) => (
+              <button className={`podiumCard podiumCard-${index + 1} ${getUserFrameClass(user)}`} key={user.id} onClick={() => openPublicProfile(user.id)}>
+                <span>{index === 0 ? "👑" : index === 1 ? "🥈" : "🥉"}</span>
+                <strong>{user.name}</strong>
+                <small>#{index + 1} · {user.balance.toLocaleString("ru-RU")} баллов</small>
+                {getUserActiveTitle(user) ? <em>{getUserActiveTitle(user)?.emoji} {getUserActiveTitle(user)?.name}</em> : null}
+              </button>
+            ))}
+          </section>
+        )}
+
+        <section className="leaderboardFullCard">
+          <div className="sectionHeader">
+            <div>
+              <h2>Все лидеры</h2>
+              <p>Нажми на игрока, чтобы открыть публичный профиль.</p>
+            </div>
+            <span>{leaderboard.length}</span>
+          </div>
+
+          <div className="leaderboardFullList">
+            {otherLeaders.map((user, index) => (
+              <button className={`leaderboardFullItem ${user.id === activeUser?.id ? "activeLeaderboardItem" : ""} ${getUserFrameClass(user)}`} key={user.id} onClick={() => openPublicProfile(user.id)}>
+                <b>#{index + 4}</b>
+                <div>
+                  <strong>{user.name}</strong>
+                  {getUserActiveTitle(user) ? <small>{getUserActiveTitle(user)?.emoji} {getUserActiveTitle(user)?.name}</small> : <small>{predictions.filter((prediction) => prediction.userId === user.id).length} прогнозов</small>}
+                </div>
+                <span>{user.balance.toLocaleString("ru-RU")} б.</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      </section>
+    );
+  }
+
+
   function renderTournamentPage() {
     const topThree = weeklyStandings.slice(0, 3);
     const remainingRows = weeklyStandings.slice(3, 20);
@@ -5404,84 +5478,34 @@ function App() {
   }
 
   function renderHomePage() {
-    const topLeaderboard = leaderboard.slice(0, isTelegram ? 3 : 5);
-    const quickPredictions = activeUserOpenPredictions.slice(0, 3);
-    const hotMarkets = popularMarkets.length > 0 ? popularMarkets.slice(0, 4) : feedMarkets.filter((market) => market.status === "open").slice(0, 4);
-    const playNowMarkets = forYouMarkets.length > 0 ? forYouMarkets : recommendedMarkets;
-    const heroMarket = hotMarkets[0];
-    const waitingMyPredictionsCount = activeUserPredictions.filter((prediction) => {
-      const market = markets.find((item) => item.id === prediction.marketId);
-      return !prediction.settledAt && market?.status === "closed";
-    }).length;
-    const todayGameSummary = [
-      {
-        icon: "🔥",
-        label: "Горячие",
-        value: hotMarkets.length,
-        text: "рынков в игре",
-        action: () => setMainView("search"),
-        tone: "hot",
-      },
-      {
-        icon: "⏳",
-        label: "Скоро закроются",
-        value: soonClosingMarkets.length,
-        text: "успей выбрать исход",
-        action: () => {
-          setStatusFilter("open");
-          setSortMode("newest");
-          setMainView("search");
-        },
-        tone: "soon",
-      },
-      {
-        icon: "🎯",
-        label: "Ждут результата",
-        value: waitingMyPredictionsCount,
-        text: "твоих прогнозов",
-        action: () => setMainView("predictions"),
-        tone: "target",
-      },
-      {
-        icon: dailyBonusInfo.canClaim ? "🎁" : "⏱️",
-        label: "Бонус",
-        value: dailyBonusInfo.canClaim ? `+${activeDailyBonusAmount.toLocaleString("ru-RU")}` : "24ч",
-        text: dailyBonusInfo.canClaim ? "можно забрать" : `через ${formatBonusCountdown(dailyBonusInfo.remainingMs)}`,
-        action: () => {
-          if (dailyBonusInfo.canClaim) void claimDailyBonus();
-          else setMainView("profile");
-        },
-        tone: dailyBonusInfo.canClaim ? "bonus" : "calm",
-      },
-    ];
+    const openFeedMarkets = feedMarkets.filter((market) => market.status === "open");
+    const hotMarkets = (popularMarkets.length > 0 ? popularMarkets : openFeedMarkets).slice(0, 12);
+    const heroMarket = hotMarkets.length > 0
+      ? hotMarkets[hotMarketRotationTick % hotMarkets.length]
+      : openFeedMarkets[0] || markets[0] || null;
+    const heroMarketIndex = heroMarket && hotMarkets.length > 0 ? hotMarkets.findIndex((market) => market.id === heroMarket.id) + 1 : 0;
+    const topLeaders = leaderboard.slice(0, 3);
+    const cleanNewMarkets = newOpenMarkets.slice(0, 8);
+    const cleanSoonMarkets = soonClosingMarkets.slice(0, 8);
+    const cleanHotMarkets = hotMarkets.filter((market) => market.id !== heroMarket?.id).slice(0, 8);
 
     return (
-      <section className="discoveryPage gameHomePage">
-        {isAdmin && (
-          <section className="adminHomeShortcut">
-            <div>
-              <strong>Админ-центр</strong>
-              <span>{pendingSuggestions.length} заявок · {closedMarketsCount} рынков ждут расчёта · {importedOpenCount} импортированных открыто</span>
-            </div>
-            <button onClick={() => setMainView("admin")}>Открыть админку</button>
-          </section>
-        )}
-
-        <section className="gameHomeHero">
-          <div className="gameHomeHeroText">
-            <span className="playBadge">🎮 Главный сценарий</span>
-            <h2>Выбери событие и сделай прогноз</h2>
-            <p>На первом экране только самое важное: горячий рынок, быстрые действия и понятный путь к прогнозу.</p>
-            <div className="gameHomeActions">
-              <button onClick={() => setMainView("search")}>Выбрать рынок</button>
-              <button className="secondaryButton" onClick={() => setMainView("predictions")}>Мои прогнозы</button>
+      <section className="gameHomePage cleanHomePage">
+        <section className="cleanHotMarketHero">
+          <div className="cleanHotMarketIntro">
+            <p className="eyebrow">Главное сейчас</p>
+            <h2>Выбери рынок и сделай прогноз</h2>
+            <p>На главной теперь только рынки и быстрый путь к действию. Всё остальное — в профиле, турнирах и уведомлениях.</p>
+            <div className="cleanHomeActions">
+              <button onClick={() => setMainView("search")}>Открыть рынки</button>
+              <button className="secondaryButton" onClick={() => setMainView("leaderboard")}>Рейтинг</button>
             </div>
           </div>
 
           {heroMarket ? (
-            <article className="heroPlayCard">
+            <article className="cleanHeroMarketCard">
               <div className="heroPlayTop">
-                <span>🔥 Горячий рынок</span>
+                <span>🔥 Горячий рынок {heroMarketIndex > 0 ? `${heroMarketIndex}/${hotMarkets.length}` : ""}</span>
                 <b>{getYesProbability(heroMarket)}% Да</b>
               </div>
               <button onClick={() => openMarketDetails(heroMarket.id)}>{heroMarket.question}</button>
@@ -5492,198 +5516,67 @@ function App() {
               </div>
             </article>
           ) : (
-            renderDailyBonusCard("home")
+            <article className="cleanHeroMarketCard cleanHeroMarketCard-empty">
+              <div>
+                <strong>Рынков пока нет</strong>
+                <p>Когда появятся события, здесь будет главный рынок дня.</p>
+              </div>
+            </article>
           )}
         </section>
 
-        <section className="todayInGameCard">
-          <div className="todayInGameHeader">
+        <section className="cleanHomeLeaderboardTeaser">
+          <button onClick={() => setMainView("leaderboard")}>
+            <span>🏆</span>
             <div>
-              <span className="todayEyebrow">Сегодня в игре</span>
-              <h2>Что важно прямо сейчас</h2>
-              <p>Короткий обзор без лишнего шума: рынки, прогнозы, бонус и дедлайны.</p>
+              <strong>Рейтинг игроков</strong>
+              <small>{topLeaders[0] ? `Лидер: ${topLeaders[0].name} · ${topLeaders[0].balance.toLocaleString("ru-RU")} б.` : "Открыть таблицу лидеров"}</small>
             </div>
-            <button onClick={() => setMainView("search")}>Открыть все рынки</button>
-          </div>
-
-          <div className="todayInGameGrid">
-            {todayGameSummary.map((item) => (
-              <button className={`todayInGameItem todayInGameItem-${item.tone}`} key={item.label} onClick={item.action}>
-                <span className="todayIcon">{item.icon}</span>
-                <span className="todayLabel">{item.label}</span>
-                <strong>{item.value}</strong>
-                <small>{item.text}</small>
-              </button>
-            ))}
-          </div>
+          </button>
+          {topLeaders.map((user, index) => (
+            <button className={`cleanLeaderMini ${getUserFrameClass(user)}`} key={user.id} onClick={() => openPublicProfile(user.id)}>
+              <b>#{index + 1}</b>
+              <span>{user.name}</span>
+            </button>
+          ))}
         </section>
 
-        <section className="homePrimaryActionStrip" aria-label="Быстрые действия">
-          <button className="homePrimaryActionCard homePrimaryActionCard-main" onClick={() => setMainView("search")}>
-            <span>🎯</span>
-            <strong>Сделать прогноз</strong>
-            <small>Открыть рынки</small>
-          </button>
-          <button className="homePrimaryActionCard" onClick={() => setMainView("predictions")}>
-            <span>📌</span>
-            <strong>{activeUserOpenPredictions.length}</strong>
-            <small>активных прогнозов</small>
-          </button>
-          <button className="homePrimaryActionCard" onClick={() => {
-            if (dailyBonusInfo.canClaim) void claimDailyBonus();
-            else setMainView("profile");
-          }}>
-            <span>{dailyBonusInfo.canClaim ? "🎁" : "⏱️"}</span>
-            <strong>{dailyBonusInfo.canClaim ? `+${activeDailyBonusAmount.toLocaleString("ru-RU")}` : formatBonusCountdown(dailyBonusInfo.remainingMs)}</strong>
-            <small>{dailyBonusInfo.canClaim ? "забрать бонус" : "до бонуса"}</small>
-          </button>
-          <button className="homePrimaryActionCard" onClick={() => {
-            setProfileTab("social");
-            setMainView("profile");
-          }}>
-            <span>👥</span>
-            <strong>{followingActivityItems.length}</strong>
-            <small>событий подписок</small>
-          </button>
-        </section>
-
-        {renderQuickStartCard()}
-
-        {renderDailyMissionsCard("home")}
-        {renderFollowingActivityFeed("home")}
-
-        {renderInterestPicker("home")}
-
-        <section className="gameQuickGrid">
-          {renderDailyBonusCard("home")}
-
-          <div className="quickPanel quickPanelPredictions">
-            <div className="sectionHeader">
-              <h2>Мои прогнозы</h2>
-              <button onClick={() => setMainView("predictions")}>Все</button>
-            </div>
-            {quickPredictions.length === 0 ? (
-              <div className="miniEmptyState">
-                <strong>Активных прогнозов нет</strong>
-                <p>Выбери рынок и сделай первый прогноз за игровые баллы.</p>
-              </div>
-            ) : (
-              <div className="quickPredictionStack">
-                {quickPredictions.map((prediction) => renderPredictionCard(prediction))}
-              </div>
-            )}
-          </div>
-
-          <div className="quickPanel quickPanelLeaderboard">
-            <div className="sectionHeader">
-              <h2>Лидеры</h2>
-              <button onClick={() => setMainView("profile")}>Профиль</button>
-            </div>
-            <div className="leaderboardList compactLeaderboardList">
-              {topLeaderboard.map((user, index) => (
-                <button className={`leaderboardItem clickableUserCard ${user.id === activeUser?.id ? "activeLeaderboardItem" : ""} ${getUserFrameClass(user)}`} key={user.id} onClick={() => openPublicProfile(user.id)}>
-                  <div className="place">#{index + 1}</div>
-                  <div><strong>{user.name}</strong>{getUserActiveTitle(user) ? <span className="leaderboardTitle">{getUserActiveTitle(user)?.emoji} {getUserActiveTitle(user)?.name}</span> : null}<p>{user.balance.toLocaleString("ru-RU")} баллов</p></div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="quickPanel quickPanelTournament">
-            <div className="sectionHeader">
-              <h2>Турнир недели</h2>
-              <button onClick={() => setMainView("tournament")}>Открыть</button>
-            </div>
-            {activeUserWeeklyStanding ? (
-              <div className="weeklyMiniCard">
-                <strong>Ты #{activeUserWeeklyRank || "—"}</strong>
-                <p>{activeUserWeeklyStanding.score >= 0 ? "+" : ""}{activeUserWeeklyStanding.score.toLocaleString("ru-RU")} баллов за неделю</p>
-                <span>{formatShortDate(currentWeekStart)} — {formatShortDate(currentWeekEnd)}</span>
-              </div>
-            ) : (
-              <div className="miniEmptyState"><strong>Турнир ждёт тебя</strong><p>Сделай прогноз и появись в недельном топе.</p></div>
-            )}
-          </div>
-        </section>
-
-        <section className="marketDashboardStrip redesignedDashboardStrip gameStatsStrip">
-          <div><span>Открыто</span><strong>{openMarketsCount}</strong></div>
-          <div><span>Ждут расчёта</span><strong>{closedMarketsCount}</strong></div>
-          <div><span>Событий</span><strong>{markets.length}</strong></div>
-          <div><span>Мои прогнозы</span><strong>{activeUserPredictions.length}</strong></div>
-          <button onClick={() => setMainView("suggest")}>Предложить рынок</button>
-        </section>
-
-        <section className="gameFeedStack">
+        <section className="cleanHomeFeed">
           {renderGameShelf(
             "Горячие рынки",
-            "Свайпай карточки, выбирай событие и делай прогноз прямо из ленты",
+            "Самые активные события прямо сейчас",
             "🔥",
-            hotMarkets,
+            cleanHotMarkets.length > 0 ? cleanHotMarkets : hotMarkets,
             "Все рынки",
             () => setMainView("search"),
             "hot",
           )}
 
           {renderGameShelf(
-            "Для тебя",
-            selectedInterestCategories.length > 0 ? "События по твоим интересам, где ещё нет прогноза" : "События, где у тебя ещё нет прогноза",
-            "🎯",
-            playNowMarkets,
-            "Подобрать ещё",
-            () => setMainView("search"),
-            "forYou",
-          )}
-
-          {renderGameShelf(
-            "Закрываются скоро",
-            "Успей сделать прогноз до остановки рынка",
-            "⏳",
-            soonClosingMarkets,
-            "Смотреть",
+            "Новые рынки",
+            "Свежие события без лишних блоков",
+            "✨",
+            cleanNewMarkets,
+            "Все новые",
             () => {
-              setStatusFilter("open");
               setSortMode("newest");
               setMainView("search");
             },
-            "soon",
-          )}
-
-          {renderGameShelf(
-            "Polymarket для фана",
-            "Импортированные события без реальных денег",
-            "🌍",
-            polymarketPicks,
-            "Открыть Polymarket",
-            () => setMainView("imported"),
-            "poly",
-          )}
-
-          {renderGameShelf(
-            "Новые рынки",
-            "Свежие события, которые только появились",
-            "✨",
-            newOpenMarkets,
-            "Все новые",
-            () => setMainView("search"),
             "new",
           )}
-        </section>
 
-        <section className="categoryHubSection gameCategoryHubSection">
-          <div className="sectionHeader discoverySectionHeader">
-            <div>
-              <h2>Все категории</h2>
-              <p>Когда хочешь выбрать тему сам: политика, спорт, технологии, крипта и другое.</p>
-            </div>
-            <button onClick={() => setMainView("search")}>Поиск по всем</button>
-          </div>
-          {categoryHubs.length === 0 ? (
-            <div className="empty">Категорий пока нет.</div>
-          ) : (
-            <div className="categoryHubGrid">
-              {categoryHubs.map((group, index) => renderCategoryHub(group, index))}
-            </div>
+          {renderGameShelf(
+            "Скоро закрываются",
+            "Успей сделать прогноз до дедлайна",
+            "⏳",
+            cleanSoonMarkets,
+            "Смотреть",
+            () => {
+              setStatusFilter("open");
+              setSortMode("closing");
+              setMainView("search");
+            },
+            "soon",
           )}
         </section>
       </section>
@@ -8058,6 +7951,15 @@ function App() {
   const canShowBackButton = Boolean(celebration) || Boolean(predictionConfirmation) || isActivityOpen || isRulesOpen || Boolean(selectedMarketId) || Boolean(selectedPublicProfileUserId);
   const canShowFloatingBackButton = canShowBackButton && !isTelegram;
 
+  // Эти элементы остались как заготовки/вспомогательная логика после очистки главной.
+  // Сохраняем их без рендера на главной, чтобы не ломать следующие этапы переработки.
+  void recommendedMarkets;
+  void polymarketPicks;
+  void categoryHubs;
+  void openMarketsCount;
+  void renderCategoryHub;
+  void renderQuickStartCard;
+
   if (isLoading) {
     return renderStartupLoadingScreen();
   }
@@ -8115,31 +8017,25 @@ function App() {
         </section>
       )}
 
-      <section className="brandHeader" aria-label="Forecast Market">
-        <div className="brandHeroShell">
+      <section className="brandHeader cleanBrandHeader" aria-label="Forecast Market">
+        <button className="cleanBrandLogoButton" onClick={() => navigateBottomTab("markets")} aria-label="На главную">
           <img
             src="/forecast-market-logo-cropped.png"
             alt="Forecast Market"
             className="brandHeroLogo"
           />
-          <div className="brandHeroText">
-            <span>Социальная биржа прогнозов</span>
-            <strong>Прогнозируй события, набирай баллы и поднимайся в рейтинге</strong>
-          </div>
-        </div>
-        <div className="brandHeaderProfileCard">
-          <div>
-            <span>{activeUser?.name || "Режим просмотра"}</span>
-            <strong>{(activeUser?.balance || 0).toLocaleString("ru-RU")} баллов</strong>
-            <p>{activeUser ? `${isAdmin ? "Администратор" : "Участник"} · ${activeUserStats.predictionsCount} прогнозов · Winrate ${activeUserStats.winRate}%` : "Открой через Telegram, чтобы делать прогнозы"}</p>
-          </div>
-          <div className="brandHeaderActions">
-            <button className="activityHeaderButton" onClick={() => setIsActivityOpen(true)}>
-              События {activityBadgeCount > 0 && <span>{activityBadgeCount}</span>}
-            </button>
-            <button onClick={() => setMainView("profile")}>Профиль</button>
-            <button className="secondaryButton" onClick={() => setIsRulesOpen(true)}>Правила</button>
-          </div>
+          <span>Социальная биржа прогнозов</span>
+        </button>
+
+        <div className="cleanBrandActions">
+          <button className="cleanIconButton cleanActivityButton" onClick={() => setIsActivityOpen(true)} aria-label="События">
+            🔔
+            {activityBadgeCount > 0 && <span>{activityBadgeCount}</span>}
+          </button>
+          <button className="cleanIconButton" onClick={() => setMainView("leaderboard")} aria-label="Рейтинг игроков">🏆</button>
+          <button className="cleanProfileButton" onClick={() => setMainView("profile")} aria-label="Профиль">
+            <span>{activeUser?.name?.slice(0, 1).toUpperCase() || "👤"}</span>
+          </button>
         </div>
       </section>
 
@@ -8194,6 +8090,16 @@ function App() {
             }}
           >
             Турнир
+          </button>
+          <button
+            className={mainView === "leaderboard" && !selectedMarket ? "activeProductNav" : ""}
+            onClick={() => {
+              setSelectedMarketId(null);
+              setSelectedPublicProfileUserId(null);
+              setMainView("leaderboard");
+            }}
+          >
+            Лидеры
           </button>
           <button
             className={mainView === "suggest" && !selectedMarket ? "activeProductNav" : ""}
@@ -8319,6 +8225,8 @@ function App() {
         renderMyPredictionsPage()
       ) : mainView === "tournament" && !selectedMarket ? (
         renderTournamentPage()
+      ) : mainView === "leaderboard" && !selectedMarket ? (
+        renderLeaderboardPage()
       ) : mainView === "suggest" && !selectedMarket ? (
         renderSuggestionPage()
       ) : mainView === "admin" && !selectedMarket ? (
