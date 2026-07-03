@@ -3050,12 +3050,6 @@ function App() {
       return;
     }
 
-    const alreadyHasPrediction = activeUserPredictions.some((prediction) => prediction.marketId === market.id && !prediction.settledAt);
-    if (alreadyHasPrediction) {
-      alert("Ты уже участвуешь в этом рынке. Открой карточку, чтобы посмотреть свою позицию.");
-      return;
-    }
-
     const stakeAmount = parseStakeAmount(amountByMarket[market.id] ?? "500");
 
     if (stakeAmount <= 0) {
@@ -3937,11 +3931,21 @@ function App() {
 
   function renderDetailTradeBox(market: Market) {
     const userPrediction = selectedMarketUserPrediction;
+    const userMarketPredictions = activeUser
+      ? activeUserPredictions.filter((prediction) => prediction.marketId === market.id && !prediction.settledAt)
+      : [];
+    const userMarketTotalAmount = userMarketPredictions.reduce((total, prediction) => total + prediction.amount, 0);
+    const userMarketYesAmount = userMarketPredictions
+      .filter((prediction) => prediction.outcome === "yes")
+      .reduce((total, prediction) => total + prediction.amount, 0);
+    const userMarketNoAmount = userMarketPredictions
+      .filter((prediction) => prediction.outcome === "no")
+      .reduce((total, prediction) => total + prediction.amount, 0);
     const stakeValue = getStakeInputValue(amountByMarket[market.id]);
     const stakeAmount = parseStakeAmount(stakeValue);
     const isTradable = isMarketTradable(market);
 
-    if (userPrediction) {
+    if (userPrediction && !isTradable) {
       const currentProbability = userPrediction.outcome === "yes" ? getYesProbability(market) : 100 - getYesProbability(market);
       const probabilityDiff = currentProbability - userPrediction.probabilityAtPurchase;
       const estimatedPayout = estimatePredictionPayout(market, userPrediction);
@@ -4027,7 +4031,7 @@ function App() {
         <div className="detailTradeHeader">
           <div>
             <p className="eyebrow">Прогноз</p>
-            <h3>{isTradable ? "Сделать прогноз" : "Прогнозы закрыты"}</h3>
+            <h3>{isTradable ? userMarketPredictions.length > 0 ? "Добавить прогноз" : "Сделать прогноз" : "Прогнозы закрыты"}</h3>
           </div>
           <span>{getYesProbability(market)}% Да</span>
         </div>
@@ -4040,6 +4044,19 @@ function App() {
           <div className="resolvedBox">
             Рынок рассчитан как <b>{getOutcomeText(market.resolvedOutcome)}</b>
             {market.resolvedAt ? ` · ${market.resolvedAt}` : ""}
+          </div>
+        )}
+
+        {isTradable && userMarketPredictions.length > 0 && (
+          <div className="multiplePredictionsNotice">
+            <div>
+              <span>Твои прогнозы в этом рынке</span>
+              <strong>{userMarketPredictions.length} шт. · {userMarketTotalAmount.toLocaleString("ru-RU")} б.</strong>
+            </div>
+            <div className="multiplePredictionsSplit">
+              <b>Да: {userMarketYesAmount.toLocaleString("ru-RU")}</b>
+              <b>Нет: {userMarketNoAmount.toLocaleString("ru-RU")}</b>
+            </div>
           </div>
         )}
 
@@ -4757,7 +4774,7 @@ function App() {
           </button>
         </div>
 
-        {activePrediction ? (
+        {activePrediction && !isTradable ? (
           <div className="quickBetAccepted">
             <span>Ты выбрал {getOutcomeText(activePrediction.outcome)}</span>
             <strong>{activePrediction.amount.toLocaleString("ru-RU")} б.</strong>
