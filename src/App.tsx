@@ -8016,7 +8016,7 @@ function App() {
             🔔
             {activityBadgeCount > 0 && <span>{activityBadgeCount}</span>}
           </button>
-          <button className="cleanIconButton" onClick={() => setMainView("leaderboard")} aria-label="Рейтинг игроков">🏆</button>
+          <button className="cleanIconButton" onClick={() => setMainView("leaderboard")} aria-label="Рейтинг игроков">📊</button>
           {isAdmin && (
             <button className="cleanIconButton cleanAdminButton" onClick={() => navigateBottomTab("admin")} aria-label="Админка">
               ⚙️

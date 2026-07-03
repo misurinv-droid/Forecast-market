@@ -18764,3 +18764,244 @@ body.is-telegram-webapp .mobileAdminFab {
     font-size: 0.86rem !important;
   }
 }
+
+
+/* Home Rebuild v6 — prettier long titles, no mysterious favorite button, animated CTA */
+
+/* Remove the small "Главное сейчас" eyebrow from the hero. */
+.cleanHotMarketIntro > .eyebrow {
+  display: none !important;
+}
+
+/* Make the main CTA attract attention without being noisy. */
+.cleanHomeActions .cleanPrimaryAction {
+  position: relative !important;
+  isolation: isolate !important;
+  overflow: hidden !important;
+  animation: openMarketsPulse 2.15s ease-in-out infinite !important;
+}
+
+.cleanHomeActions .cleanPrimaryAction::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: -40% !important;
+  z-index: -1 !important;
+  background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.46) 50%, transparent 65%) !important;
+  transform: translateX(-58%) rotate(8deg) !important;
+  animation: openMarketsShine 2.4s ease-in-out infinite !important;
+}
+
+.cleanHomeActions .cleanPrimaryAction::after {
+  content: "→" !important;
+  display: inline-block !important;
+  margin-left: 8px !important;
+  animation: openMarketsArrow 1.2s ease-in-out infinite !important;
+}
+
+@keyframes openMarketsPulse {
+  0%, 100% {
+    transform: translateY(0);
+    box-shadow: 0 16px 36px rgba(37, 99, 235, 0.22);
+  }
+  50% {
+    transform: translateY(-1px);
+    box-shadow: 0 20px 44px rgba(37, 99, 235, 0.32);
+  }
+}
+
+@keyframes openMarketsShine {
+  0% { transform: translateX(-62%) rotate(8deg); }
+  55%, 100% { transform: translateX(62%) rotate(8deg); }
+}
+
+@keyframes openMarketsArrow {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(4px); }
+}
+
+/* Home market card v2:
+   - No bottom star/favorite button in the home feed.
+   - Title gets three clean lines and never leaks under the card edge.
+   - Odds are compact and vertically balanced.
+ */
+.cleanHomeFeed .marketMiniRow {
+  grid-template-columns: minmax(0, 1fr) 104px !important;
+  min-height: 156px !important;
+  max-height: 156px !important;
+  padding: 12px !important;
+  gap: 10px !important;
+  overflow: hidden !important;
+  border-radius: 22px !important;
+}
+
+.cleanHomeFeed .marketMiniMain {
+  display: grid !important;
+  grid-template-rows: auto 66px auto 8px !important;
+  align-content: start !important;
+  gap: 0 !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+.cleanHomeFeed .marketMiniTop {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 5px !important;
+  min-height: 24px !important;
+  max-height: 50px !important;
+  overflow: hidden !important;
+}
+
+.cleanHomeFeed .miniCategory,
+.cleanHomeFeed .miniSource,
+.cleanHomeFeed .miniStatus,
+.cleanHomeFeed .miniMine {
+  max-width: 112px !important;
+  padding: 3px 7px !important;
+  overflow: hidden !important;
+  border-radius: 999px !important;
+  font-size: 0.62rem !important;
+  line-height: 1.05 !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.cleanHomeFeed .marketMiniMain strong {
+  display: -webkit-box !important;
+  min-height: 66px !important;
+  max-height: 66px !important;
+  margin: 7px 0 5px !important;
+  overflow: hidden !important;
+  color: #0f172a !important;
+  font-size: 0.82rem !important;
+  line-height: 1.22 !important;
+  letter-spacing: -0.015em !important;
+  text-overflow: ellipsis !important;
+  word-break: normal !important;
+  overflow-wrap: anywhere !important;
+  -webkit-box-orient: vertical !important;
+  -webkit-line-clamp: 3 !important;
+}
+
+.cleanHomeFeed .miniMetaLine {
+  display: flex !important;
+  gap: 7px !important;
+  min-height: 17px !important;
+  max-height: 17px !important;
+  margin: 0 0 6px !important;
+  overflow: hidden !important;
+  color: #64748b !important;
+  font-size: 0.63rem !important;
+  line-height: 1.1 !important;
+  white-space: nowrap !important;
+}
+
+.cleanHomeFeed .miniMetaLine span {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.cleanHomeFeed .miniMetaLine span:nth-child(n+3) {
+  display: none !important;
+}
+
+.cleanHomeFeed .marketSignal {
+  align-self: end !important;
+  height: 8px !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+}
+
+.cleanHomeFeed .signalBar {
+  height: 7px !important;
+}
+
+/* Remove the unknown-looking star button from the home cards. Favorites still work inside full market screens/search. */
+.cleanHomeFeed .marketMiniOdds .miniFavorite {
+  display: none !important;
+}
+
+.cleanHomeFeed .marketMiniOdds {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  grid-template-rows: 1fr 1fr !important;
+  gap: 8px !important;
+  align-self: stretch !important;
+  min-height: 0 !important;
+}
+
+.cleanHomeFeed .marketMiniOdds button:not(.miniFavorite) {
+  display: grid !important;
+  align-content: center !important;
+  justify-items: center !important;
+  min-height: 0 !important;
+  padding: 7px 4px !important;
+  border-radius: 16px !important;
+}
+
+.cleanHomeFeed .marketMiniOdds button span {
+  margin: 0 0 4px !important;
+  color: #64748b !important;
+  font-size: 0.62rem !important;
+  line-height: 1 !important;
+  font-weight: 900 !important;
+}
+
+.cleanHomeFeed .marketMiniOdds b {
+  font-size: 0.96rem !important;
+  line-height: 1 !important;
+}
+
+/* Slightly wider home cards so three-line questions look intentional. */
+.cleanHomeFeed .marketMiniRow {
+  flex-basis: clamp(340px, 80vw, 440px) !important;
+  width: clamp(340px, 80vw, 440px) !important;
+  min-width: clamp(340px, 80vw, 440px) !important;
+  max-width: clamp(340px, 80vw, 440px) !important;
+}
+
+@media (max-width: 560px) {
+  .cleanHomeFeed .marketMiniRow {
+    grid-template-columns: minmax(0, 1fr) 92px !important;
+    min-height: 146px !important;
+    max-height: 146px !important;
+    flex-basis: min(88vw, 360px) !important;
+    width: min(88vw, 360px) !important;
+    min-width: min(88vw, 360px) !important;
+    max-width: min(88vw, 360px) !important;
+    padding: 10px !important;
+  }
+
+  .cleanHomeFeed .marketMiniMain {
+    grid-template-rows: auto 60px auto 8px !important;
+  }
+
+  .cleanHomeFeed .marketMiniMain strong {
+    min-height: 60px !important;
+    max-height: 60px !important;
+    font-size: 0.74rem !important;
+    line-height: 1.24 !important;
+  }
+
+  .cleanHomeFeed .miniCategory,
+  .cleanHomeFeed .miniSource,
+  .cleanHomeFeed .miniStatus,
+  .cleanHomeFeed .miniMine {
+    max-width: 86px !important;
+    font-size: 0.55rem !important;
+  }
+
+  .cleanHomeFeed .marketMiniOdds b {
+    font-size: 0.82rem !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cleanHomeActions .cleanPrimaryAction,
+  .cleanHomeActions .cleanPrimaryAction::before,
+  .cleanHomeActions .cleanPrimaryAction::after {
+    animation: none !important;
+  }
+}
